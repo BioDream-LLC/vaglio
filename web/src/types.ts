@@ -506,3 +506,18 @@ export interface Letter {
   quoted?: string
   receipt?: string
 }
+
+/** A version of a policy that has been in force, kept by the server. */
+export interface PolicyVersion {
+  policy: string
+  version: string
+  title: string
+  sha256: string
+  since: string
+}
+
+/** A case decided again by another version, beside the decision it was given. */
+export interface ReplayedCase {
+  was: DecideResult
+  now: DecideResult
+}

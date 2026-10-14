@@ -1,5 +1,6 @@
 import { IconPolicies } from './Icons'
 import { PolicyMap } from './PolicyMap'
+import { TimeMachine } from './TimeMachine'
 import { useState, type FormEvent } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { errorText, Result, when } from './common'
@@ -203,6 +204,7 @@ export function PolicyView({ id, me }: { id: string; me: Me }) {
       )}
       <PolicyMap id={id} />
       {me.editing && can(me, 'admin', 'author') && <EditAsDraft id={id} />}
+      {me.role !== 'viewer' && <TimeMachine id={id} />}
       {source && me.role !== 'viewer' && <Replay source={source} />}
     </section>
   )

@@ -23,6 +23,8 @@ import type {
   PolicySummary,
   ReplayReport,
   ReceiptCheck,
+  PolicyVersion,
+  ReplayedCase,
   Letter,
   PolicyDetail,
   DecisionMap,
@@ -70,6 +72,19 @@ export const api = createApi({
     letter: b.query<Letter, { id: string; lang: string }>({
       query: ({ id, lang }) => `cases/${encodeURIComponent(id)}/letter?lang=${lang}`,
       providesTags: ['Case'],
+    }),
+    policyVersions: b.query<PolicyVersion[], string>({
+      query: (id) => `policies/${encodeURIComponent(id)}/versions`,
+      providesTags: ['Policy'],
+    }),
+    policyVersionSource: b.query<string, { id: string; sha: string }>({
+      query: ({ id, sha }) => ({
+        url: `policies/${encodeURIComponent(id)}/versions/${sha}`,
+        responseHandler: 'text',
+      }),
+    }),
+    replayCase: b.mutation<ReplayedCase, { source: string; case: string }>({
+      query: (body) => ({ url: 'replay/case', method: 'POST', body }),
     }),
     receipt: b.query<ReceiptCheck, string>({ query: (code) => `receipts/${encodeURIComponent(code)}` }),
     policies: b.query<PolicySummary[], void>({ query: () => 'policies', providesTags: ['Policy'] }),
@@ -184,6 +199,9 @@ function period(p: Period): string {
 export const {
   useMeQuery,
   useReceiptQuery,
+  usePolicyVersionsQuery,
+  usePolicyVersionSourceQuery,
+  useReplayCaseMutation,
   useLetterQuery,
   usePolicyDetailQuery,
   usePolicyMapQuery,

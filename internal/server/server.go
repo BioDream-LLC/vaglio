@@ -35,6 +35,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/reader"
+	"github.com/biodream-llc/vaglio/internal/versions"
 )
 
 // maxBody bounds a console request. Requests carry citations, not documents.
@@ -79,6 +80,9 @@ type Config struct {
 	// AppealsToken, when set, turns on /api/feeds/appeals for the payer's appeals system, which must send it as a bearer
 	// token.
 	AppealsToken string
+	// Versions, when set, keeps every policy version put in force (at start and at sign-off), for the replay time
+	// machine.
+	Versions *versions.Store
 
 	set          *policySet
 	edit         *sync.Mutex
@@ -91,6 +95,13 @@ func New(cfg Config) http.Handler {
 		panic("server: Sessions, Audit and Cases are required")
 	}
 	cfg.set, cfg.edit, cfg.receiptLimit = newPolicySet(cfg.Policies), &sync.Mutex{}, newLimiter(30)
+	if cfg.Versions != nil {
+		for _, p := range cfg.Policies {
+			if _, err := cfg.Versions.Keep(p); err != nil {
+				panic("server: keeping policy versions: " + err.Error())
+			}
+		}
+	}
 	cfg.Policies = nil // read through cfg.set from here on, so a signed-off policy is seen everywhere
 	if cfg.GoldCard != nil {
 		// Counting switches made in the console, in order: the last one per program stands. One for a program no longer
@@ -144,6 +155,9 @@ func New(cfg Config) http.Handler {
 	route("GET /api/goldcard", auth.Viewer, cfg.goldCard)
 	route("PUT /api/goldcard/programs/{name}/count", auth.Admin, cfg.goldCardCounting)
 	route("POST /api/replay", auth.Reviewer, cfg.replay)
+	route("POST /api/replay/case", auth.Reviewer, cfg.replayCase)
+	route("GET /api/policies/{id}/versions", auth.Viewer, cfg.policyVersions)
+	route("GET /api/policies/{id}/versions/{sha}", auth.Viewer, cfg.policyVersion)
 	scoped("GET /api/audit", auth.Admin, auth.ScopeAudit, cfg.listAudit)
 	scoped("GET /api/audit/verify", auth.Admin, auth.ScopeAudit, cfg.verifyAudit)
 	route("POST /api/policies/check", auth.Viewer, cfg.checkSourceHandler)

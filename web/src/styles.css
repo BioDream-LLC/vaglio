@@ -984,6 +984,96 @@ textarea.source-code {
     background: #fff;
   }
 }
+
+/* ── Time machine ─────────────────────────────────────────────── */
+.tm-track {
+  margin: 0.75rem 0 1rem;
+  padding: 1rem 1.2rem 0.6rem;
+  border-radius: 1rem;
+  background: var(--raised);
+  border: 1px solid var(--line);
+}
+.tm-track input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.tm-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tm-ticks button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0;
+  padding: 0.2rem 0.4rem;
+  color: var(--muted);
+  background: none;
+  box-shadow: none;
+}
+.tm-ticks li.on button {
+  color: var(--accent);
+}
+.tm-ver {
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+.tm-since {
+  font-size: 0.7rem;
+}
+.tm-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+}
+.tm-big {
+  font-size: 2.2rem;
+  font-weight: 800;
+  line-height: 1;
+  background: linear-gradient(135deg, #a78bfa, #e879f9);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.tm-chip {
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  font-size: 0.85rem;
+}
+button.tm-row {
+  display: grid;
+  grid-template-columns: 11rem 9rem 1fr;
+  gap: 1rem;
+  align-items: center;
+  width: 100%;
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  text-align: left;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  box-shadow: none;
+}
+button.tm-row.on,
+button.tm-row:hover {
+  border-color: var(--accent);
+  transform: none;
+}
+.tm-side {
+  margin-bottom: 0.3rem;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
 }
 
 /* Outside the components layer: React Flow's own stylesheet is unlayered, and these must win over it. */

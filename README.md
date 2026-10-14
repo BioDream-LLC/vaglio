@@ -153,6 +153,10 @@ software a plan runs, not an outcome a vendor sells.
 - **Replay** (`vaglio replay`, or edit a policy's source in the console): runs a new policy version over every stored
   request it covers and lists the decisions it would change, flagging those that would overrule a reviewer. It changes
   nothing, and is audited.
+- **Replay time machine** (each policy's screen): every version of a policy put in force is kept in `DATA/versions` by
+  its SHA-256 (at start and at sign-off). Slide across them to see how each would have decided every past request,
+  which decisions it would change, and, for any of them, the two proofs side by side. Versions in force before this
+  release were not kept; they start with the next start.
 - **What if** (every case, in the console): flip any piece of evidence between present, absent and not addressed, and
   the decision and its proof redraw at once, with what changed lit up in the proof. Nothing is recorded; the case keeps
   its decision.

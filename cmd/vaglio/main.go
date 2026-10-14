@@ -50,6 +50,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/reader"
 	"github.com/biodream-llc/vaglio/internal/server"
 	"github.com/biodream-llc/vaglio/internal/tlsserve"
+	"github.com/biodream-llc/vaglio/internal/versions"
 	"github.com/biodream-llc/vaglio/internal/web"
 )
 
@@ -297,6 +298,9 @@ func serve(args []string) error {
 		// Set on the command line, never in the console: who may deny care is the deployment's to decide.
 		ClinicianDenials: *clinicianDenials,
 		Reader:           docs,
+	}
+	if cfg.Versions, err = versions.Open(filepath.Join(*data, "versions")); err != nil {
+		return err
 	}
 	if *editPolicies {
 		cfg.PolicyDir = *dir

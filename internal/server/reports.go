@@ -8,11 +8,13 @@ import (
 
 	"github.com/biodream-llc/vaglio/internal/auth"
 	"github.com/biodream-llc/vaglio/internal/cases"
+	"github.com/biodream-llc/vaglio/internal/decide"
 	"github.com/biodream-llc/vaglio/internal/dtr"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/replay"
 	"github.com/biodream-llc/vaglio/internal/report"
+	"github.com/biodream-llc/vaglio/internal/versions"
 )
 
 // policyQuestionnaire is the DTR Questionnaire a policy reads, made from the policy, as FHIR JSON a PAS server can
@@ -173,4 +175,70 @@ func (cfg Config) goldCardCounting(w http.ResponseWriter, r *http.Request, s aut
 	}
 	_ = cfg.GoldCard.SetCounting(name, body.Count)
 	writeJSON(w, http.StatusOK, cfg.GoldCard.Snapshot())
+}
+
+// policyVersions lists every version of a policy kept since this server first ran it, oldest first.
+func (cfg Config) policyVersions(w http.ResponseWriter, r *http.Request, _ auth.Session) {
+	if cfg.Versions == nil {
+		writeJSON(w, http.StatusOK, []versions.Version{})
+		return
+	}
+	writeJSON(w, http.StatusOK, cfg.Versions.List(r.PathValue("id")))
+}
+
+// policyVersion is one kept version's source.
+func (cfg Config) policyVersion(w http.ResponseWriter, r *http.Request, _ auth.Session) {
+	if cfg.Versions == nil {
+		writeError(w, http.StatusNotFound, "no such version")
+		return
+	}
+	src, err := cfg.Versions.Source(r.PathValue("id"), r.PathValue("sha"))
+	if errors.Is(err, os.ErrNotExist) {
+		writeError(w, http.StatusNotFound, "no such version")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = w.Write(src)
+}
+
+// ReplayedCase is one case decided again by another version of its policy, beside the decision it was given.
+type ReplayedCase struct {
+	Was *decide.Result `json:"was"`
+	Now *decide.Result `json:"now"`
+}
+
+// replayCase decides one stored case again under a source, for a side-by-side proof. Nothing changes; it is audited like
+// reading the case.
+func (cfg Config) replayCase(w http.ResponseWriter, r *http.Request, s auth.Session) {
+	var body struct {
+		Source string `json:"source"`
+		Case   string `json:"case"`
+	}
+	if !decodeJSON(w, r, &body) {
+		return
+	}
+	c, ok := cfg.Cases.Get(body.Case)
+	if !ok || !s.Sees(c.Policy) {
+		writeError(w, http.StatusNotFound, "no such case")
+		return
+	}
+	p, err := policy.Parse("replay"+policy.Ext, body.Source)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	res, err := replay.Decide(cfg.Cases, p, c)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	if err := cfg.Cases.Viewed(c.ID, s.User); err != nil {
+		writeError(w, http.StatusInternalServerError, "reading the case could not be recorded: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, ReplayedCase{Was: c.Result, Now: res})
 }

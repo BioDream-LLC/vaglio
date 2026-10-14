@@ -106,6 +106,35 @@ func Run(store *cases.Store, p *policy.Policy) Report {
 	return rep
 }
 
+// Decide decides one stored case again under p, on the request Bundle it was decided on. A case whose service p does
+// not decide is an error.
+func Decide(store *cases.Store, p *policy.Policy, c *cases.Case) (*decide.Result, error) {
+	if system, code, _ := strings.Cut(c.Service, "|"); !p.Decides(system, code) {
+		return nil, fmt.Errorf("policy %s v%s does not decide %s", p.ID, p.Version, c.Service)
+	}
+	req, err := request(store, c)
+	if err != nil {
+		return nil, err
+	}
+	return decide.Decide(p, evidence.Extract(p, req).Request(p.ID))
+}
+
+func request(store *cases.Store, c *cases.Case) (*pas.Request, error) {
+	raw, err := store.Bundle(c)
+	if err != nil {
+		return nil, err
+	}
+	var b map[string]any
+	if err := json.Unmarshal(raw, &b); err != nil {
+		return nil, err
+	}
+	req, problems := pas.Read(b, false)
+	if len(problems) > 0 {
+		return nil, fmt.Errorf("the stored request no longer reads: %s", strings.Join(problems, "; "))
+	}
+	return req, nil
+}
+
 func redecide(store *cases.Store, p *policy.Policy, c *cases.Case) (string, string, error) {
 	raw, err := store.Bundle(c)
 	if err != nil {

@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -281,6 +282,12 @@ func (cfg Config) signDraft(w http.ResponseWriter, r *http.Request, s auth.Sessi
 		return
 	}
 	cfg.set.put(p)
+	if cfg.Versions != nil {
+		if _, err := cfg.Versions.Keep(p); err != nil {
+			// In force and in the log already; the time machine is the poorer, and says so.
+			log.Printf("versions: %s v%s is in force but could not be kept: %v", p.ID, p.Version, err)
+		}
+	}
 	writeJSON(w, http.StatusOK, p)
 }
 
