@@ -252,7 +252,7 @@ software a plan runs, not an outcome a vendor sells.
 
 ## Status
 
-**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (111 Go test functions, the
+**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (135 Go test functions, the
 console's tests, and every policy checked on every combination of evidence), and the whole path has been run end to end
 through a real Perfuse. The policies in `policies/` are **illustrative only**: not any payer's policy and not clinical
 guidance.
@@ -270,6 +270,9 @@ How the code is laid out:
 - `internal/editor`: drafts, sign-off and putting a policy in force. `internal/oidc`: single sign-on.
 - `internal/dtr`, `internal/goldcard`, `internal/report`, `internal/replay`: questionnaires, exemptions, metrics, pend
   causes and reversals, replays. `internal/reader`: documents read by a model behind the quote gate.
+- `internal/receipt`, `internal/letter`, `internal/versions`, `internal/readings`: receipts checked against the log,
+  plain-language letters, the kept policy versions, and two readings of one document compared.
+- `deploy/demo/`: how the public demonstration at vaglio.perfuse.health is run.
 - `library/`: drafted policies, their sources and `library.json`; `library/drafts/` keeps the machine's own drafts.
 - `internal/server` + `web/`: the API and the React/Redux console (cases and review, policies and their check, trying a
   policy by hand, the audit log), embedded in the binary.
@@ -278,7 +281,8 @@ How the code is laid out:
 
 Not yet: notices to the enrollee are the plan's (Vaglio records an extension's reason; it does not mail it); single
 sign-on is tested against a test provider only, not a real one; reading scanned images needs `tesseract` installed;
-there is no release build yet.
+there is no release build yet; the letters' appeal paragraph is generic, not a plan's own deadlines and addresses;
+advice before submitting shows in Perfuse only from its `crd-advisor` branch, not yet merged.
 
 
 ## Try it
@@ -297,7 +301,15 @@ letter in English or Spanish, check its receipt, and look at the policy map. How
 </tr>
 <tr>
 <td width="50%"><img src="docs/assets/screens/pend.png" alt="A pended case: the information needed, the questionnaire it was asked through, the due date and the reviewer's decision form."><br><sub><b>A pend.</b> What is needed, how it was asked for, the deadline, and the reviewer's decision.</sub></td>
-<td width="50%"><img src="docs/assets/screens/editor.png" alt="The policy editor: a draft's source, its check over all 128 combinations of evidence, and the clinician's sign-off button."><br><sub><b>The policy editor.</b> Checked on every combination as it is written; a clinician signs it into force.</sub></td>
+<td width="50%"><img src="docs/assets/screens/editor.png" alt="The policy editor: a draft's source, its check over every combination of evidence, and the clinician's sign-off button."><br><sub><b>The policy editor.</b> Checked on every combination as it is written; a clinician signs it into force.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/screens/whatif.png" alt="The what-if sandbox: each piece of evidence set to present, absent or not addressed; one change turns the denial into an approval, and the changed evidence is lit up in the proof."><br><sub><b>What if.</b> Flip any evidence and the decision and its proof redraw, with the change lit up.</sub></td>
+<td width="50%"><img src="docs/assets/screens/map.png" alt="The policy map: evidence on the left, criteria in the middle, decisions on the right, with arrows for what defeats what; the red-flag finding is selected and its arrows are lit."><br><sub><b>The policy map.</b> The rules as a diagram, and every combination of evidence as a grid.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/screens/letter.png" alt="A plain-language letter for a denial: what was asked, why, the policy's words, what the record showed, what would change it, and a QR code with its receipt."><br><sub><b>The letter.</b> Written from the decision by template, in English or Spanish, with its receipt.</sub></td>
+<td width="50%"><img src="docs/assets/screens/receipt.png" alt="The public receipt page: a genuine receipt for a denial, who made it, the policy and clause it rests on, and its place in the audit log's chain."><br><sub><b>Check a receipt.</b> Anyone can, without signing in and without seeing the patient.</sub></td>
 </tr>
 <tr>
 <td colspan="2"><img src="docs/assets/screens/reports.png" alt="The reports screen: CMS prior authorization metrics, standard and expedited, with extensions and late determinations." width="100%"><br><sub><b>Reports.</b> The CMS prior authorization metrics, from the log, on screen or as CSV.</sub></td>

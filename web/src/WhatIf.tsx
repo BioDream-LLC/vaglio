@@ -74,16 +74,18 @@ export function WhatIf({ c, original }: { c: CaseDetail; original: DecideResult 
   useEffect(() => {
     if (!policy || diff.size === 0) return
     window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => decide(sandboxRequest(c.policy, base, state)), 150)
+    // The case's own version: an older one comes from the versions the server kept.
+    const req = { ...sandboxRequest(c.policy, base, state), version: c.policyVersion }
+    timer.current = window.setTimeout(() => decide(req), 150)
     return () => window.clearTimeout(timer.current)
-  }, [policy, state, diff, base, c.policy, decide])
+  }, [policy, state, diff, base, c.policy, c.policyVersion, decide])
 
   if (!policy) return null
-  if (policy.version !== c.policyVersion)
+  if (error && policy.version !== c.policyVersion && diff.size > 0)
     return (
       <p className="meta">
-        The what-if sandbox needs the policy this case was decided on (v{c.policyVersion}); v{policy.version} is in
-        force now.
+        The what-if sandbox needs the policy this case was decided on (v{c.policyVersion}), and this server did not keep
+        it; v{policy.version} is in force now.
       </p>
     )
   const shown = diff.size === 0 ? original : data

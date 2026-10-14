@@ -72,6 +72,8 @@ export interface Assertion {
 export interface DecideRequest {
   policy: string
   evidence: Assertion[]
+  /** A kept version to decide with instead of the one in force. */
+  version?: string
 }
 
 export interface Citation {

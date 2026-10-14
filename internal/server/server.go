@@ -461,15 +461,26 @@ func (cfg Config) checkPolicy(w http.ResponseWriter, r *http.Request, _ auth.Ses
 // decide tries a policy on evidence entered by hand. Nothing is recorded: it is for authors and reviewers to see what a
 // policy does, not a way to decide a request.
 func (cfg Config) decide(w http.ResponseWriter, r *http.Request, _ auth.Session) {
-	var req decide.Request
-	if !decodeJSON(w, r, &req) {
+	var body struct {
+		decide.Request
+		// Version, when set, is a kept version of the policy to decide with instead of the one in force: the what-if
+		// sandbox on a case decided under an earlier version.
+		Version string `json:"version,omitempty"`
+	}
+	if !decodeJSON(w, r, &body) {
 		return
 	}
+	req := body.Request
 	p := cfg.set.get(req.Policy)
-	ok := p != nil
-	if !ok {
+	if p == nil {
 		writeError(w, http.StatusNotFound, "no such policy")
 		return
+	}
+	if body.Version != "" && body.Version != p.Version {
+		if p = cfg.keptVersion(req.Policy, body.Version); p == nil {
+			writeError(w, http.StatusNotFound, "version "+body.Version+" of "+req.Policy+" is not kept on this server")
+			return
+		}
 	}
 	res, err := decide.Decide(p, req)
 	if err != nil {
@@ -477,6 +488,29 @@ func (cfg Config) decide(w http.ResponseWriter, r *http.Request, _ auth.Session)
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+// keptVersion is a policy version kept in Versions, or nil.
+func (cfg Config) keptVersion(id, version string) *policy.Policy {
+	if cfg.Versions == nil {
+		return nil
+	}
+	list := cfg.Versions.List(id)
+	for i := len(list) - 1; i >= 0; i-- {
+		if list[i].Version != version {
+			continue
+		}
+		src, err := cfg.Versions.Source(id, list[i].SHA256)
+		if err != nil {
+			return nil
+		}
+		p, err := policy.Parse(id+policy.Ext, string(src))
+		if err != nil {
+			return nil
+		}
+		return p
+	}
+	return nil
 }
 
 // CaseSummary is a case as the list shows it: no evidence, no proof.

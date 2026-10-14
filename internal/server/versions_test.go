@@ -64,6 +64,14 @@ func TestVersionsAndReplayCase(t *testing.T) {
 	if rc.Was == nil || rc.Now == nil || rc.Now.Outcome != rc.Was.Outcome || rc.Now.PolicyVersion != "0.1.0" {
 		t.Errorf("%+v", rc)
 	}
+	// The console's decide takes a kept version, for the what-if sandbox on a case decided under it.
+	w = do(reviewer, "POST", "/api/decide", `{"policy":"lumbar_mri","version":"0.1.0","evidence":[]}`)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"policyVersion": "0.1.0"`) {
+		t.Errorf("decide with a kept version: %d %s", w.Code, w.Body)
+	}
+	if w := do(reviewer, "POST", "/api/decide", `{"policy":"lumbar_mri","version":"7.7.7","evidence":[]}`); w.Code != 404 {
+		t.Errorf("a version never kept: %d", w.Code)
+	}
 	if w := do(reviewer, "GET", "/api/policies/lumbar_mri/versions/"+strings.Repeat("0", 64), ""); w.Code != 404 {
 		t.Errorf("an unknown version: %d", w.Code)
 	}
