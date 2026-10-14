@@ -182,6 +182,7 @@ func New(cfg Config) http.Handler {
 	scoped("GET /api/drafting/{job}", auth.Admin, auth.ScopeAuthor, cfg.draftJob)
 	route("POST /api/drafts/{id}/signoff", auth.Reviewer, cfg.signDraft)
 	mux.HandleFunc("POST /api/pas/decide", cfg.decidePAS)
+	mux.HandleFunc("POST /api/pas/advise", cfg.crdAdvise)
 
 	// Without these, a wrong method falls through to the /api/ catch-all and reads as "no such endpoint".
 	for path, allow := range map[string]string{

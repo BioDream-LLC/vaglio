@@ -389,6 +389,13 @@ Perfuse's answer standing. Perfuse pends on any failure, and Vaglio refuses to a
 With `-pas-url`, a reviewer's decision is sent back as `Claim/$decide` under that id, and the provider's subscription
 delivers it. A Perfuse API token with the editor role is what `-pas-token-env` names.
 
+**Before a request is sent.** `POST /api/pas/advise` (the same bearer token) takes an order's service code and the
+record a coverage requirements (CRD) service has for it, and answers what a request would be told as the record stands:
+would be approved, would wait for these pieces of evidence (and the questionnaire that asks), or would not be approved and
+what would change that. It opens no case and decides nothing; the request that follows is decided on its own. Perfuse
+shows it as one more CRD card with `-crd-advisor-url https://.../api/pas/advise` (on its `crd-advisor` branch until that
+is merged). Perfuse never needs Vaglio: with no answer, the cards are what its rules say.
+
 ## Security
 
 - `/api/pas/` takes the bearer token from `-token-env`. Everything else takes a session cookie (HttpOnly,
