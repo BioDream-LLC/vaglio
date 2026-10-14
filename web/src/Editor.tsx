@@ -1,3 +1,4 @@
+import { FromDocument } from './FromDocument'
 import { useEffect, useRef, useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { errorText } from './common'
@@ -118,6 +119,7 @@ export function Drafts({ me }: { me: Me }) {
           {saving.error && <p role="alert">{errorText(saving.error, 'Not saved.')}</p>}
         </form>
       )}
+      {author && <FromDocument />}
     </section>
   )
 }

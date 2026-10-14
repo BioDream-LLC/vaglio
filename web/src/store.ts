@@ -23,6 +23,8 @@ import type {
   PolicySummary,
   ReplayReport,
   ReceiptCheck,
+  DraftingInfo,
+  DraftJob,
   PolicyVersion,
   ReplayedCase,
   Letter,
@@ -87,6 +89,11 @@ export const api = createApi({
     replayCase: b.mutation<ReplayedCase, { source: string; case: string }>({
       query: (body) => ({ url: 'replay/case', method: 'POST', body }),
     }),
+    drafting: b.query<DraftingInfo, void>({ query: () => 'drafting' }),
+    startDrafting: b.mutation<DraftJob, { id: string; name: string; contentType: string; data: string }>({
+      query: (body) => ({ url: 'drafting', method: 'POST', body }),
+    }),
+    draftJob: b.query<DraftJob, string>({ query: (job) => `drafting/${job}`, providesTags: ['Draft'] }),
     receipt: b.query<ReceiptCheck, string>({ query: (code) => `receipts/${encodeURIComponent(code)}` }),
     policies: b.query<PolicySummary[], void>({ query: () => 'policies', providesTags: ['Policy'] }),
     policySource: b.query<string, string>({
@@ -200,6 +207,9 @@ function period(p: Period): string {
 export const {
   useMeQuery,
   useReceiptQuery,
+  useDraftingQuery,
+  useStartDraftingMutation,
+  useDraftJobQuery,
   usePolicyVersionsQuery,
   usePolicyVersionSourceQuery,
   useReplayCaseMutation,

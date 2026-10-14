@@ -523,3 +523,28 @@ export interface ReplayedCase {
   was: DecideResult
   now: DecideResult
 }
+
+/** Drafting a policy from an uploaded coverage document. */
+export interface DraftingInfo {
+  enabled: boolean
+  pdf: boolean
+  model?: string
+  /** The latest drafting on this server, and whether it is still running. */
+  last?: string
+  busy?: boolean
+}
+
+export type FindingKind = 'contradiction' | 'gap' | 'quote' | 'code' | 'syntax' | 'lint'
+
+export interface DraftJob {
+  id: string
+  policy: string
+  document: string
+  sha256: string
+  state: 'running' | 'passed' | 'failed'
+  started: string
+  rounds: { findings: { kind: FindingKind; text: string }[] }[]
+  error?: string
+  saved: boolean
+  check?: { combinations: number; outcomes: Record<string, number> }
+}

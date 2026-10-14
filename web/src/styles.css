@@ -1083,6 +1083,30 @@ button.tm-row:hover {
   color: #fff;
   background: linear-gradient(90deg, #7c3aed, #c026d3);
 }
+
+/* ── Draft from a document ────────────────────────────────────── */
+.fromdoc {
+  margin-top: 1.5rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: 1rem;
+  background: var(--raised);
+  border: 1px solid var(--line);
+}
+.finding {
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.7rem;
+  border-left: 4px solid var(--tone);
+  background: color-mix(in srgb, var(--tone) 8%, transparent);
+}
+.finding-bad {
+  --tone: var(--bad);
+}
+.finding-due {
+  --tone: var(--due);
+}
+.finding-info {
+  --tone: var(--info);
+}
 }
 
 /* Outside the components layer: React Flow's own stylesheet is unlayered, and these must win over it. */

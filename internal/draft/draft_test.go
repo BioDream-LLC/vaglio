@@ -134,3 +134,18 @@ func TestOpenAIClient(t *testing.T) {
 		t.Errorf("error %v", err)
 	}
 }
+
+func TestKind(t *testing.T) {
+	for f, want := range map[string]string{
+		"with only a documented, decisions approve and deny all hold at once: an approval and a denial must never both hold": "contradiction",
+		"with nothing documented, every decision is defeated, so nothing is decided":                                       "gap",
+		"decision deny_x is reached by no combination of evidence":                                                         "gap",
+		`the clause of a is not quoted word for word from the document: "x". Copy the sentence it encodes exactly.`:         "quote",
+		"code 12345 does not appear in the document.":                                                                      "code",
+		"criterion c defeats nothing, so it can never change a decision":                                                   "lint",
+	} {
+		if got := Kind(f); got != want {
+			t.Errorf("Kind(%q) = %s, want %s", f, got, want)
+		}
+	}
+}

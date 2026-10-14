@@ -103,6 +103,8 @@ type Request struct {
 	Document string // the coverage document, as text
 	Name     string // what to call the document in the draft's header
 	Rounds   int    // drafts to try before giving up; 0 is 4
+	// OnRound, when set, is told of each round as it ends: for a console showing progress.
+	OnRound func(round int, a Attempt)
 }
 
 // Attempt is one round: the model's answer and what was wrong with it.
@@ -140,6 +142,9 @@ func Draft(ctx context.Context, m Model, req Request) (*Result, error) {
 		}
 		p, failures := Gate(req, answer)
 		res.Attempts = append(res.Attempts, Attempt{Answer: answer, Failures: failures})
+		if req.OnRound != nil {
+			req.OnRound(i+1, res.Attempts[i])
+		}
 		if len(failures) == 0 {
 			p.Status = policy.Draft
 			res.Policy = p
@@ -169,10 +174,7 @@ var block = regexp.MustCompile("(?s)```(?:vaglio)?\\s*\\n(.*?)```")
 
 // Gate checks one answer against the document. It returns the policy when there are no failures.
 func Gate(req Request, answer string) (*policy.Policy, []string) {
-	src := answer
-	if m := block.FindStringSubmatch(answer); m != nil {
-		src = m[1]
-	}
+	src := Source(answer)
 	p, err := policy.Parse("draft.vaglio", src)
 	if err != nil {
 		return nil, []string{err.Error()}
@@ -215,6 +217,34 @@ func Gate(req Request, answer string) (*policy.Policy, []string) {
 		return nil, failures
 	}
 	return p, nil
+}
+
+// Source is the policy in a model's answer: its vaglio block, or the whole answer when it has none.
+func Source(answer string) string {
+	if m := block.FindStringSubmatch(answer); m != nil {
+		return m[1]
+	}
+	return answer
+}
+
+// Kind sorts a gate's failure for a reader: "contradiction" (approve and deny both hold), "gap" (no decision holds, or
+// one is never reached), "quote" (a clause not word for word), "code" (a code not in the document), "syntax", or
+// "lint". The first two may be holes in the document as much as in the draft; the rest are the draft's.
+func Kind(failure string) string {
+	switch {
+	case strings.Contains(failure, "both hold at once") || strings.Contains(failure, "all hold at once"):
+		return "contradiction"
+	case strings.Contains(failure, "is reached by no combination") || strings.Contains(failure, "every decision is defeated") ||
+		strings.Contains(failure, "go round in a circle"):
+		return "gap"
+	case strings.Contains(failure, "not quoted word for word"):
+		return "quote"
+	case strings.HasPrefix(failure, "code "):
+		return "code"
+	case strings.Contains(failure, ":") && (strings.Contains(failure, "line ") || strings.Contains(failure, "expected")):
+		return "syntax"
+	}
+	return "lint"
 }
 
 // defect says what goes wrong on one combination of evidence, in terms the author can act on.

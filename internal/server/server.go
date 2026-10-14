@@ -80,6 +80,8 @@ type Config struct {
 	// AppealsToken, when set, turns on /api/feeds/appeals for the payer's appeals system, which must send it as a bearer
 	// token.
 	AppealsToken string
+	// Drafter, when set (with PolicyDir), drafts policies from coverage documents uploaded in the console.
+	Drafter *Drafter
 	// Demo marks a public demonstration (serve -demo-account): the console says so on every screen, and the sign-in
 	// page shows the published account, DemoName with DemoPassword (a viewer: it decides and changes nothing).
 	Demo                   bool
@@ -175,6 +177,9 @@ func New(cfg Config) http.Handler {
 	scoped("PUT /api/drafts/{id}", auth.Admin, auth.ScopeAuthor, cfg.saveDraft)
 	scoped("DELETE /api/drafts/{id}", auth.Admin, auth.ScopeAuthor, cfg.removeDraft)
 	scoped("POST /api/policies/{id}/draft", auth.Admin, auth.ScopeAuthor, cfg.draftFromLive)
+	scoped("GET /api/drafting", auth.Reviewer, auth.ScopeAuthor, cfg.draftingInfo)
+	scoped("POST /api/drafting", auth.Admin, auth.ScopeAuthor, cfg.draftFromDocument)
+	scoped("GET /api/drafting/{job}", auth.Admin, auth.ScopeAuthor, cfg.draftJob)
 	route("POST /api/drafts/{id}/signoff", auth.Reviewer, cfg.signDraft)
 	mux.HandleFunc("POST /api/pas/decide", cfg.decidePAS)
 

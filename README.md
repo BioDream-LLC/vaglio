@@ -176,6 +176,13 @@ software a plan runs, not an outcome a vendor sells.
   templates, never by a model, so it says nothing the decision does not. The policy's own words stay in the language
   the plan wrote them in, and the Spanish letter says so: a machine translation of a coverage rule is not the rule. The
   appeal paragraph is generic; a plan's own deadlines and addresses are not in it yet.
+- **Draft from a coverage document** (the Drafts screen, `serve -edit-policies -draft-model-url URL [-draft-model M]
+  -draft-key-env VAR [-extract pdftotext]`): upload a plan's coverage policy, as text or PDF, and a language model drafts
+  it in the policy language, up to six rounds, each held to the drafting gates. You get the draft (saved for an author,
+  marked when it does not pass) and what the checker found, sorted: where the draft approves and denies at once, where
+  it decides nothing (both may be holes in the document, or misreadings), clauses not quoted word for word, codes the
+  document does not list, rules that change nothing. The document goes to the model's provider: published coverage
+  documents only, never patient records. A model's drafts often do not pass; the findings are still worth reading.
 - **Two readings compared** (`vaglio readings A.vaglio B.vaglio`): two policies drafted from one coverage document,
   each quoting it word for word, decided on every record of their evidence; where they disagree, the groups of records,
   the clauses each rests on, and the simplest example. A check proves a policy consistent, not that it means what the
