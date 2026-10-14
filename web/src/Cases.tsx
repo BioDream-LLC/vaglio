@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux'
 import { Cite, decisionText, errorText, Result, when } from './common'
 import { WhatIf } from './WhatIf'
 import { CaseReceipts } from './Receipt'
+import { LetterView } from './LetterView'
 import { IconCases, IconCheck, IconClock, IconCross } from './Icons'
 import {
   go,
@@ -371,6 +372,7 @@ function CaseBody({ c, me }: { c: CaseDetail; me: Me }) {
 
       <Evidence c={c} />
       <DecisionTabs c={c} />
+      <LetterView id={c.id} />
       <CaseReceipts c={c} />
       <History c={c} />
     </>

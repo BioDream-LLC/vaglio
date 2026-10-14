@@ -496,3 +496,13 @@ export interface DecisionMap {
   decisions: number[]
   clauses: string[]
 }
+
+/** A decision's letter, in plain words, as sections of text. */
+export interface Letter {
+  lang: 'en' | 'es'
+  title: string
+  date: string
+  sections: { heading: string; paragraphs?: string[]; items?: string[]; quote?: string }[]
+  quoted?: string
+  receipt?: string
+}

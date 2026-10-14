@@ -23,6 +23,7 @@ import type {
   PolicySummary,
   ReplayReport,
   ReceiptCheck,
+  Letter,
   PolicyDetail,
   DecisionMap,
   ReviewRequest,
@@ -65,6 +66,10 @@ export const api = createApi({
     policyMap: b.query<DecisionMap, string>({
       query: (id) => `policies/${encodeURIComponent(id)}/map`,
       providesTags: ['Policy'],
+    }),
+    letter: b.query<Letter, { id: string; lang: string }>({
+      query: ({ id, lang }) => `cases/${encodeURIComponent(id)}/letter?lang=${lang}`,
+      providesTags: ['Case'],
     }),
     receipt: b.query<ReceiptCheck, string>({ query: (code) => `receipts/${encodeURIComponent(code)}` }),
     policies: b.query<PolicySummary[], void>({ query: () => 'policies', providesTags: ['Policy'] }),
@@ -179,6 +184,7 @@ function period(p: Period): string {
 export const {
   useMeQuery,
   useReceiptQuery,
+  useLetterQuery,
   usePolicyDetailQuery,
   usePolicyMapQuery,
   useLazyReceiptQuery,

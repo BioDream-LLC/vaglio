@@ -129,6 +129,7 @@ func New(cfg Config) http.Handler {
 	route("GET /api/cases", auth.Viewer, cfg.listCases)
 	route("GET /api/cases/{id}", auth.Viewer, cfg.getCase)
 	route("GET /api/cases/{id}/bundle", auth.Viewer, cfg.caseBundle)
+	route("GET /api/cases/{id}/letter", auth.Viewer, cfg.caseLetter)
 	route("POST /api/cases/{id}/review", auth.Reviewer, cfg.reviewCase)
 	route("GET /api/policies/{id}/questionnaire", auth.Viewer, cfg.policyQuestionnaire)
 	route("GET /api/reports/metrics", auth.Viewer, cfg.metricsReport)

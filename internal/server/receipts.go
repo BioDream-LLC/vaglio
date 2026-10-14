@@ -2,10 +2,13 @@ package server
 
 import (
 	"errors"
+	"time"
+
+	"github.com/biodream-llc/vaglio/internal/auth"
+	"github.com/biodream-llc/vaglio/internal/letter"
 	"net"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/biodream-llc/vaglio/internal/audit"
 	"github.com/biodream-llc/vaglio/internal/receipt"
@@ -94,4 +97,36 @@ func (l *limiter) allow(key string, now time.Time) bool {
 	}
 	l.window[key] = append(ts, now)
 	return true
+}
+
+// caseLetter is the letter for a case's current decision, in ?lang= (en by default), with the receipt of the decision
+// that stands. Reading it is recorded like reading the case: it is the patient's.
+func (cfg Config) caseLetter(w http.ResponseWriter, r *http.Request, s auth.Session) {
+	c, ok := cfg.Cases.Get(r.PathValue("id"))
+	if !ok {
+		writeError(w, http.StatusNotFound, "no such case")
+		return
+	}
+	l := r.URL.Query().Get("lang")
+	if l == "" {
+		l = "en"
+	}
+	if !letter.Supported(l) {
+		writeError(w, http.StatusBadRequest, "letters are written in en or es")
+		return
+	}
+	code := ""
+	if rs := receiptsFor(cfg.Cases.History(c.ID)); len(rs) > 0 {
+		code = rs[len(rs)-1].Receipt
+	}
+	out, err := letter.Write(*c, l, code, time.Now())
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	if err := cfg.Cases.Viewed(c.ID, s.User); err != nil {
+		writeError(w, http.StatusInternalServerError, "reading the case could not be recorded: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
 }

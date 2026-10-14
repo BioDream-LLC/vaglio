@@ -166,6 +166,12 @@ software a plan runs, not an outcome a vendor sells.
   for each "defeats" (click a box to light up what it touches), and every combination of its evidence as a grid of
   outcomes, neighbouring cells one piece of evidence apart, readable with the arrow keys
   (`GET /api/policies/{id}/map`).
+- **Plain-language letters** (each case, in English or Spanish, `GET /api/cases/{id}/letter?lang=en|es`): what was
+  asked for, what was decided and by whom, the policy's words it rests on, what the record showed, what is needed or
+  what would change it, the patient's rights, and the receipt with its QR code. Written from the decision by fixed
+  templates, never by a model, so it says nothing the decision does not. The policy's own words stay in the language
+  the plan wrote them in, and the Spanish letter says so: a machine translation of a coverage rule is not the rule. The
+  appeal paragraph is generic; a plan's own deadlines and addresses are not in it yet.
 - **Two readings compared** (`vaglio readings A.vaglio B.vaglio`): two policies drafted from one coverage document,
   each quoting it word for word, decided on every record of their evidence; where they disagree, the groups of records,
   the clauses each rests on, and the simplest example. A check proves a policy consistent, not that it means what the

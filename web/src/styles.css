@@ -902,6 +902,88 @@ textarea.source-code {
   color: var(--ink);
 }
 
+
+/* ── Letter ───────────────────────────────────────────────────── */
+.letter {
+  margin-top: 1rem;
+  padding: 2rem 2.25rem;
+  max-width: 48rem;
+  border-radius: 0.9rem;
+  color: #1a1d29;
+  background: #fffdf8;
+  box-shadow: 0 20px 50px -25px rgba(0, 0, 0, 0.7);
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+.letter h3.letter-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #1a1d29;
+}
+.letter h3.letter-title::before {
+  content: none;
+}
+.letter .letter-date {
+  margin: 0.2rem 0 0;
+  color: #5b6072;
+}
+.letter h4 {
+  margin: 1.3rem 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #3b2a8c;
+}
+.letter p {
+  margin: 0.35rem 0;
+}
+.letter ul {
+  margin: 0.35rem 0;
+  padding-left: 1.25rem;
+}
+.letter blockquote {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.8rem;
+  border-left: 3px solid #7c3aed;
+  background: #f3efff;
+  font-style: italic;
+}
+.letter .letter-receipt {
+  margin-top: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  color: #3b4050;
+}
+.letter .letter-note {
+  margin-top: 1.2rem;
+  font-size: 0.8rem;
+  color: #5b6072;
+}
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+  body::before,
+  body::after {
+    display: none !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .letter,
+  .letter * {
+    visibility: visible;
+  }
+  .letter {
+    position: absolute;
+    inset: 0 auto auto 0;
+    margin: 0;
+    max-width: none;
+    box-shadow: none;
+    background: #fff;
+  }
+}
 }
 
 /* Outside the components layer: React Flow's own stylesheet is unlayered, and these must win over it. */
