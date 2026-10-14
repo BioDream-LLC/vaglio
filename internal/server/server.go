@@ -124,6 +124,7 @@ func New(cfg Config) http.Handler {
 	route("GET /api/policies/{id}", auth.Viewer, cfg.getPolicy)
 	route("GET /api/policies/{id}/source", auth.Viewer, cfg.policySource)
 	route("GET /api/policies/{id}/check", auth.Viewer, cfg.checkPolicy)
+	route("GET /api/policies/{id}/map", auth.Viewer, cfg.policyMap)
 	route("POST /api/decide", auth.Viewer, cfg.decide)
 	route("GET /api/cases", auth.Viewer, cfg.listCases)
 	route("GET /api/cases/{id}", auth.Viewer, cfg.getCase)
@@ -380,6 +381,18 @@ func (cfg Config) policy(w http.ResponseWriter, r *http.Request) (*policy.Policy
 func (cfg Config) getPolicy(w http.ResponseWriter, r *http.Request, _ auth.Session) {
 	if p, ok := cfg.policy(w, r); ok {
 		writeJSON(w, http.StatusOK, p)
+	}
+}
+
+// policyMap is every combination of the policy's evidence and its outcome, for the console's map.
+func (cfg Config) policyMap(w http.ResponseWriter, r *http.Request, _ auth.Session) {
+	if p, ok := cfg.policy(w, r); ok {
+		m, err := decide.DecisionMap(p)
+		if err != nil {
+			writeError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, m)
 	}
 }
 

@@ -1,6 +1,7 @@
 package decide
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/biodream-llc/vaglio/internal/af"
@@ -72,4 +73,62 @@ func Settle(p *policy.Policy, present []string) (Outcome, string) {
 	}
 	s := solve(p, m)
 	return s.outcome, s.decision
+}
+
+// Map is every combination of a policy's evidence and its outcome on a fully documented record: what the console's policy
+// map draws. Combination m has evidence i present when bit i of m is set, in the order of Evidence.
+type Map struct {
+	Policy   string   `json:"policy"`
+	Evidence []string `json:"evidence"`
+	// Outcomes holds one letter per combination, in order: a approved, d denied, p pended, x policy defect.
+	Outcomes string `json:"outcomes"`
+	// Decisions, per combination, the index in Clauses of the decision the outcome rests on, -1 for none.
+	Decisions []int    `json:"decisions"`
+	Clauses   []string `json:"clauses"` // decision names, as Decisions indexes them
+}
+
+// MaxMapEvidence bounds the map: 2^16 combinations is 64 KB of letters.
+const MaxMapEvidence = 16
+
+// DecisionMap decides every combination of a policy's evidence.
+func DecisionMap(p *policy.Policy) (*Map, error) {
+	ev := p.EvidenceNames()
+	if len(ev) > MaxMapEvidence {
+		return nil, fmt.Errorf("decide: %d pieces of evidence is too many to map (at most %d)", len(ev), MaxMapEvidence)
+	}
+	total := 1 << uint(len(ev))
+	m := &Map{Policy: p.ID, Evidence: ev, Decisions: make([]int, total), Clauses: []string{}}
+	index := map[string]int{}
+	letters := make([]byte, total)
+	for mask := 0; mask < total; mask++ {
+		present := map[string]*Citation{}
+		for i, name := range ev {
+			if mask&(1<<uint(i)) != 0 {
+				present[name] = &Citation{}
+			}
+		}
+		s := solve(p, present)
+		switch s.outcome {
+		case Approved:
+			letters[mask] = 'a'
+		case Denied:
+			letters[mask] = 'd'
+		case Pended:
+			letters[mask] = 'p'
+		default:
+			letters[mask] = 'x'
+		}
+		m.Decisions[mask] = -1
+		if s.decision != "" {
+			i, ok := index[s.decision]
+			if !ok {
+				i = len(m.Clauses)
+				index[s.decision] = i
+				m.Clauses = append(m.Clauses, s.decision)
+			}
+			m.Decisions[mask] = i
+		}
+	}
+	m.Outcomes = string(letters)
+	return m, nil
 }

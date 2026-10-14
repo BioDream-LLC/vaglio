@@ -1,4 +1,5 @@
 import { IconPolicies } from './Icons'
+import { PolicyMap } from './PolicyMap'
 import { useState, type FormEvent } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { errorText, Result, when } from './common'
@@ -200,6 +201,7 @@ export function PolicyView({ id, me }: { id: string; me: Me }) {
           {source}
         </pre>
       )}
+      <PolicyMap id={id} />
       {me.editing && can(me, 'admin', 'author') && <EditAsDraft id={id} />}
       {source && me.role !== 'viewer' && <Replay source={source} />}
     </section>

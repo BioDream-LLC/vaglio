@@ -162,6 +162,10 @@ software a plan runs, not an outcome a vendor sells.
   the decision, who made it (engine, reviewer or clinician, never a name), the policy and clause, any later decision on
   the same request, and where it sits in the chain. Nothing about the patient. Checks are limited to 30 a minute per
   address, so the log cannot be swept for receipts. The PAS answer carries the receipt.
+- **Policy map** (each policy's screen): the rules as a diagram, evidence on the left, decisions on the right, an arrow
+  for each "defeats" (click a box to light up what it touches), and every combination of its evidence as a grid of
+  outcomes, neighbouring cells one piece of evidence apart, readable with the arrow keys
+  (`GET /api/policies/{id}/map`).
 - **Two readings compared** (`vaglio readings A.vaglio B.vaglio`): two policies drafted from one coverage document,
   each quoting it word for word, decided on every record of their evidence; where they disagree, the groups of records,
   the clauses each rests on, and the simplest example. A check proves a policy consistent, not that it means what the

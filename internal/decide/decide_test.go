@@ -297,3 +297,34 @@ func TestToApprove(t *testing.T) {
 		t.Errorf("%s %+v", res.Outcome, res.ToApprove)
 	}
 }
+
+func TestDecisionMapAgreesWithDecide(t *testing.T) {
+	p, err := policy.LoadFile("../../policies/lumbar_mri" + policy.Ext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := DecisionMap(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Outcomes) != 1<<len(m.Evidence) || len(m.Decisions) != len(m.Outcomes) {
+		t.Fatalf("sizes: %d %d", len(m.Outcomes), len(m.Decisions))
+	}
+	for mask := range m.Outcomes {
+		var req Request
+		for i, n := range m.Evidence {
+			f := Absent
+			if mask&(1<<i) != 0 {
+				f = Present
+			}
+			req.Evidence = append(req.Evidence, Assertion{Argument: n, Finding: f, Citation: Citation{Reference: "r", Quote: "q"}})
+		}
+		res, err := Decide(p, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := m.Outcomes[mask]; got != res.Outcome[0] {
+			t.Errorf("mask %d: map %c, decide %s", mask, got, res.Outcome)
+		}
+	}
+}

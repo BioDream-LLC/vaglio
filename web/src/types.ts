@@ -477,3 +477,22 @@ export interface SSOInfo {
   enabled: boolean
   label: string
 }
+
+/** A policy as the engine reads it: every argument and who defeats whom. */
+export interface PolicyDetail {
+  id: string
+  title: string
+  version: string
+  arguments: Argument[]
+  attacks: { from: string; to: string }[]
+}
+
+/** Every combination of a policy's evidence and its outcome on a fully documented record. */
+export interface DecisionMap {
+  policy: string
+  evidence: string[]
+  /** One letter per combination: a approved, d denied, p pended, x policy defect. Bit i of the index is evidence i. */
+  outcomes: string
+  decisions: number[]
+  clauses: string[]
+}

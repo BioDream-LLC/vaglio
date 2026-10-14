@@ -901,4 +901,73 @@ textarea.source-code {
   letter-spacing: 0.04em;
   color: var(--ink);
 }
+
+}
+
+/* Outside the components layer: React Flow's own stylesheet is unlayered, and these must win over it. */
+/* ── Policy map ───────────────────────────────────────────────── */
+.pm-flow {
+  height: 560px;
+  border-radius: 1rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+}
+.pm-flow .react-flow {
+  --xy-background-color: transparent;
+  --xy-background-pattern-color: color-mix(in srgb, var(--line) 70%, transparent);
+  --xy-edge-stroke: color-mix(in srgb, var(--bad) 70%, var(--muted));
+  --xy-controls-button-background-color: var(--raised);
+  --xy-controls-button-color: var(--ink);
+  --xy-controls-button-border-color: var(--line);
+  --xy-controls-button-background-color-hover: var(--surface);
+}
+.pm-flow .react-flow__node.pm-node,
+.pm-flow .react-flow__node-default.pm-node {
+  width: 240px;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.7rem;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  text-align: left;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--tone, var(--muted));
+  box-shadow: 0 6px 18px -12px rgba(0, 0, 0, 0.6);
+  transition: opacity 0.2s ease;
+}
+.pm-flow .react-flow__node.pm-evidence {
+  --tone: var(--info);
+}
+.pm-flow .react-flow__node.pm-criterion {
+  --tone: var(--due);
+}
+.pm-flow .react-flow__node.pm-approve {
+  --tone: var(--ok);
+  font-weight: 700;
+}
+.pm-flow .react-flow__node.pm-deny {
+  --tone: var(--bad);
+  font-weight: 700;
+}
+.pm-flow .react-flow__node.selected {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 28px -8px var(--accent);
+}
+.pm-flow .react-flow__node.pm-dim {
+  opacity: 0.25;
+}
+.pm-flow .react-flow__edge.pm-lit .react-flow__edge-path {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+.pm-flow .react-flow__handle {
+  opacity: 0;
+}
+.pm-grid {
+  display: block;
+  border-radius: 0.6rem;
+  cursor: crosshair;
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 1px var(--line);
 }

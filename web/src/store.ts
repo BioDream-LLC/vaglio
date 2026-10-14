@@ -23,6 +23,8 @@ import type {
   PolicySummary,
   ReplayReport,
   ReceiptCheck,
+  PolicyDetail,
+  DecisionMap,
   ReviewRequest,
   Verification,
 } from './types'
@@ -56,6 +58,14 @@ export const api = createApi({
       invalidatesTags: ['Me'],
     }),
     sso: b.query<SSOInfo, void>({ query: () => 'sso' }),
+    policyDetail: b.query<PolicyDetail, string>({
+      query: (id) => `policies/${encodeURIComponent(id)}`,
+      providesTags: ['Policy'],
+    }),
+    policyMap: b.query<DecisionMap, string>({
+      query: (id) => `policies/${encodeURIComponent(id)}/map`,
+      providesTags: ['Policy'],
+    }),
     receipt: b.query<ReceiptCheck, string>({ query: (code) => `receipts/${encodeURIComponent(code)}` }),
     policies: b.query<PolicySummary[], void>({ query: () => 'policies', providesTags: ['Policy'] }),
     policySource: b.query<string, string>({
@@ -169,6 +179,8 @@ function period(p: Period): string {
 export const {
   useMeQuery,
   useReceiptQuery,
+  usePolicyDetailQuery,
+  usePolicyMapQuery,
   useLazyReceiptQuery,
   useSsoQuery,
   useCheckSourceMutation,
