@@ -17,5 +17,5 @@
   <rect x="3" y="3" width="284" height="66" rx="15" fill="none" stroke="#6b21a8" stroke-opacity="0.8" stroke-width="1"/>
   <g transform="translate(22,18)" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><rect x="2" y="3" width="36" height="25" rx="3"/><path d="M20 28v8M12 38h16"/><path d="M8 21l7-7 6 5 9-9"/></g>
   <text x="76" y="31" font-size="15" font-weight="700" fill="#fff" fill-opacity="0.80" letter-spacing="0.08em" font-family="system-ui, -apple-system, Segoe UI, sans-serif">IN PLAIN WORDS</text>
-  <text x="76" y="55" font-size="15" font-weight="700" fill="#fff" font-family="system-ui, -apple-system, Segoe UI, sans-serif">The slides <tspan fill-opacity="0.72" font-weight="400">· 18 pages</tspan></text>
+  <text x="76" y="55" font-size="15" font-weight="700" fill="#fff" font-family="system-ui, -apple-system, Segoe UI, sans-serif">The slides <tspan fill-opacity="0.72" font-weight="400">· 20 pages</tspan></text>
 </svg>

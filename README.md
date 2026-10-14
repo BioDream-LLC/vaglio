@@ -21,7 +21,7 @@ calls its decision hook.
 
 <sub>No release yet: build it from source with Go. [What it needs](#build)</sub>
 
-[**What it does**](#everything-it-does) · [**What it looks like**](#what-it-looks-like) · [**Running it**](#running-it) ·
+[**Why now**](#why-now) · [**How it compares**](#how-it-compares) · [**What it does**](#everything-it-does) · [**What it looks like**](#what-it-looks-like) · [**Running it**](#running-it) ·
 [**Behind Perfuse**](#behind-perfuse) · [**Writing policies**](#writing-policies) · [**Security**](#security) · [**FAQ**](#faq)
 
 </div>
@@ -52,6 +52,72 @@ appeal is kept in a tamper-evident log that can be replayed against a new policy
 
 New to prior authorization? **[The slides](docs/Vaglio-overview.pptx)** explain Vaglio in plain words, with no
 software background needed.
+
+## Why now
+
+AI now decides prior authorization at scale, and the scrutiny has followed:
+
+- **In court.** In *Estate of Gene B. Lokken v. UnitedHealth Group* (D. Minn.), plaintiffs allege that an algorithm,
+  nH Predict, was used to deny Medicare Advantage members post-acute care. On 9 March 2026 the court ordered broad
+  discovery into how it works ([order](https://cases.justia.com/federal/district-courts/minnesota/mndce/0:2023cv03514/211721/162/0.pdf)).
+- **In the Senate.** In July 2026 Senators Blumenthal and Hawley asked UnitedHealthcare, Humana and CVS for records on
+  their use of AI and prior authorization to deny care ([press release](https://www.blumenthal.senate.gov/newsroom/press/release/blumenthal-and-hawley-press-medicare-advantage-insurers-about-refusal-of-care-for-vulnerable-seniors)).
+- **In the states.** More than a dozen states, California, Texas, Arizona and Maryland among them, now limit how
+  insurers may use AI to deny care, most by requiring a clinician to make or review any adverse determination
+  ([KFF](https://www.kff.org/patient-consumer-protections/regulation-of-ai-in-prior-authorization-and-claims-review-a-look-at-federal-and-state-consumer-protections/)).
+
+Each of these asks the same question: *why was this request denied, and can you show it?* Vaglio is built to answer
+it:
+
+- **Every decision is a proof** a reviewer, a court or a regulator can read: the plan's clause quoted exactly, the
+  place in the record each finding came from, and every step between them. It is kept in a tamper-evident log and can
+  be replayed.
+- **Missing evidence never denies.** It is asked for by name.
+- **Only a clinician denies, when the plan says so.** With `-clinician-denials` the engine never denies on its own: it
+  proposes the denial and a clinician makes it, with their NPI and credential recorded. Where a state requires a
+  clinician to review AI denials, run it this way. (By default the engine denies on its own only when the record
+  documents that a rule is not met.)
+- **It runs on the plan's own servers**, and its source is published for anyone to inspect.
+
+## How it compares
+
+Most AI prior authorization for health plans is sold by large companies, often as a service the vendor runs:
+[Cohere Health](https://coherehealth.com/decision) (which reports up to 85% of requests approved in real time),
+[Optum](https://www.optum.com/en/newsroom/health-tech/optum-is-advancing-ai-powered-digital-prior-authorization.html)
+(new AI prior authorization tools for payers and providers since February 2026),
+[Availity AuthAI](https://www.availity.com/authai/) and
+[EviCore intelliPath](https://www.evicore.com/insights/getting-yes-faster-medical-necessity-reviews). Several describe
+their decisions as transparent or explainable. Vaglio's difference is what the explanation is: a proof the engine
+itself checks, built from the plan's quoted policy and the cited record, by code anyone can read.
+
+| | Typical AI prior authorization product | Vaglio |
+|---|---|---|
+| **How it is run** | A product or service from the vendor, often with delegated review | Software the plan runs on its own servers |
+| **Why an answer is what it is** | An explanation or rationale, in the vendor's form | A proof per decision: each step cites the clause and the record |
+| **Missing evidence** | Handled by each product's own rules | Never supports a denial; asked for by name |
+| **Before a policy goes live** | The vendor's validation | Tested on every combination of evidence, signed off by a clinician, replayed over past cases |
+| **Medical-necessity criteria** | Often licensed InterQual or MCG | The plan's own policies, or public Medicare and Medicaid ones |
+| **Source code** | Closed | Published (PolyForm Shield 1.0.0) |
+| **Track record** | Large production deployments | None yet (v0.0.1) |
+
+Around it:
+
+- **Clinical criteria.** [InterQual](https://business.optum.com/en/operations-technology/clinical-decision-support/interqual.html)
+  (Optum) and [MCG](https://www.mcg.com/) sell the proprietary criteria most plans decide against. Vaglio does not
+  include them and cannot redistribute them. Its library is drafted from public sources, Medicare LCDs and NCDs and
+  Medicaid criteria, and a plan can write its own policies in the editor.
+- **Provider-side tools** such as Rhyme, Myndshft and Infinitus help providers submit requests. They are on the other
+  side of the exchange: Vaglio's answers reach them through the PAS server.
+- **Open source.** The HL7 Da Vinci reference implementations
+  ([payer server](https://github.com/HL7-DaVinci/br-payer), [prior-auth](https://github.com/HL7-DaVinci/prior-auth),
+  [CDS Library](https://github.com/HL7-DaVinci/CDS-Library)) demonstrate the standards; they are not production
+  decision engines. We know of no other open or source-available one.
+- **Perfuse** is the free, Apache-2.0 standards layer (PAS, X12 278, CDex, subscriptions) that Vaglio sits behind.
+
+What Vaglio does not have yet, plainly: licensed criteria content, production sites, and a managed service. It is
+software a plan runs, not an outcome a vendor sells.
+
+<sub>Vendor details are from their public pages as of October 2026. Product names are their owners' trademarks.</sub>
 
 ## Everything it does
 
@@ -382,7 +448,7 @@ Vaglio includes the `fhir` and `pas` packages of Perfuse, a separate project und
 licence and notice are in [licenses/](licenses). The coverage documents in `library/sources/` belong to their
 publishers (CMS and state agencies) and are quoted as the basis of each policy.
 
-Vaglio is not affiliated with or endorsed by CMS, HL7, the Da Vinci Project, AHIP or BCBSA. HL7 and FHIR are
+Vaglio is not affiliated with or endorsed by CMS, HL7, the Da Vinci Project, AHIP, BCBSA, or any company named in this README. HL7 and FHIR are
 registered trademarks of Health Level Seven International, used only to say what Vaglio reads and writes. The
 policies here are not medical advice and not any health plan's coverage policy.
 
