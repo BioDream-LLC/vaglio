@@ -3,6 +3,7 @@
 //	vaglio serve  [-addr ADDR] [-policies DIR] [-data DIR] [-token-env VAR] [-pas-url URL ...]   the API and web console
 //	vaglio user   add|reset|remove|list -data DIR [-role ROLE] [NAME]    console accounts
 //	vaglio audit  verify -data DIR                                       check the audit log's chain
+//	vaglio receipt [-data DIR | -log FILE] RECEIPT                       check a decision's receipt against the log
 //	vaglio decide -policy FILE REQUEST.json                one decision, as JSON
 //	vaglio check  FILE...                                  every combination of evidence, per policy, and its warnings
 //	vaglio compile FILE.vaglio                             the policy as the JSON the engine reads
@@ -94,6 +95,8 @@ func main() {
 		err = appealsCmd(os.Args[2:], os.Stdout)
 	case "tls":
 		err = tlsCmd(os.Args[2:], os.Stdout)
+	case "receipt":
+		err = receiptCmd(os.Args[2:], os.Stdout)
 	case "version":
 		fmt.Println("vaglio", version)
 	case "help", "-h", "--help":
@@ -122,6 +125,7 @@ func usage(w io.Writer) {
   vaglio user   scopes -data DIR -scopes author,audit,appeals,policy:ID NAME   (empty to clear)
   vaglio user   clinician -data DIR -npi NPI -credential "MD, specialty" NAME   (-clear to remove)
   vaglio audit  verify -data DIR
+  vaglio receipt [-data DIR | -log FILE] [-json] VG-XXXX-XXXX-XXXX-XXXX   check a decision's receipt against the log
   vaglio decide -policy FILE REQUEST.json
   vaglio check  FILE...
   vaglio compile FILE.vaglio

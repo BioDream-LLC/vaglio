@@ -37,6 +37,8 @@ type PASAnswer struct {
 	Evidence      evidence.Extraction `json:"evidence"`
 	Exemption     *cases.Exemption    `json:"exemption,omitempty"` // approved because the provider is gold carded
 	Proposed      *cases.Proposal     `json:"proposed,omitempty"`  // a denial left to a clinician
+	// Receipt checks this decision against the audit log, by anyone holding it, at /api/receipts/{receipt}.
+	Receipt string `json:"receipt,omitempty"`
 }
 
 // decidePAS answers POST /api/pas/decide?item=<sequence> with a PAS request Bundle as the body. Every decision is a case
@@ -125,6 +127,9 @@ func (cfg Config) decidePAS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.Case = c.ID
+	if rs := receiptsFor(cfg.Audit.ForCase(c.ID)); len(rs) > 0 {
+		a.Receipt = rs[0].Receipt
+	}
 	writeJSON(w, http.StatusOK, a)
 }
 

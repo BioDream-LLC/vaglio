@@ -80,8 +80,9 @@ type Config struct {
 	// token.
 	AppealsToken string
 
-	set  *policySet
-	edit *sync.Mutex
+	set          *policySet
+	edit         *sync.Mutex
+	receiptLimit *limiter
 }
 
 // New returns the server's handler.
@@ -89,7 +90,7 @@ func New(cfg Config) http.Handler {
 	if cfg.Sessions == nil || cfg.Audit == nil || cfg.Cases == nil {
 		panic("server: Sessions, Audit and Cases are required")
 	}
-	cfg.set, cfg.edit = newPolicySet(cfg.Policies), &sync.Mutex{}
+	cfg.set, cfg.edit, cfg.receiptLimit = newPolicySet(cfg.Policies), &sync.Mutex{}, newLimiter(30)
 	cfg.Policies = nil // read through cfg.set from here on, so a signed-off policy is seen everywhere
 	if cfg.GoldCard != nil {
 		// Counting switches made in the console, in order: the last one per program stands. One for a program no longer
@@ -117,6 +118,7 @@ func New(cfg Config) http.Handler {
 	mux.HandleFunc("GET /api/sso", cfg.ssoInfo)
 	mux.HandleFunc("GET /api/sso/start", cfg.ssoStart)
 	mux.HandleFunc("GET /api/sso/callback", cfg.ssoCallback)
+	mux.HandleFunc("GET /api/receipts/{code}", cfg.checkReceipt)
 	route("GET /api/me", auth.Viewer, cfg.me)
 	route("GET /api/policies", auth.Viewer, cfg.listPolicies)
 	route("GET /api/policies/{id}", auth.Viewer, cfg.getPolicy)
@@ -494,7 +496,9 @@ func (cfg Config) extensionDays() int {
 type CaseDetail struct {
 	*cases.Case
 	History []audit.Record `json:"history"`
-	Due     string         `json:"due"`
+	// Receipts are the receipts of the case's decisions, which anyone holding one can check.
+	Receipts []Receipt `json:"receipts"`
+	Due      string    `json:"due"`
 	// MaxExtensionDays is the longest extension this server allows, for the console's form.
 	MaxExtensionDays int `json:"maxExtensionDays"`
 	// Redecided is the policy's decision on the request as it now stands, when documents arrived or findings were
@@ -513,7 +517,8 @@ func (cfg Config) getCase(w http.ResponseWriter, r *http.Request, s auth.Session
 		writeError(w, http.StatusInternalServerError, "reading the case could not be recorded: "+err.Error())
 		return
 	}
-	d := CaseDetail{Case: c, History: cfg.Cases.History(c.ID), Due: c.Due().UTC().Format(time.RFC3339),
+	h := cfg.Cases.History(c.ID)
+	d := CaseDetail{Case: c, History: h, Receipts: receiptsFor(h), Due: c.Due().UTC().Format(time.RFC3339),
 		MaxExtensionDays: cfg.extensionDays()}
 	if rd, err := cfg.redecide(c); err != nil {
 		d.RedecideError = err.Error()

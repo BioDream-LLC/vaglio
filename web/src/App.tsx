@@ -19,6 +19,7 @@ import {
   IconTheme,
   Mark,
 } from './Icons'
+import { ReceiptPage, receiptFromHash } from './Receipt'
 import { Reports } from './Reports'
 import { Audit, Policies, PolicyView, Try } from './Screens'
 import {
@@ -41,6 +42,19 @@ import { can, type Me } from './types'
 export { Result } from './common'
 
 export function App() {
+  const [hash, setHash] = useState(window.location.hash)
+  useEffect(() => {
+    const on = () => setHash(window.location.hash)
+    window.addEventListener('hashchange', on)
+    return () => window.removeEventListener('hashchange', on)
+  }, [])
+  const receipt = receiptFromHash(hash)
+  // The receipt page is public: whoever holds a receipt checks it without an account.
+  if (receipt !== null) return <ReceiptPage code={receipt} />
+  return <Signed />
+}
+
+function Signed() {
   const { data: me, error, isLoading } = useMeQuery()
   if (isLoading) return <p className="layout text-muted">Loading…</p>
   if (isUnauthorized(error) || !me) return <SignIn />

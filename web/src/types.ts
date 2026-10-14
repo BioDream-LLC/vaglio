@@ -221,6 +221,33 @@ export interface CaseDetail {
   redecided?: { policyVersion: string; confirmed: number; received: number; result: DecideResult; evidence: Extraction }
   redecideError?: string
   history: AuditRecord[]
+  receipts: CaseReceipt[]
+}
+
+/** A decision on a case and the receipt anyone can check it with. */
+export interface CaseReceipt {
+  receipt: string
+  action: string
+  time: string
+  seq: number
+}
+
+/** What checking a receipt tells anyone holding it: nothing about the patient. */
+export interface ReceiptCheck {
+  receipt: string
+  decision: 'approve' | 'deny' | 'pend' | 'overturned' | 'upheld'
+  by: 'engine' | 'reviewer' | 'clinician' | 'appeal'
+  credential?: string
+  time: string
+  policy: string
+  policyVersion: string
+  policyTitle: string
+  clause?: string
+  goldCard?: boolean
+  proposed?: boolean
+  later?: { receipt: string; decision: ReceiptCheck['decision']; by: ReceiptCheck['by']; time: string }[]
+  record: { seq: number; hash: string; prev: string }
+  chain: { verified: boolean; records: number; head: string }
 }
 
 export interface Appeal {

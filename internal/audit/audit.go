@@ -273,3 +273,13 @@ func (l *Log) Head() (int, string) {
 
 // Close closes the log.
 func (l *Log) Close() error { return l.f.Close() }
+
+// ReadFile reads and verifies the whole log at path without opening it for writing: a copy someone was given, say.
+func ReadFile(path string) ([]Record, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return read(f, 1, "")
+}
