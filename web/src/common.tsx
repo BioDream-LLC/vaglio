@@ -17,7 +17,16 @@ export const reasonText: Record<Reason, string> = {
   contradictory_record: 'The record both documents and denies evidence this decision depends on. Route to clinical review.',
 }
 
-export function Result({ result, heading = 2 }: { result: DecideResult; heading?: 2 | 3 }) {
+export function Result({
+  result,
+  heading = 2,
+  highlight,
+}: {
+  result: DecideResult
+  heading?: 2 | 3
+  /** Arguments to light up in the proof: in the what-if sandbox, the evidence the reader changed. */
+  highlight?: ReadonlySet<string>
+}) {
   const H = heading === 2 ? 'h2' : 'h3'
   return (
     <article className={`result ${result.outcome}`}>
@@ -37,7 +46,7 @@ export function Result({ result, heading = 2 }: { result: DecideResult; heading?
         <>
           <h3>{result.outcome === 'pended' ? 'The decision the engine did not issue, and its proof' : 'Proof'}</h3>
           <ul className="proof">
-            <Proof node={result.proof} />
+            <Proof node={result.proof} highlight={highlight} root />
           </ul>
         </>
       )}
@@ -88,10 +97,12 @@ function Routes({ routes }: { routes?: Change[][] }) {
   )
 }
 
-function Proof({ node }: { node: ProofNode }) {
+function Proof({ node, highlight, root }: { node: ProofNode; highlight?: ReadonlySet<string>; root?: boolean }) {
+  const lit = highlight?.has(node.argument)
   return (
-    <li>
+    <li className={lit ? 'lit' : root && highlight ? 'deciding' : undefined}>
       <span className={`kind ${node.kind}`}>{node.kind}</span> {node.text}
+      {lit && <span className="lit-tag"> changed</span>}
       <div className="clause">Policy: “{node.clause}”</div>
       {node.citation && <Cite c={node.citation} />}
       {node.defeats && node.defeats.length > 0 && (
@@ -100,7 +111,7 @@ function Proof({ node }: { node: ProofNode }) {
             <li key={d.attacker}>
               <span className="against">Against:</span> {d.text} <span className="against">— defeated by</span>
               <ul>
-                <Proof node={d.by} />
+                <Proof node={d.by} highlight={highlight} />
               </ul>
             </li>
           ))}

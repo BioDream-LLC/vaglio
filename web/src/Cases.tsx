@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useDispatch } from 'react-redux'
 import { Cite, decisionText, errorText, Result, when } from './common'
+import { WhatIf } from './WhatIf'
 import { IconCases, IconCheck, IconClock, IconCross } from './Icons'
 import {
   go,
@@ -368,7 +369,7 @@ function CaseBody({ c, me }: { c: CaseDetail; me: Me }) {
       <Documents c={c} me={me} />
 
       <Evidence c={c} />
-      <Result result={c.result} heading={3} />
+      <DecisionTabs c={c} />
       <History c={c} />
     </>
   )
@@ -777,5 +778,45 @@ function History({ c }: { c: CaseDetail }) {
         ))}
       </ol>
     </>
+  )
+}
+
+/** The decision as made, and beside it the what-if sandbox over the same evidence. */
+function DecisionTabs({ c }: { c: CaseDetail }) {
+  const [tab, setTab] = useState<'decision' | 'whatif'>('decision')
+  const tabs = [
+    { id: 'decision', label: 'The decision' },
+    { id: 'whatif', label: 'What if…' },
+  ] as const
+  return (
+    <div className="mt-4">
+      <div role="tablist" aria-label="Decision" className="mb-3 flex gap-2">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls={`panel-${t.id}`}
+            className={`chip ${tab === t.id ? 'on' : ''}`}
+            onClick={() => setTab(t.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                const next = tab === 'decision' ? 'whatif' : 'decision'
+                setTab(next)
+                document.getElementById(`tab-${next}`)?.focus()
+              }
+            }}
+            tabIndex={tab === t.id ? 0 : -1}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+        {tab === 'decision' ? <Result result={c.result} heading={3} /> : <WhatIf c={c} original={c.result} />}
+      </div>
+    </div>
   )
 }
