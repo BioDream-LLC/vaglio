@@ -62,3 +62,14 @@ func Check(p *policy.Policy) *Report {
 	sort.Strings(r.Unreachable)
 	return r
 }
+
+// Settle is the outcome on a fully documented record: the evidence named present, everything else documented absent,
+// and the decision argument the outcome rests on ("" when none does).
+func Settle(p *policy.Policy, present []string) (Outcome, string) {
+	m := map[string]*Citation{}
+	for _, n := range present {
+		m[n] = &Citation{}
+	}
+	s := solve(p, m)
+	return s.outcome, s.decision
+}

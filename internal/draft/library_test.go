@@ -54,3 +54,31 @@ func TestLibrary(t *testing.T) {
 		}
 	}
 }
+
+// TestReadings holds the second readings in library/readings to the same gates against the source they read, named by
+// their policy id: a reading is only worth comparing if it quotes the document as faithfully as the first.
+func TestReadings(t *testing.T) {
+	sources := map[string]string{"tka": "L36575-TKA.txt"}
+	files, _ := filepath.Glob("../../library/readings/*" + policy.Ext)
+	if len(files) == 0 {
+		t.Fatal("no readings")
+	}
+	for _, f := range files {
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, err := policy.Parse(f, string(src))
+		if err != nil {
+			t.Fatal(err)
+		}
+		name, ok := sources[p.ID]
+		if !ok {
+			t.Fatalf("%s: say which source it reads", f)
+		}
+		doc, _ := os.ReadFile(filepath.Join("../../library/sources", name))
+		if _, failures := Gate(Request{ID: p.ID, Document: string(doc)}, string(src)); len(failures) > 0 {
+			t.Errorf("%s fails against %s:\n  %v", f, name, failures)
+		}
+	}
+}

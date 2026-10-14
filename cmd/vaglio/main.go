@@ -12,6 +12,7 @@
 //	vaglio questionnaire [-put URL] FILE.vaglio            the DTR Questionnaire the policy reads, made from it
 //	vaglio report metrics|pends -data DIR [-from -to]      CMS prior authorisation metrics; what pends requests most
 //	vaglio goldcard -data DIR -config FILE                 every provider's standing under the gold card programs
+//	vaglio readings A.vaglio B.vaglio                     where two readings of one coverage document disagree
 //	vaglio replay -data DIR FILE.vaglio                    which past decisions a new policy version would change
 //	vaglio signoff -by "NAME, CREDENTIAL" FILE.vaglio      a clinician's sign-off: the draft becomes usable
 //	vaglio version
@@ -97,6 +98,8 @@ func main() {
 		err = tlsCmd(os.Args[2:], os.Stdout)
 	case "receipt":
 		err = receiptCmd(os.Args[2:], os.Stdout)
+	case "readings":
+		err = readingsCmd(os.Args[2:], os.Stdout)
 	case "version":
 		fmt.Println("vaglio", version)
 	case "help", "-h", "--help":
@@ -135,6 +138,7 @@ func usage(w io.Writer) {
   vaglio report metrics|pends|overrides -data DIR [-from YYYY-MM-DD] [-to YYYY-MM-DD] [-csv] [-by clause|provider|state]
   vaglio goldcard -data DIR -config FILE
   vaglio replay -data DIR FILE.vaglio
+  vaglio readings [-json] A.vaglio B.vaglio    where two readings of one coverage document decide a record differently
   vaglio signoff -by "NAME, CREDENTIAL" [-date YYYY-MM-DD] FILE.vaglio
   vaglio appeals import -url SERVER -token-env VAR [-ca FILE] FILE.csv    appeal outcomes, to the server's appeals feed
   vaglio tls    show|init -data DIR [-addr ADDR] [-hostname NAME]   Vaglio's own certificate authority, and how to trust it

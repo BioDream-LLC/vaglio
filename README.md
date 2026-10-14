@@ -153,6 +153,20 @@ software a plan runs, not an outcome a vendor sells.
 - **Replay** (`vaglio replay`, or edit a policy's source in the console): runs a new policy version over every stored
   request it covers and lists the decisions it would change, flagging those that would overrule a reviewer. It changes
   nothing, and is audited.
+- **What if** (every case, in the console): flip any piece of evidence between present, absent and not addressed, and
+  the decision and its proof redraw at once, with what changed lit up in the proof. Nothing is recorded; the case keeps
+  its decision.
+- **Receipts**: every decision (the engine's, a reviewer's, an appeal's) has a receipt such as
+  `VG-80C7-1A55-DCF3-C768` and a QR code, made from the hash of its audit record. Anyone holding one checks it at
+  `/#/receipt/...` without signing in, or offline against a copy of the log (`vaglio receipt -log FILE CODE`), and sees
+  the decision, who made it (engine, reviewer or clinician, never a name), the policy and clause, any later decision on
+  the same request, and where it sits in the chain. Nothing about the patient. Checks are limited to 30 a minute per
+  address, so the log cannot be swept for receipts. The PAS answer carries the receipt.
+- **Two readings compared** (`vaglio readings A.vaglio B.vaglio`): two policies drafted from one coverage document,
+  each quoting it word for word, decided on every record of their evidence; where they disagree, the groups of records,
+  the clauses each rests on, and the simplest example. A check proves a policy consistent, not that it means what the
+  document means; a second reading that disagrees is where a person should look. `library/readings/` holds a second
+  reading of the TKA LCD.
 
 - **Says what would change it**: every pend and denial carries each smallest set of evidence whose documentation would
   approve it, and says when a route needs the record to be wrong rather than more documentation. The provider is told

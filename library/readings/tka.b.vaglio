@@ -1,0 +1,128 @@
+# A second reading of Medicare LCD L36575, for comparison with library/tka.vaglio (vaglio readings). Not a policy to put
+# in force. Here the six findings after the conservative-therapy paragraph (failed osteotomy, distal femur fracture,
+# malignancy, failed unicompartmental replacement, avascular necrosis, proximal tibia fracture) stand in for the imaging
+# criterion, not for the whole set of criteria: pain or disability, and conservative therapy addressed, are still needed.
+policy tka
+  title "Total knee arthroplasty (27447), primary"
+  version 0.1.0
+  source "Medicare LCD L36575, Total Knee Arthroplasty (Noridian, Jurisdiction F), indications and limitations"
+  status draft
+  questionnaire https://vaglio.example/Questionnaire/tka
+  service cpt 27447
+
+evidence advanced_disease_imaging
+  text "Imaging showing advanced joint disease"
+  clause "Radiographic supported evidence or when conventional radiography is not adequate, magnetic resonance imaging (MRI) and/or computed tomography (CT) (in situations when MRI is non-diagnostic or not able to be performed) supported evidence (subchondral cysts, subchondral sclerosis, periarticular osteophytes, joint subluxation, joint space narrowing, avascular necrosis); and"
+  find question advanced-disease-imaging
+  request document loinc 18748-4
+
+evidence pain_or_disability
+  text "Pain or functional disability from trauma or arthritis of the joint"
+  clause "Pain or functional disability from injury due to trauma or arthritis of the joint; and"
+  find question pain-or-disability
+
+evidence conservative_failed
+  text "Unsuccessful conservative therapy, addressed in the pre-procedure record"
+  clause "If appropriate, history of unsuccessful conservative therapy (non-surgical medical management) that is clearly addressed in the pre-procedure medical record."
+  find question conservative-therapy-failed
+  request document loinc 11506-3
+
+evidence conservative_inappropriate
+  text "The record documents why conservative therapy is not appropriate"
+  clause "(If conservative therapy is not appropriate, the medical record must clearly document why such approach is not reasonable)."
+  find question conservative-therapy-inappropriate
+
+evidence failed_osteotomy
+  text "Failure of a previous osteotomy"
+  clause "Failure of a previous osteotomy; or"
+  find question failed-osteotomy
+
+evidence distal_femur_fracture
+  text "Distal femur fracture"
+  clause "Distal femur fracture; or"
+  find question distal-femur-fracture
+
+evidence malignancy
+  text "Malignancy of the distal femur, proximal tibia, knee joint or adjacent soft tissues"
+  clause "Malignancy of the distal femur, proximal tibia, knee joint or adjacent soft tissues; or"
+  find question knee-malignancy
+
+evidence failed_unicompartmental
+  text "Failure of a previous unicompartmental knee replacement"
+  clause "Failure of previous unicompartmental knee replacement; or"
+  find question failed-unicompartmental
+
+evidence avascular_necrosis
+  text "Avascular necrosis of the knee"
+  clause "Avascular necrosis of the knee; or"
+  find question avascular-necrosis
+
+evidence proximal_tibia_fracture
+  text "Proximal tibia fracture"
+  clause "Proximal tibia fracture"
+  find question proximal-tibia-fracture
+
+evidence joint_infection
+  text "Active infection of the knee joint or active systemic bacteremia"
+  clause "Active infection of the knee joint or active systemic bacteremia"
+  find question joint-infection
+
+evidence urinary_or_dental_infection
+  text "Active urinary tract or dental infection"
+  clause "Active urinary tract or dental infection"
+  find question urinary-or-dental-infection
+
+evidence skin_infection
+  text "Active skin infection or open wound at the planned surgical site"
+  clause "Active skin infection (exception recurrent cutaneous staph infections) or open wound within the planned surgical site of the knee"
+  find question skin-infection
+
+evidence progressive_neurological_disease
+  text "Rapidly progressive neurological disease"
+  clause "Rapidly progressive neurological disease"
+  find question progressive-neurological-disease
+
+criterion no_disease_imaging
+  text "Neither imaging showing advanced joint disease nor one of the six findings is documented."
+  clause "Radiographic supported evidence or when conventional radiography is not adequate, magnetic resonance imaging (MRI) and/or computed tomography (CT) (in situations when MRI is non-diagnostic or not able to be performed) supported evidence (subchondral cysts, subchondral sclerosis, periarticular osteophytes, joint subluxation, joint space narrowing, avascular necrosis); and"
+  defeated by advanced_disease_imaging failed_osteotomy distal_femur_fracture malignancy failed_unicompartmental avascular_necrosis proximal_tibia_fracture
+
+criterion no_pain_or_disability
+  text "Pain or functional disability is not documented."
+  clause "Pain or functional disability from injury due to trauma or arthritis of the joint; and"
+  defeated by pain_or_disability
+
+criterion conservative_unaddressed
+  text "Conservative therapy has neither failed nor been documented as not appropriate."
+  clause "If appropriate, history of unsuccessful conservative therapy (non-surgical medical management) that is clearly addressed in the pre-procedure medical record."
+  defeated by conservative_failed conservative_inappropriate
+
+criterion advanced_disease_indication
+  text "Advanced joint disease, with pain or disability, and conservative therapy addressed."
+  clause "Noridian will consider total knee replacement surgery medically necessary in the following circumstances:"
+  defeated by no_disease_imaging no_pain_or_disability conservative_unaddressed
+
+criterion no_indication
+  text "No indication for total knee replacement is documented."
+  clause "Noridian will consider total knee replacement surgery medically necessary in the following circumstances:"
+  defeated by advanced_disease_indication
+
+criterion no_contraindication_shown
+  text "None of the contraindications is documented."
+  clause "Noridian will not consider a total knee replacement medically necessary when the following contraindications are present:"
+  defeated by joint_infection urinary_or_dental_infection skin_infection progressive_neurological_disease
+
+decision approve approves
+  text "Approve the total knee arthroplasty."
+  clause "Noridian will consider total knee replacement surgery medically necessary in the following circumstances:"
+  defeated by no_indication joint_infection urinary_or_dental_infection skin_infection progressive_neurological_disease
+
+decision deny_no_indication denies
+  text "Deny: no indication for total knee replacement is documented."
+  clause "Noridian will consider total knee replacement surgery medically necessary in the following circumstances:"
+  defeated by advanced_disease_indication
+
+decision deny_contraindicated denies
+  text "Deny: a contraindication to total knee replacement is present."
+  clause "Noridian will not consider a total knee replacement medically necessary when the following contraindications are present:"
+  defeated by no_contraindication_shown
