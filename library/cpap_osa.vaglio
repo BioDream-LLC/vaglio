@@ -1,0 +1,95 @@
+# CPAP (E0601) for obstructive sleep apnea, initial coverage, from Medicare LCD L33718. Status draft: awaiting clinical
+# sign-off (vaglio signoff). Every clause is quoted from library/sources/L33718-E0601.txt.
+#
+# Drafted by machine (library/drafts/cpap_osa.machine.vaglio), then corrected by hand: the machine draft passed every
+# gate but required a symptom or comorbidity for every sleep test, where the LCD requires one only when the AHI or RDI
+# is 5 to 14. Here an AHI or RDI of 15 or more qualifies by itself, and 5 to 14 qualifies with either kind of support.
+# Questions only: the LCD names no codes for the sleep test's result or the symptoms, and a code this policy does not
+# hold would match nothing.
+policy cpap_osa
+  title "CPAP device (E0601) for obstructive sleep apnea, initial coverage"
+  version 0.1.0
+  source "Medicare LCD L33718, Positive Airway Pressure (PAP) Devices for the Treatment of Obstructive Sleep Apnea: initial coverage of E0601"
+  status draft
+  questionnaire https://vaglio.example/Questionnaire/cpap-osa
+  service hcpcs E0601
+
+evidence clinical_evaluation
+  text "An in-person clinical evaluation for obstructive sleep apnea before the sleep test"
+  clause "The beneficiary has an in-person clinical evaluation by the treating practitioner prior to the sleep test to assess the beneficiary for obstructive sleep apnea."
+  find question clinical-evaluation
+
+evidence ahi_15_or_more
+  text "A sleep test with an AHI or RDI of 15 or more events per hour, with at least 30 events"
+  clause "The apnea-hypopnea index (AHI) or Respiratory Disturbance Index (RDI) is greater than or equal to 15 events per hour with a minimum of 30 events; or,"
+  find question ahi-15-or-more
+
+evidence ahi_5_to_14
+  text "A sleep test with an AHI or RDI of 5 to 14 events per hour, with at least 10 events"
+  clause "The AHI or RDI is greater than or equal to 5 and less than or equal to 14 events per hour with a minimum of 10 events and documentation of:"
+  find question ahi-5-to-14
+
+evidence symptoms
+  text "Documented excessive daytime sleepiness, impaired cognition, mood disorders or insomnia"
+  clause "Excessive daytime sleepiness, impaired cognition, mood disorders, or insomnia; or,"
+  find question osa-symptoms
+
+evidence comorbidity
+  text "Documented hypertension, ischemic heart disease or history of stroke"
+  clause "Hypertension, ischemic heart disease, or history of stroke."
+  find question osa-comorbidity
+
+evidence device_instruction
+  text "Instruction from the supplier in the proper use and care of the device"
+  clause "The beneficiary and/or their caregiver has received instruction from the supplier of the device in the proper use and care of the equipment."
+  find question device-instruction
+
+criterion no_clinical_evaluation
+  text "No in-person clinical evaluation before the sleep test is documented."
+  clause "The beneficiary has an in-person clinical evaluation by the treating practitioner prior to the sleep test to assess the beneficiary for obstructive sleep apnea."
+  defeated by clinical_evaluation
+
+criterion not_mild_range
+  text "The sleep test's AHI or RDI is not shown to be 5 to 14."
+  clause "The AHI or RDI is greater than or equal to 5 and less than or equal to 14 events per hour with a minimum of 10 events and documentation of:"
+  defeated by ahi_5_to_14
+
+criterion mild_range_unsupported
+  text "Neither the symptoms nor the conditions an AHI or RDI of 5 to 14 needs are documented."
+  clause "The AHI or RDI is greater than or equal to 5 and less than or equal to 14 events per hour with a minimum of 10 events and documentation of:"
+  defeated by symptoms comorbidity
+
+criterion mild_osa_qualifies
+  text "An AHI or RDI of 5 to 14 with documented symptoms or conditions."
+  clause "The AHI or RDI is greater than or equal to 5 and less than or equal to 14 events per hour with a minimum of 10 events and documentation of:"
+  defeated by not_mild_range mild_range_unsupported
+
+criterion no_qualifying_sleep_test
+  text "No sleep test meets either criterion."
+  clause "The beneficiary has a sleep test (as defined below) that meets either of the following criteria (1 or 2):"
+  defeated by ahi_15_or_more mild_osa_qualifies
+
+criterion no_device_instruction
+  text "Instruction in the use and care of the device is not documented."
+  clause "The beneficiary and/or their caregiver has received instruction from the supplier of the device in the proper use and care of the equipment."
+  defeated by device_instruction
+
+decision approve approves
+  text "Approve the E0601 device."
+  clause "An E0601 device is covered for the treatment of obstructive sleep apnea (OSA) if criteria A – C are met:"
+  defeated by no_clinical_evaluation no_qualifying_sleep_test no_device_instruction
+
+decision deny_no_evaluation denies
+  text "Deny: no in-person clinical evaluation before the sleep test."
+  clause "If a claim for an E0601 is submitted and all of the criteria above have not been met, it will be denied as not reasonable and necessary."
+  defeated by clinical_evaluation
+
+decision deny_no_qualifying_test denies
+  text "Deny: no sleep test meets either criterion."
+  clause "If a claim for an E0601 is submitted and all of the criteria above have not been met, it will be denied as not reasonable and necessary."
+  defeated by ahi_15_or_more mild_osa_qualifies
+
+decision deny_no_instruction denies
+  text "Deny: instruction in the use and care of the device is not documented."
+  clause "If a claim for an E0601 is submitted and all of the criteria above have not been met, it will be denied as not reasonable and necessary."
+  defeated by device_instruction

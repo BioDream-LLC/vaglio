@@ -1,0 +1,23 @@
+Perfuse
+Copyright 2026 BioDream LLC
+
+This product includes software developed as part of the Perfuse project
+(https://github.com/biodream-llc/perfuse), licensed under the Apache License,
+Version 2.0.
+
+Perfuse is not affiliated with, endorsed by, or derived from Mirth Connect,
+NextGen Healthcare, or any other integration engine vendor. Where this project
+reads or writes another product's file formats, it does so from that product's
+published behaviour and from documents that product itself produced, so that a
+site can move its work in and out without asking anyone's permission.
+
+HL7 is a registered trademark of Health Level Seven International. FHIR is a
+registered trademark of HL7. DICOM is a registered trademark of the National
+Electrical Manufacturers Association. Those marks are used here only to say
+what this software reads and writes.
+
+Third-party dependencies and their licenses are listed in the software bill of
+materials, which every release ships beside the binaries as perfuse.cdx.json.
+It can also be produced from any build with:
+
+    perfuse sbom -json

@@ -1,0 +1,39 @@
+Source: Local Coverage Determination L35121, Coronary Computed Tomography Angiography (CCTA) (WPS), Medicare (https://www.cms.gov/medicare-coverage-database/view/lcd.aspx?lcdid=35121), version 35, revision effective 10/30/2025, retrieved 2026-10-13 through the CMS
+Coverage API. Copied as published, markup removed. A Medicare coverage document, used here to draft a library
+policy; check it against the current version before relying on it.
+
+COVERAGE INDICATIONS, LIMITATIONS, AND/OR MEDICAL NECESSITY
+The multi-detector helical computed tomography (MDCT) technology requires thin (up to 1 mm) slices, 0.5 to 0.75 mm reconstructions, multiple simultaneous images (e.g. 16, 32, 64 or more slices), and cardiac gating (often requiring beta blockers for ideal heart rate). There is significant post-processing, depending on the number of slices per second for image generation. For coronary artery imaging, the resulting images show a high correlation with stenotic lesions noted on diagnostic cardiac catheterization but more importantly, with atheromas on intracoronary ultrasound.
+Current available body of evidence demonstrates that CCTA can reliably rule out the presence of significant coronary artery disease (CAD) in patients with a low to intermediate probability of having CAD and can reliably achieve a high degree of diagnostic accuracy and technical performance necessary to replace conventional angiography.
+ Indications:
+CCTA is used as an alternative to invasive angiography and stress testing for patients with 1 or more of the following:
+anginal symptoms
+patients with unclear stress tests results
+patient in whom the stress test result contradicts the clinical assessment
+to determine the patency of coronary artery bypass grafts
+as an alternative when cardiac catheterization is impossible or carries a high risk
+to rule out stenosis before non-coronary cardiac surgery such as valve replacement or resection of tumors
+to clarify unclear findings after invasive angiography
+CCTA used to assess patients suspected of having a congenital coronary anomaly of great vessels, cardiac chambers, and valves. It is often used after an anomaly has been identified following a different test such as prior invasive coronary angiogram. CCTA is used to decide if surgery is indicated and for surgical planning. 
+CCTA used to evaluate acute chest pain in the emergency department (ED). The rationale is to quickly triage patients in order to rule out coronary artery disease as a possible cause of symptoms. Many will present with a normal electrocardiogram and myocardial enzymes. 
+CCTA used to assess coronary or pulmonary venous anatomy. Coronary mapping is primarily for pre-surgical planning such as pacemaker lead placement in the lateral coronary vein to resynchronize cardiac contraction in patients with heart failure or guiding biventricular pacemaker placement. Pulmonary vein anatomy can vary from patient to patient. Pulmonary vein mapping is primarily for catheter ablation which can isolate electrical activity from the pulmonary veins and allow for the elimination of recurrent atrial fibrillation or help eliminate procedural complications.
+CCTA used to assess etiology with new onset heart failure for evaluation of coronary arteries.
+ Limitations:
+The test is never covered for screening, i.e., in the absence of signs, symptoms or disease. 
+The test will be considered not medically necessary if the anticipated results are not expected to provide new, additional information to that already previously obtained from other tests (such as stress myocardial perfusion images or cardiac ultrasound). New or additional information should facilitate the management decision, not merely add a new layer of testing. 
+The test will be considered not medically necessary if pretest evaluation indicates that the patient would require invasive cardiac angiography for further diagnosis or for therapeutic intervention. 
+The test may be denied, on post-pay review, as not medically necessary when used for cardiac evaluation if there was pre-test knowledge of sufficiently extensive calcification of the suspect coronary segment that would diminish the interpretive value. (e.g., angina decubitus, unstable angina, Prinzmetal angina, etc.) 
+Coverage is limited to devices that process thin, high-resolution slices (1mm or less). The multi-detector scanners must have at least 64 slices per rotation capability. 
+The administration of beta blockers and the monitoring of the patient during MDCT/CCTA by a physician experienced in the use of cardiovascular drugs is included as part of the test and is not a separately payable service. 
+All studies must be ordered by the physician/qualified non-physician practitioner treating the 
+patient and who will use the results of the test in the management of the patient. 
+The test must be performed under the direct supervision of a physician, similar to stress myocardial perfusion imaging. 
+This LCD does not address electron beam tomography (EBT) technology or Ultrafast CT for coronary artery examination. There is no extension of coverage of EBT based on this policy. 
+Quantitative calcium scoring is not a covered service and will be denied as not medically necessary. Calcium scoring reported in isolation is considered a screening service. When performed in association with CT angiography, there is neither separate nor additional included reimbursement for the calcium scoring.
+Atrial fibrillation or atrial flutter alone is not an indication; atrial fibrillation or atrial flutter with planned ablation therapy is allowed.
+
+CODES, from the associated Billing and Coding article A57552 (version 22):
+75572 COMPUTED TOMOGRAPHY, HEART, WITH CONTRAST MATERIAL, FOR EVALUATION OF CARDIAC STRUCTURE AND MORPHOLOGY (INCLUDING 3D IMAGE POSTPROCESSING, ASSESSMENT OF CARDIAC FUNCTION, AND EVALUATION OF VENOUS STRUCTURES, IF PERFORMED)
+75573 COMPUTED TOMOGRAPHY, HEART, WITH CONTRAST MATERIAL, FOR EVALUATION OF CARDIAC STRUCTURE AND MORPHOLOGY IN THE SETTING OF CONGENITAL HEART DISEASE (INCLUDING 3D IMAGE POSTPROCESSING, ASSESSMENT OF LEFT VENTRICULAR [LV] CARDIAC FUNCTION, RIGHT VENTRICULAR [RV] STRUCTURE AND FUNCTION AND EVALUATION OF VASCULAR STRUCTURES, IF PERFORMED)
+75574 COMPUTED TOMOGRAPHIC ANGIOGRAPHY, HEART, CORONARY ARTERIES AND BYPASS GRAFTS (WHEN PRESENT), WITH CONTRAST MATERIAL, INCLUDING 3D IMAGE POSTPROCESSING (INCLUDING EVALUATION OF CARDIAC STRUCTURE AND MORPHOLOGY, ASSESSMENT OF CARDIAC FUNCTION, AND EVALUATION OF VENOUS STRUCTURES, IF PERFORMED)
+75571 COMPUTED TOMOGRAPHY, HEART, WITHOUT CONTRAST MATERIAL, WITH QUANTITATIVE EVALUATION OF CORONARY CALCIUM

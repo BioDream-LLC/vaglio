@@ -1,0 +1,109 @@
+# DRAFT, machine-drafted from L33718-E0601.txt with meta-llama/llama-3.3-70b-instruct (sha256 d0c5016a7f6999e9...) on 2026-10-13, in 3 round(s).
+#
+# Checked by machine: it compiles; every clause is quoted word for word from the document; every code appears in the
+# document; it decides every combination of evidence without contradicting itself; it has no lint warnings.
+# NOT checked: that its logic says what the document means, that its evidence is all the document asks for, and that the
+# questionnaire linkIds are the payer's. A person checks those, and signs the policy off by removing the status line.
+
+policy cpap_osa
+  title "CPAP for Obstructive Sleep Apnea"
+  version 1.0
+  source "Local Coverage Determination L33718"
+  status draft
+  questionnaire https://payer.example/Questionnaire/cpap_osa
+  service hcpcs E0601
+
+evidence clinical_evaluation
+  text "In-person clinical evaluation by the treating practitioner"
+  clause "The beneficiary has an in-person clinical evaluation by the treating practitioner prior to the sleep test to assess the beneficiary for obstructive sleep apnea."
+  find question clinical-evaluation
+
+evidence sleep_test
+  text "Sleep test with AHI or RDI >= 15 or 5-14 with symptoms"
+  clause "The beneficiary has a sleep test (as defined below) that meets either of the following criteria (1 or 2):"
+  find question sleep-test
+
+evidence excessive_daytime_sleepiness
+  text "Excessive daytime sleepiness"
+  clause "Excessive daytime sleepiness, impaired cognition, mood disorders, or insomnia; or,"
+  find question excessive-daytime-sleepiness
+
+evidence impaired_cognition
+  text "Impaired cognition"
+  clause "Excessive daytime sleepiness, impaired cognition, mood disorders, or insomnia; or,"
+  find question impaired-cognition
+
+evidence mood_disorders
+  text "Mood disorders"
+  clause "Excessive daytime sleepiness, impaired cognition, mood disorders, or insomnia; or,"
+  find question mood-disorders
+
+evidence insomnia
+  text "Insomnia"
+  clause "Excessive daytime sleepiness, impaired cognition, mood disorders, or insomnia; or,"
+  find question insomnia
+
+evidence hypertension
+  text "Hypertension"
+  clause "Hypertension, ischemic heart disease, or history of stroke."
+  find question hypertension
+
+evidence ischemic_heart_disease
+  text "Ischemic heart disease"
+  clause "Hypertension, ischemic heart disease, or history of stroke."
+  find question ischemic-heart-disease
+
+evidence history_of_stroke
+  text "History of stroke"
+  clause "Hypertension, ischemic heart disease, or history of stroke."
+  find question history-of-stroke
+
+evidence device_instruction
+  text "Instruction in proper use and care of the equipment"
+  clause "The beneficiary and/or their caregiver has received instruction from the supplier of the device in the proper use and care of the equipment."
+  find question device-instruction
+
+criterion no_clinical_evaluation
+  text "No in-person clinical evaluation"
+  clause "The beneficiary has an in-person clinical evaluation by the treating practitioner prior to the sleep test to assess the beneficiary for obstructive sleep apnea."
+  defeated by clinical_evaluation
+
+criterion no_sleep_test
+  text "No sleep test meeting criteria"
+  clause "The beneficiary has a sleep test (as defined below) that meets either of the following criteria (1 or 2):"
+  defeated by sleep_test
+
+criterion no_device_instruction
+  text "No instruction in proper use and care of the equipment"
+  clause "The beneficiary and/or their caregiver has received instruction from the supplier of the device in the proper use and care of the equipment."
+  defeated by device_instruction
+
+criterion no_symptoms_or_comorbidities
+  text "No symptoms or comorbidities"
+  clause "Excessive daytime sleepiness, impaired cognition, mood disorders, or insomnia; or,"
+  defeated by excessive_daytime_sleepiness impaired_cognition mood_disorders insomnia hypertension ischemic_heart_disease history_of_stroke
+
+decision approve approves
+  text "Approve CPAP for Obstructive Sleep Apnea"
+  clause "An E0601 device is covered for the treatment of obstructive sleep apnea (OSA) if criteria A – C are met:"
+  defeated by no_clinical_evaluation no_sleep_test no_device_instruction no_symptoms_or_comorbidities
+
+decision deny_no_clinical_evaluation denies
+  text "Deny: no in-person clinical evaluation"
+  clause "The beneficiary has an in-person clinical evaluation by the treating practitioner prior to the sleep test to assess the beneficiary for obstructive sleep apnea."
+  defeated by clinical_evaluation
+
+decision deny_no_sleep_test denies
+  text "Deny: no sleep test meeting criteria"
+  clause "The beneficiary has a sleep test (as defined below) that meets either of the following criteria (1 or 2):"
+  defeated by sleep_test
+
+decision deny_no_device_instruction denies
+  text "Deny: no instruction in proper use and care of the equipment"
+  clause "The beneficiary and/or their caregiver has received instruction from the supplier of the device in the proper use and care of the equipment."
+  defeated by device_instruction
+
+decision deny_no_symptoms_or_comorbidities denies
+  text "Deny: no symptoms or comorbidities"
+  clause "Excessive daytime sleepiness, impaired cognition, mood disorders, or insomnia; or,"
+  defeated by excessive_daytime_sleepiness impaired_cognition mood_disorders insomnia hypertension ischemic_heart_disease history_of_stroke

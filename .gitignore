@@ -1,0 +1,18 @@
+/bin/
+/vaglio
+
+# front end
+web/node_modules/
+web/.vite/
+# internal/web/dist is committed on purpose so `go build` works without Node. Rebuild it with `make web`.
+
+# Never commit patient data. Requests in testdata are synthetic.
+*.phi
+/data/
+
+# local tooling
+.kiro/
+.vscode/
+.idea/
+.DS_Store
+*.swp

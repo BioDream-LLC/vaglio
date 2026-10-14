@@ -1,0 +1,17 @@
+ILLUSTRATIVE ONLY. Written for Vaglio development; not any payer's coverage policy and not clinical guidance.
+
+Example Health Plan - Medical Policy 7.1: Arthroscopic knee surgery
+
+Covered services: CPT 29880 and 29881 (knee arthroscopy with meniscectomy).
+
+1. Indications
+
+1.1 Arthroscopic meniscectomy is medically necessary when the member has mechanical symptoms of the knee, such as locking, catching or giving way.
+
+1.2 The member must also have completed at least six weeks of physical therapy or other conservative treatment without adequate relief.
+
+1.3 A meniscal tear must be confirmed by MRI (CPT 73721) performed within the last 12 months.
+
+2. Exclusions
+
+2.1 Arthroscopic meniscectomy is not medically necessary for knee osteoarthritis without mechanical symptoms (ICD-10-CM M17.11, M17.12).

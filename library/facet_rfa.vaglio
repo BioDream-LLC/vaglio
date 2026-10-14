@@ -1,0 +1,112 @@
+# Initial thermal radiofrequency ablation of facet joint nerves (64633-64636), from Medicare LCD L38773 (CGS). Status
+# draft: awaiting clinical sign-off (vaglio signoff). Every clause is quoted from library/sources/L38773-facet.txt.
+#
+# Drafted by hand. The LCD's four criteria for every facet intervention, then the initial-RFA criterion: two diagnostic
+# medial branch blocks, each with at least 80% relief. The blocks are found in the record as two facet injections
+# (64490-64495) on different days in the last year, or answered; the relief cannot be read from a Procedure, so it is a
+# question of its own, and two blocks without it prove nothing. The frequency limit (two RFA sessions per region per
+# rolling 12 months) is a count of RFA procedures (64633, 64635) on different days in the last 365 days: two already
+# done denies a third. The record cannot tell spinal regions apart, so two in different regions also count; the
+# clinician should decide whether to keep it. Repeat RFA, therapeutic injections and cyst aspiration are other
+# policies.
+policy facet_rfa
+  title "Facet joint radiofrequency ablation (64633-64636), initial"
+  version 0.1.0
+  source "Medicare LCD L38773, Facet Joint Interventions for Pain Management (CGS), indications C and limitations"
+  status draft
+  questionnaire https://vaglio.example/Questionnaire/facet-rfa
+  service cpt 64633 64634 64635 64636
+
+evidence axial_pain
+  text "Moderate to severe chronic axial neck or low back pain causing a measured functional deficit"
+  clause "Moderate to severe chronic neck or low back pain, predominantly axial, that causes functional deficit measured on pain or disability scale*"
+  find question axial-pain
+
+evidence conservative_failed
+  text "Pain for at least 3 months, with documented failure of noninvasive conservative management"
+  clause "Pain present for minimum of 3 months with documented failure to respond to noninvasive conservative management (as tolerated)"
+  find question conservative-failed
+  request document loinc 11506-3
+
+evidence untreated_radiculopathy
+  text "Untreated radiculopathy or neurogenic claudication"
+  clause "Absence of untreated radiculopathy or neurogenic claudication (except for radiculopathy caused by facet joint synovial cyst)"
+  find question untreated-radiculopathy
+
+evidence non_facet_pathology
+  text "Non-facet pathology that could explain the pain"
+  clause "There is no non-facet pathology per clinical assessment or radiology studies that could explain the source of the patient’s pain, including but not limited to fracture, tumor, infection, or significant deformity."
+  find question non-facet-pathology
+
+evidence two_diagnostic_blocks
+  text "Two diagnostic medial branch blocks"
+  clause "Initial thermal radiofrequency destruction after the patient has had at least two (2) medically reasonable and necessary diagnostic MBBs, with each one providing a consistent minimum of 80% sustained relief of primary (index) pain (with the duration of relief being consistent with the agent used)"
+  find question two-diagnostic-blocks
+  find procedure cpt 64490 64491 64492 64493 64494 64495 within 365 days times 2
+
+evidence blocks_80_percent
+  text "Each diagnostic block gave at least 80% relief of the index pain"
+  clause "Initial thermal radiofrequency destruction after the patient has had at least two (2) medically reasonable and necessary diagnostic MBBs, with each one providing a consistent minimum of 80% sustained relief of primary (index) pain (with the duration of relief being consistent with the agent used)"
+  find question blocks-80-percent
+  request document loinc 28570-0
+
+evidence two_rfa_this_year
+  text "Two radiofrequency sessions already in the last 12 months"
+  clause "Frequency Limitation: For each covered spinal region, no more than two (2) radiofrequency sessions will be reimbursed per rolling 12 months."
+  find question two-rfa-this-year
+  find procedure cpt 64633 64635 within 365 days times 2
+
+criterion no_axial_pain
+  text "Moderate to severe axial pain with a measured functional deficit is not documented."
+  clause "Moderate to severe chronic neck or low back pain, predominantly axial, that causes functional deficit measured on pain or disability scale*"
+  defeated by axial_pain
+
+criterion conservative_unestablished
+  text "Three months of pain with failed conservative management is not documented."
+  clause "Pain present for minimum of 3 months with documented failure to respond to noninvasive conservative management (as tolerated)"
+  defeated by conservative_failed
+
+criterion blocks_unestablished
+  text "Two diagnostic blocks, each with at least 80% relief, are not documented."
+  clause "Initial thermal radiofrequency destruction after the patient has had at least two (2) medically reasonable and necessary diagnostic MBBs, with each one providing a consistent minimum of 80% sustained relief of primary (index) pain (with the duration of relief being consistent with the agent used)"
+  defeated by blocks_qualify
+
+criterion no_blocks
+  text "Two diagnostic blocks are not documented."
+  clause "Initial thermal radiofrequency destruction after the patient has had at least two (2) medically reasonable and necessary diagnostic MBBs, with each one providing a consistent minimum of 80% sustained relief of primary (index) pain (with the duration of relief being consistent with the agent used)"
+  defeated by two_diagnostic_blocks
+
+criterion no_relief
+  text "At least 80% relief from each block is not documented."
+  clause "Initial thermal radiofrequency destruction after the patient has had at least two (2) medically reasonable and necessary diagnostic MBBs, with each one providing a consistent minimum of 80% sustained relief of primary (index) pain (with the duration of relief being consistent with the agent used)"
+  defeated by blocks_80_percent
+
+criterion blocks_qualify
+  text "Two diagnostic blocks, each with at least 80% relief."
+  clause "Initial thermal radiofrequency destruction after the patient has had at least two (2) medically reasonable and necessary diagnostic MBBs, with each one providing a consistent minimum of 80% sustained relief of primary (index) pain (with the duration of relief being consistent with the agent used)"
+  defeated by no_blocks no_relief
+
+criterion no_exclusion_shown
+  text "No untreated radiculopathy, no non-facet pathology, and fewer than two RFA sessions in the last 12 months."
+  clause "Facet Joint Interventions are considered medically reasonable and necessary for the diagnosis and treatment of chronic pain in patients who meet ALL the following criteria:"
+  defeated by untreated_radiculopathy non_facet_pathology two_rfa_this_year
+
+decision approve approves
+  text "Approve the radiofrequency ablation."
+  clause "The thermal radiofrequency destruction of cervical, thoracic, or lumbar paravertebral facet joint (medial branch) nerves are considered medically reasonable and necessary for patients who meet the following criteria:"
+  defeated by no_axial_pain conservative_unestablished blocks_unestablished untreated_radiculopathy non_facet_pathology two_rfa_this_year
+
+decision deny_criteria denies
+  text "Deny: the pain, conservative-management or diagnostic-block criteria are not met."
+  clause "Facet Joint Interventions are considered medically reasonable and necessary for the diagnosis and treatment of chronic pain in patients who meet ALL the following criteria:"
+  defeated by criteria_met
+
+criterion criteria_met
+  text "The pain, conservative-management and diagnostic-block criteria are met."
+  clause "Facet Joint Interventions are considered medically reasonable and necessary for the diagnosis and treatment of chronic pain in patients who meet ALL the following criteria:"
+  defeated by no_axial_pain conservative_unestablished blocks_unestablished
+
+decision deny_excluded denies
+  text "Deny: untreated radiculopathy, non-facet pathology, or two RFA sessions already in the last 12 months."
+  clause "Frequency Limitation: For each covered spinal region, no more than two (2) radiofrequency sessions will be reimbursed per rolling 12 months."
+  defeated by no_exclusion_shown

@@ -1,0 +1,47 @@
+{
+  "note": "Policies drafted from published coverage documents: Medicare LCDs and NCDs and public state Medicaid criteria. Each passes the drafting gates against its source (internal/draft/library_test.go). None is in force until a clinician signs it off: vaglio signoff, then copy it into the server's policy directory. The AHIP/BCBSA standard documentation set for 66 services is not public (only its categories are), so the library is built from public documents; categories are named after AHIP's where they match.",
+  "policies": [
+    {
+      "file": "cpap_osa.vaglio",
+      "source": "sources/L33718-E0601.txt",
+      "basis": "Medicare LCD L33718 (DME MAC), initial coverage of E0601",
+      "category": "Durable medical equipment: sleep"
+    },
+    {
+      "file": "tka.vaglio",
+      "source": "sources/L36575-TKA.txt",
+      "basis": "Medicare LCD L36575 (Noridian), primary total knee arthroplasty",
+      "category": "Musculoskeletal and orthopedics"
+    },
+    {
+      "file": "facet_rfa.vaglio",
+      "source": "sources/L38773-facet.txt",
+      "basis": "Medicare LCD L38773 (CGS), initial facet joint radiofrequency ablation",
+      "category": "Musculoskeletal and orthopedics: spine and pain"
+    },
+    {
+      "file": "ccta.vaglio",
+      "source": "sources/L35121-CCTA.txt",
+      "basis": "Medicare LCD L35121 (WPS), coronary CT angiography",
+      "category": "Advanced imaging (cardiac)"
+    },
+    {
+      "file": "bariatric_ncd.vaglio",
+      "source": "sources/NCD100.1-bariatric.txt",
+      "basis": "Medicare NCD 100.1, with Claims Processing Manual ch. 32 section 150.2 for codes",
+      "category": "Surgery: bariatric"
+    },
+    {
+      "file": "adalimumab_ra_ut.vaglio",
+      "source": "sources/UT-Medicaid-adalimumab.txt",
+      "basis": "Utah Medicaid pharmacy PA form, Humira (adalimumab) and biosimilars, 4-1-26: Part I and the RA section",
+      "category": "Drugs: specialty (step therapy)"
+    },
+    {
+      "file": "lumbar_mri_wa.vaglio",
+      "source": "sources/WA-LNI-lumbar-MRI.txt",
+      "basis": "Washington State L&I Imaging Guidelines: Lumbar Spine MRI (2010), with Medicare article A57207 for codes",
+      "category": "Advanced imaging (spine)"
+    }
+  ]
+}

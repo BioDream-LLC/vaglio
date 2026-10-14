@@ -1,0 +1,50 @@
+Source: Utah Medicaid Pharmacy Prior Authorization Request Form, Humira (adalimumab) and Biosimilars, last updated
+4-1-26 (https://medicaid-documents.dhhs.utah.gov/pharmacy%2Fpriorauthorization%2Fpdf%2FHumira+(adalimumab)+and+Biosimilars.pdf),
+retrieved 2026-10-13. Part I and the rheumatoid arthritis section of Part II, copied from the PDF's text with the form's
+layout spacing, Yes/No boxes and page footers removed and the fi/fl ligatures spelled out. A state Medicaid document, used here to draft a library policy; check it against
+the current form before relying on it.
+
+PART I: Criteria for Approval: (All of the following criteria must be met) - Then move to PART II
+1. Which medication is being requested?
+Cyltezo 40 mg/0.8 ml (Preferred)
+Hadlima 40 mg/0.8 ml (Preferred)
+Humira (Preferred)
+Simlandi (Preferred)
+Other adalimumab brand or biosimilar (non-preferred)
+2. Is the medication being prescribed by or in consultation with a provider specializing in the disease
+treatment?
+3. Does the patient have any of the following diagnoses:? (check the applicable)
+Ankylosing Spondylitis (AS)
+Crohn's Disease (CD)
+Hidradenitis Suppurativa (HS)
+Juvenile Idiopathic Arthritis (JIA)
+Plaque Psoriasis (PsO)
+Psoriatic Arthritis (PsA)
+Rheumatoid Arthritis (RA)
+Ulcerative Colitis (UC)
+Uveitis (UV)
+Other - Oﬀ Label or Compendia Use (specify): ____________________________________________
+4. Does the requested medication and diagnosis follow FDA-approved age, dosing, monitoring and
+contraindications?
+If answer is No, go to Part II, section 10
+5. Does the provider attest that the patient is not taking concurrent treatment or that the medication will not
+be used in combination with other TNF-inhibitors, biologic response modifiers or other biologic DMARDs,
+Janus kinase Inhibitors, or Phosphodiesterase 4 inhibitors (i.e., apremilast, tofacitinib, baricitinib) as verified
+by prescriber attestation, patient medication fill history, or submitted documentation?
+
+Section 7: Additional criteria for Rheumatoid Arthritis (RA) (All of the following criteria must be met)
+1. Is the patient at least 18 years of age or older?
+2. Does the patient have a diagnosis of moderately to severely active rheumatoid arthritis
+demonstrated by description of baseline symptoms present in the chart notes?
+3. Has the patient had an adequate trial and failure of at least ONE disease modifying antirheumatic
+drug (DMARD) for at least 3 months (e.g. hydroxychloroquine, leflunomide, methotrexate,
+sulfasalazine) or a contraindication to all, if clinically appropriate?
+
+CODES, not in the form, with their own sources (retrieved 2026-10-13):
+J0135 Injection, adalimumab, 20 mg (HCPCS Level II, from the NLM Clinical Tables HCPCS service)
+RxNorm (NLM RxNav), ingredients and their oral tablets:
+327361 adalimumab
+6851 methotrexate; 105585 methotrexate 2.5 MG Oral Tablet; 105586 methotrexate 10 MG Oral Tablet; 283510 methotrexate 15 MG Oral Tablet; 283511 methotrexate 5 MG Oral Tablet; 283671 methotrexate 7.5 MG Oral Tablet
+5521 hydroxychloroquine; 979092 hydroxychloroquine sulfate 200 MG Oral Tablet; 1119312 hydroxychloroquine sulfate 400 MG Oral Tablet; 2569281 hydroxychloroquine sulfate 100 MG Oral Tablet; 2569283 hydroxychloroquine sulfate 300 MG Oral Tablet
+27169 leflunomide; 205284 leflunomide 10 MG Oral Tablet; 205285 leflunomide 20 MG Oral Tablet; 205286 leflunomide 100 MG Oral Tablet
+9524 sulfasalazine; 198232 sulfasalazine 500 MG Oral Tablet; 313142 sulfasalazine 500 MG Delayed Release Oral Tablet

@@ -1,0 +1,330 @@
+package server
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/biodream-llc/perfuse/pas"
+	"github.com/biodream-llc/vaglio/internal/cases"
+	"github.com/biodream-llc/vaglio/internal/decide"
+	"github.com/biodream-llc/vaglio/internal/evidence"
+	"github.com/biodream-llc/vaglio/internal/goldcard"
+	"github.com/biodream-llc/vaglio/internal/policy"
+)
+
+// maxBundle bounds a PAS request Bundle, which may carry documents inline.
+const maxBundle = 16 << 20
+
+// PASAnswer is Vaglio's side of Perfuse's PAS decision service protocol (perfuse cmd/perfuse/decider.go): decision, why
+// and requested are what Perfuse reads; the rest is the proof and the evidence, for audit and for the reviewer.
+type PASAnswer struct {
+	Decision  string   `json:"decision"` // approve, deny or pend
+	Why       string   `json:"why,omitempty"`
+	Requested []string `json:"requested,omitempty"`
+	// Questionnaire and Attachments, on a pend, are what to ask the provider for in the PAS server's Da Vinci CDex Task:
+	// the DTR questionnaire when a missing piece of evidence is asked in it, and the LOINC attachment codes of the
+	// documents the policy says would show it.
+	Questionnaire string              `json:"questionnaire,omitempty"`
+	Attachments   []string            `json:"attachments,omitempty"`
+	Item          string              `json:"item"`
+	Case          string              `json:"case"` // the case the decision is recorded as
+	Result        *decide.Result      `json:"result"`
+	Evidence      evidence.Extraction `json:"evidence"`
+	Exemption     *cases.Exemption    `json:"exemption,omitempty"` // approved because the provider is gold carded
+	Proposed      *cases.Proposal     `json:"proposed,omitempty"`  // a denial left to a clinician
+}
+
+// decidePAS answers POST /api/pas/decide?item=<sequence> with a PAS request Bundle as the body. Every decision is a case
+// in the audit log before it is answered: one that cannot be recorded is not given, and the PAS server pends the item.
+func (cfg Config) decidePAS(w http.ResponseWriter, r *http.Request) {
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBundle))
+	if err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			writeError(w, http.StatusRequestEntityTooLarge, "request too large")
+			return
+		}
+		writeError(w, http.StatusBadRequest, "the request could not be read: "+err.Error())
+		return
+	}
+	var b map[string]any
+	if err := json.Unmarshal(raw, &b); err != nil {
+		writeError(w, http.StatusBadRequest, "malformed request: "+err.Error())
+		return
+	}
+	req, problems := pas.Read(b, false)
+	if len(problems) > 0 {
+		writeError(w, http.StatusBadRequest, strings.Join(problems, "; "))
+		return
+	}
+	seq := r.URL.Query().Get("item")
+	if seq == "" {
+		if all := req.Services(); len(all) == 1 {
+			seq = all[0].Sequence
+		} else {
+			writeError(w, http.StatusBadRequest, "the request has several items; say which with ?item=<sequence>")
+			return
+		}
+	}
+	svc, ok := req.Service(seq)
+	if !ok {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("the Claim has no item %q", seq))
+		return
+	}
+	p, service := cfg.policyFor(svc)
+	if p == nil {
+		// 404 is the protocol's "decides nothing": the PAS server keeps whatever it would otherwise have answered.
+		writeError(w, http.StatusNotFound, "no policy decides this service")
+		return
+	}
+	x := evidence.Extract(p, req)
+	res, err := decide.Decide(p, x.Request(p.ID))
+	if err != nil {
+		// The extraction produced a request the engine refuses, which is Vaglio's defect, not the provider's.
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	a := answerFor(p, res, x)
+	a.Item, a.Result, a.Evidence = seq, res, x
+	o := cases.Opening{
+		Policy: p.ID, PolicyVersion: p.Version, PolicyTitle: p.Title, Item: seq, Service: service,
+		Claim: claimKey(req), Patient: pas.Str(pas.Map(req.Claim["patient"])["reference"]),
+		Provider: pas.Str(pas.Map(req.Claim["provider"])["reference"]), Request: r.Header.Get("X-PAS-Request-Id"),
+		Priority: priority(req), ProviderNPI: providerNPI(req), PatientState: patientState(req), Drug: p.Drug,
+		Result: res, Evidence: x,
+	}
+	if res.Outcome != decide.Approved && cfg.GoldCard != nil {
+		// The record is the log as it stands when the request arrives. Two requests arriving together are each judged on
+		// it, without the other, which is what either would have been judged on a moment earlier.
+		if e := cfg.GoldCard.Exemption(cfg.Cases.Select(nil), o.ProviderNPI, o.PatientState, p.ID,
+			time.Now().UTC()); e != nil {
+			o.Exemption = e
+			a.Decision, a.Why, a.Requested = "approve", goldcard.Why(e, p.Title), nil
+		}
+	}
+	if o.Exemption == nil && res.Outcome == decide.Denied && cfg.ClinicianDenials {
+		o.Proposed = &cases.Proposal{Decision: "deny", Why: a.Why}
+		a.Decision, a.Requested = "pend", nil
+		a.Why = "Pended for review by a licensed clinician: a denial on medical necessity is made by a clinician, " +
+			"never by this system alone."
+	}
+	a.Exemption, a.Proposed = o.Exemption, o.Proposed
+	if a.Decision != "pend" {
+		a.Questionnaire, a.Attachments = "", nil
+	}
+	o.Answer = cases.Answer{Decision: a.Decision, Why: a.Why, Requested: a.Requested, Questionnaire: a.Questionnaire,
+		Attachments: a.Attachments}
+	c, err := cfg.Cases.Open(o, raw)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "the decision could not be recorded, so it is not given: "+err.Error())
+		return
+	}
+	a.Case = c.ID
+	writeJSON(w, http.StatusOK, a)
+}
+
+// claimKey identifies the request across resubmissions: the Claim's first identifier, or its fullUrl.
+func claimKey(req *pas.Request) string {
+	for _, id := range pas.Slice(req.Claim["identifier"]) {
+		m := pas.Map(id)
+		if v := pas.Str(m["value"]); v != "" {
+			return pas.Str(m["system"]) + "|" + v
+		}
+	}
+	return req.ClaimURL
+}
+
+// priority is the Claim's priority code (processpriority: stat, normal, deferred).
+func priority(req *pas.Request) string {
+	for _, c := range pas.Slice(pas.Map(req.Claim["priority"])["coding"]) {
+		if code := pas.Str(pas.Map(c)["code"]); code != "" {
+			return code
+		}
+	}
+	return ""
+}
+
+// npiSystem is the NPI's identifier system.
+const npiSystem = "http://hl7.org/fhir/sid/us-npi"
+
+// providerNPI is the NPI of the Claim's provider, when the resource it references is in the Bundle and carries one.
+func providerNPI(req *pas.Request) string {
+	res := pas.Map(req.Resolve(pas.Str(pas.Map(req.Claim["provider"])["reference"]))["resource"])
+	for _, id := range pas.Slice(res["identifier"]) {
+		m := pas.Map(id)
+		if pas.Str(m["system"]) == npiSystem && validNPI(pas.Str(m["value"])) {
+			return pas.Str(m["value"])
+		}
+	}
+	return ""
+}
+
+// patientState is the state of the patient's address: the home address when one is marked, else the first with a
+// state. A state gold card law covers the patient's plan, and the plan's state is not in a PAS request; the address is
+// the closest the request comes, and a deployment covering one state needs no state rule at all.
+func patientState(req *pas.Request) string {
+	res := pas.Map(req.Resolve(pas.Str(pas.Map(req.Claim["patient"])["reference"]))["resource"])
+	first := ""
+	for _, a := range pas.Slice(res["address"]) {
+		m := pas.Map(a)
+		st := strings.ToUpper(strings.TrimSpace(pas.Str(m["state"])))
+		if st == "" || pas.Str(m["use"]) == "old" {
+			continue
+		}
+		if pas.Str(m["use"]) == "home" {
+			return st
+		}
+		if first == "" {
+			first = st
+		}
+	}
+	return first
+}
+
+// policyFor is the policy deciding any of a service's codes, and the code (system|code). Load refuses two policies
+// claiming one service.
+func (cfg Config) policyFor(svc pas.Service) (*policy.Policy, string) {
+	for _, cc := range svc.Codes {
+		for _, c := range pas.Slice(cc["coding"]) {
+			cm := pas.Map(c)
+			for _, p := range cfg.set.all() {
+				if p.Decides(pas.Str(cm["system"]), pas.Str(cm["code"])) {
+					return p, pas.Str(cm["system"]) + "|" + pas.Str(cm["code"])
+				}
+			}
+		}
+	}
+	return nil, ""
+}
+
+// answerFor says a result the way a PAS response says it to a provider. A denial names the policy, the clause and what it
+// rests on, because CMS-0057 requires a specific reason for every denial; a pend says what would let it be decided.
+func answerFor(p *policy.Policy, res *decide.Result, x evidence.Extraction) PASAnswer {
+	a := answerOf(p, res)
+	if a.Decision == "pend" {
+		a.Questionnaire, a.Attachments = asks(p, res.Missing)
+	}
+	if a.Decision != "approve" && !restates(res) {
+		a.Why += routes(res)
+	}
+	if a.Decision == "pend" && len(x.Unread) > 0 {
+		a.Why += fmt.Sprintf(" A reviewer will read the %d document(s) in the request that no rule reads.", len(x.Unread))
+	}
+	return a
+}
+
+func answerOf(p *policy.Policy, res *decide.Result) PASAnswer {
+	clause := func() string {
+		a, _ := p.Argument(res.Decision)
+		return fmt.Sprintf("%s (%s v%s: %q)", phrase(a.Text), p.Title, p.Version, a.Clause)
+	}
+	switch {
+	case res.Outcome == decide.Approved:
+		return PASAnswer{Decision: "approve", Why: clause() + "."}
+	case res.Outcome == decide.Denied:
+		why := clause() + "."
+		if len(res.Relied) > 0 {
+			var docs []string
+			for _, it := range res.Relied {
+				docs = append(docs, fmt.Sprintf("%s (%s)", phrase(it.Text), it.Citation.Reference))
+			}
+			why += " Documented as absent: " + strings.Join(docs, "; ") + "."
+		}
+		return PASAnswer{Decision: "deny", Why: why}
+	case res.Reason == decide.NeedsInformation:
+		var need []string
+		for _, it := range res.Missing {
+			need = append(need, phrase(it.Text))
+		}
+		return PASAnswer{Decision: "pend", Why: "A decision needs information the request does not address.", Requested: need}
+	case res.Reason == decide.ContradictoryRecord:
+		var about []string
+		for _, it := range res.Contradicted {
+			about = append(about, phrase(it.Text))
+		}
+		return PASAnswer{Decision: "pend", Why: "Pended for clinical review: the record is contradictory about: " +
+			strings.Join(about, "; ") + "."}
+	case res.Reason == decide.Indeterminate:
+		return PASAnswer{Decision: "pend", Why: "Pended for clinical review."}
+	default:
+		// A policy defect is the policy authors' to fix; the provider is told only that a person will decide.
+		return PASAnswer{Decision: "pend", Why: "Pended for a reviewer."}
+	}
+}
+
+// asks is what to ask a provider for, for the missing evidence: the questionnaire when one of them is a question in it,
+// and the documents the policy names for them.
+func asks(p *policy.Policy, missing []decide.Item) (string, []string) {
+	questionnaire := ""
+	var docs []string
+	seen := map[string]bool{}
+	for _, it := range missing {
+		a, ok := p.Argument(it.Argument)
+		if !ok {
+			continue
+		}
+		for _, s := range a.Find {
+			if s.Question != "" && p.Questionnaire != "" {
+				questionnaire = p.Questionnaire
+			}
+		}
+		for _, d := range a.Documents {
+			if !seen[d] {
+				seen[d] = true
+				docs = append(docs, d)
+			}
+		}
+	}
+	return questionnaire, docs
+}
+
+// restates is whether the routes to approval are only the missing evidence, one piece each: the provider is already told
+// it as the information needed, and saying it twice is noise.
+func restates(res *decide.Result) bool {
+	if res.Reason != decide.NeedsInformation {
+		return false
+	}
+	missing := map[string]bool{}
+	for _, it := range res.Missing {
+		missing[it.Argument] = true
+	}
+	for _, r := range res.ToApprove {
+		if len(r) != 1 || !missing[r[0].Argument] {
+			return false
+		}
+	}
+	return true
+}
+
+// routes says what would approve the request, in the provider's terms: only routes that need more documentation, never
+// one that needs the record to be wrong, which is not the provider's to fix by sending something.
+func routes(res *decide.Result) string {
+	var ways []string
+	for _, route := range res.ToApprove {
+		var need []string
+		for _, c := range route {
+			if c.ContradictsRecord {
+				need = nil
+				break
+			}
+			need = append(need, phrase(c.Text))
+		}
+		if len(need) > 0 {
+			ways = append(ways, strings.Join(need, " and "))
+		}
+	}
+	if len(ways) == 0 {
+		return ""
+	}
+	return " It would be approved with documentation of: " + strings.Join(ways, "; or ") + "."
+}
+
+// phrase is a policy's text as part of a sentence: without its closing full stop, which the sentence supplies.
+func phrase(s string) string {
+	return strings.TrimRight(strings.TrimSpace(s), ".")
+}

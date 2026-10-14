@@ -1,0 +1,67 @@
+# ILLUSTRATIVE ONLY. Written for Vaglio development: not any payer's coverage policy, and not clinical guidance.
+#
+# Conservative therapy is found only in the DTR answers. A completed course of physical therapy would show six weeks of
+# therapy, but not that it failed to relieve symptoms, which is what the clause asks; so no procedure source reads it.
+policy lumbar_mri
+  title "MRI of the lumbar spine (illustrative)"
+  version 0.1.0
+  source "ILLUSTRATIVE ONLY. Written for Vaglio development; not any payer's coverage policy and not clinical guidance."
+  questionnaire https://vaglio.example/Questionnaire/lumbar-mri
+  service cpt 72148 72149 72158
+
+evidence red_flag
+  text "A red-flag finding (suspected cauda equina syndrome, progressive neurological deficit, suspected infection, malignancy or fracture)"
+  clause "MRI is indicated without a trial of conservative therapy when a red-flag condition is suspected."
+  find question red-flag
+  find condition icd10 G83.4 M46.26 C79.51 when confirmed provisional differential
+
+evidence conservative_therapy_6wk
+  text "At least six weeks of conservative therapy without adequate improvement"
+  clause "MRI is indicated after at least six weeks of conservative therapy have failed to relieve symptoms."
+  find question conservative-therapy
+
+evidence surgical_planning
+  text "MRI to plan a scheduled surgery or intervention"
+  clause "MRI is indicated for planning a surgery or interventional procedure that has been scheduled."
+  find question surgical-planning
+
+evidence recent_same_imaging
+  text "A lumbar spine MRI in the last six months"
+  clause "A repeat MRI within six months of a prior study is not indicated unless the condition has changed."
+  find question prior-imaging-6mo
+  find procedure cpt 72148 72149 72158 within 183 days
+
+evidence new_or_worsening_symptoms
+  text "New or worsening symptoms since the prior study"
+  clause "A repeat MRI within six months of a prior study is not indicated unless the condition has changed."
+  find question new-or-worsening
+
+criterion indication_unestablished
+  text "No indication for MRI has been established."
+  clause "MRI of the lumbar spine is covered when one of the indications in this section is met."
+  defeated by red_flag conservative_therapy_6wk surgical_planning
+
+criterion no_recent_imaging
+  text "No lumbar MRI was performed in the last six months."
+  clause "A repeat MRI within six months of a prior study is not indicated unless the condition has changed."
+  defeated by recent_same_imaging
+
+criterion duplicate_study
+  text "The request repeats a recent study with no change in the condition."
+  clause "A repeat MRI within six months of a prior study is not indicated unless the condition has changed."
+  defeated by no_recent_imaging new_or_worsening_symptoms red_flag
+
+decision approve approves
+  text "Approve MRI of the lumbar spine."
+  clause "MRI of the lumbar spine is covered when one of the indications in this section is met."
+  defeated by indication_unestablished duplicate_study
+
+decision deny_not_indicated denies
+  text "Deny: none of the indications for MRI is met."
+  clause "MRI of the lumbar spine is covered when one of the indications in this section is met."
+  defeated by red_flag conservative_therapy_6wk surgical_planning
+
+decision deny_duplicate denies
+  text "Deny: repeat study within six months with no change in the condition."
+  clause "A repeat MRI within six months of a prior study is not indicated unless the condition has changed."
+  defeated by no_recent_imaging new_or_worsening_symptoms red_flag

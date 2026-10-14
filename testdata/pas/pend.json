@@ -1,0 +1,127 @@
+{
+    "resourceType": "Bundle",
+    "type": "collection",
+    "timestamp": "2026-10-12T10:00:00Z",
+    "identifier": {
+        "system": "http://provider.example/tx",
+        "value": "pend"
+    },
+    "entry": [
+        {
+            "fullUrl": "http://provider.example/fhir/Claim/pend",
+            "resource": {
+                "resourceType": "Claim",
+                "id": "pend",
+                "status": "active",
+                "use": "preauthorization",
+                "created": "2026-10-12",
+                "patient": {
+                    "reference": "Patient/p1"
+                },
+                "insurer": {
+                    "reference": "Organization/plan"
+                },
+                "provider": {
+                    "reference": "Organization/clinic"
+                },
+                "priority": {
+                    "coding": [
+                        {
+                            "code": "normal"
+                        }
+                    ]
+                },
+                "identifier": [
+                    {
+                        "system": "http://provider.example/trace",
+                        "value": "pend"
+                    }
+                ],
+                "item": [
+                    {
+                        "sequence": 1,
+                        "productOrService": {
+                            "coding": [
+                                {
+                                    "system": "http://www.ama-assn.org/go/cpt",
+                                    "code": "72148"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "fullUrl": "http://provider.example/fhir/Patient/p1",
+            "resource": {
+                "resourceType": "Patient",
+                "id": "p1",
+                "name": [
+                    {
+                        "family": "Synthetic",
+                        "given": [
+                            "Test"
+                        ]
+                    }
+                ],
+                "birthDate": "1970-01-01",
+                "gender": "unknown"
+            }
+        },
+        {
+            "fullUrl": "http://provider.example/fhir/Organization/plan",
+            "resource": {
+                "resourceType": "Organization",
+                "id": "plan",
+                "name": "Example Plan"
+            }
+        },
+        {
+            "fullUrl": "http://provider.example/fhir/Organization/clinic",
+            "resource": {
+                "resourceType": "Organization",
+                "id": "clinic",
+                "name": "Example Clinic",
+                "identifier": [
+                    {
+                        "system": "http://hl7.org/fhir/sid/us-npi",
+                        "value": "1234567893"
+                    }
+                ]
+            }
+        },
+        {
+            "fullUrl": "http://provider.example/fhir/QuestionnaireResponse/q-pend",
+            "resource": {
+                "resourceType": "QuestionnaireResponse",
+                "id": "q-pend",
+                "questionnaire": "https://vaglio.example/Questionnaire/lumbar-mri",
+                "status": "completed",
+                "subject": {
+                    "reference": "Patient/p1"
+                },
+                "item": [
+                    {
+                        "linkId": "conservative-therapy",
+                        "text": "Six weeks of conservative therapy without improvement?",
+                        "answer": [
+                            {
+                                "valueBoolean": true
+                            }
+                        ]
+                    },
+                    {
+                        "linkId": "prior-imaging-6mo",
+                        "text": "Lumbar MRI in the last six months?",
+                        "answer": [
+                            {
+                                "valueBoolean": true
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    ]
+}

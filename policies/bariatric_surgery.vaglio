@@ -1,0 +1,90 @@
+# ILLUSTRATIVE ONLY. Written for Vaglio development: not any payer's coverage policy, and not clinical guidance.
+#
+# It shows two things the lumbar MRI policy does not: a measured value read against a threshold, where a value below it is
+# evidence of absence and can support a denial, and a criterion that needs two things at once (a BMI of 35 or more AND a
+# serious obesity-related condition), written as an argument defeated by the absence of either.
+
+policy bariatric_surgery
+  title "Bariatric surgery (illustrative)"
+  version 0.1.0
+  source "ILLUSTRATIVE ONLY. Written for Vaglio development; not any payer's coverage policy and not clinical guidance."
+  questionnaire https://vaglio.example/Questionnaire/bariatric-surgery
+  service cpt 43644 43645 43775 43770
+
+evidence bmi_40
+  text "A body mass index of 40 or more"
+  clause "Surgery is indicated for a body mass index of 40 kg/m2 or more, measured in the last 12 months."
+  find question bmi-40
+  find observation loinc 39156-5 within 365 days at least 40 kg/m2
+
+evidence bmi_35
+  text "A body mass index of 35 or more"
+  clause "Surgery is indicated for a body mass index of 35 kg/m2 or more, measured in the last 12 months, with at least one serious obesity-related condition."
+  find question bmi-35
+  find observation loinc 39156-5 within 365 days at least 35 kg/m2
+
+evidence comorbidity
+  text "A serious obesity-related condition (type 2 diabetes, hypertension, obstructive sleep apnoea)"
+  clause "Surgery is indicated for a body mass index of 35 kg/m2 or more, measured in the last 12 months, with at least one serious obesity-related condition."
+  find question obesity-comorbidity
+  find condition icd10 E11.9 E11.65 I10 G47.33
+
+evidence supervised_program
+  text "Completion of a supervised weight-loss programme"
+  clause "The member has taken part in a supervised weight-loss programme before surgery."
+  find question supervised-program
+
+evidence psych_clearance
+  text "A pre-operative psychological evaluation clearing the member for surgery"
+  clause "A psychological evaluation before surgery has found no contraindication."
+  find question psych-evaluation
+
+criterion no_bmi_35
+  text "The body mass index is not shown to be 35 or more."
+  clause "Surgery is indicated for a body mass index of 35 kg/m2 or more, measured in the last 12 months, with at least one serious obesity-related condition."
+  defeated by bmi_35
+
+criterion no_comorbidity
+  text "No serious obesity-related condition is shown."
+  clause "Surgery is indicated for a body mass index of 35 kg/m2 or more, measured in the last 12 months, with at least one serious obesity-related condition."
+  defeated by comorbidity
+
+criterion bmi_35_route
+  text "A body mass index of 35 or more with a serious obesity-related condition."
+  clause "Surgery is indicated for a body mass index of 35 kg/m2 or more, measured in the last 12 months, with at least one serious obesity-related condition."
+  defeated by no_bmi_35 no_comorbidity
+
+criterion bmi_unmet
+  text "Neither body mass index criterion is met."
+  clause "Surgery is indicated for a body mass index of 40 kg/m2 or more, measured in the last 12 months."
+  defeated by bmi_40 bmi_35_route
+
+criterion program_unmet
+  text "No supervised weight-loss programme is shown."
+  clause "The member has taken part in a supervised weight-loss programme before surgery."
+  defeated by supervised_program
+
+criterion psych_unmet
+  text "No psychological clearance is shown."
+  clause "A psychological evaluation before surgery has found no contraindication."
+  defeated by psych_clearance
+
+decision approve approves
+  text "Approve bariatric surgery."
+  clause "Surgery is covered when the body mass index, programme and evaluation criteria are all met."
+  defeated by bmi_unmet program_unmet psych_unmet
+
+decision deny_bmi denies
+  text "Deny: the body mass index criteria are not met."
+  clause "Surgery is indicated for a body mass index of 40 kg/m2 or more, measured in the last 12 months."
+  defeated by bmi_40 bmi_35_route
+
+decision deny_program denies
+  text "Deny: no supervised weight-loss programme."
+  clause "The member has taken part in a supervised weight-loss programme before surgery."
+  defeated by supervised_program
+
+decision deny_psych denies
+  text "Deny: no psychological clearance."
+  clause "A psychological evaluation before surgery has found no contraindication."
+  defeated by psych_clearance

@@ -1,0 +1,152 @@
+# Adalimumab for rheumatoid arthritis, from the Utah Medicaid pharmacy prior authorization form for Humira (adalimumab)
+# and biosimilars (last updated 4-1-26): Part I and section 7. Status draft: awaiting clinical sign-off (vaglio signoff).
+# Every clause is quoted from library/sources/UT-Medicaid-adalimumab.txt. The sourced counterpart of the illustrative
+# policies/adalimumab_ra.vaglio.
+#
+# Drafted by hand. Step therapy: an adequate trial of at least one DMARD for at least 3 months, or a contraindication to
+# all. In the record, a trial is 90 days of one of the four DMARDs the form names, dispensed or taken, with no window (the
+# form gives none); days of different drugs are not added together, since three months of one drug is the criterion.
+# "Trial and failure" needs the failure too, which a dispense cannot show: so a record trial counts only beside the
+# answered question that it failed (dmard_failed), and the question alone (dmard_trial_failed) is enough. The form's
+# "if clinically appropriate" is left to review. The preferred-product question (Part I, 1) is formulary, not medical
+# necessity, and is not encoded. Codes are from RxNav and the NLM HCPCS table, listed in the source with their origin.
+policy adalimumab_ra_ut
+  title "Adalimumab for rheumatoid arthritis (Utah Medicaid criteria)"
+  version 0.1.0
+  source "Utah Medicaid Pharmacy Prior Authorization Request Form, Humira (adalimumab) and Biosimilars, last updated 4-1-26, Part I and Part II section 7"
+  status draft
+  drug
+  questionnaire https://vaglio.example/Questionnaire/adalimumab-ra-ut
+  service hcpcs J0135
+  service rxnorm 327361
+
+evidence specialist
+  text "Prescribed by or with a specialist in the disease"
+  clause "Is the medication being prescribed by or in consultation with a provider specializing in the disease treatment?"
+  find question specialist
+
+evidence fda_use
+  text "FDA-approved age, dosing, monitoring and contraindications are followed"
+  clause "Does the requested medication and diagnosis follow FDA-approved age, dosing, monitoring and contraindications?"
+  find question fda-use
+
+evidence no_concurrent_biologic
+  text "No concurrent TNF inhibitor, biologic, JAK inhibitor or PDE4 inhibitor"
+  clause "Does the provider attest that the patient is not taking concurrent treatment or that the medication will not be used in combination with other TNF-inhibitors, biologic response modifiers or other biologic DMARDs, Janus kinase Inhibitors, or Phosphodiesterase 4 inhibitors (i.e., apremilast, tofacitinib, baricitinib) as verified by prescriber attestation, patient medication fill history, or submitted documentation?"
+  find question no-concurrent-biologic
+
+evidence adult
+  text "18 years of age or older"
+  clause "Is the patient at least 18 years of age or older?"
+  find question adult
+
+evidence active_ra
+  text "Moderately to severely active rheumatoid arthritis, with baseline symptoms in the chart notes"
+  clause "Does the patient have a diagnosis of moderately to severely active rheumatoid arthritis demonstrated by description of baseline symptoms present in the chart notes?"
+  find question active-ra
+  request document loinc 11506-3
+
+evidence dmard_trial_failed
+  text "An adequate trial and failure of a DMARD for at least 3 months"
+  clause "Has the patient had an adequate trial and failure of at least ONE disease modifying antirheumatic drug (DMARD) for at least 3 months (e.g. hydroxychloroquine, leflunomide, methotrexate, sulfasalazine) or a contraindication to all, if clinically appropriate?"
+  find question dmard-trial-failed
+
+evidence dmard_failed
+  text "The DMARD tried did not control the disease"
+  clause "Has the patient had an adequate trial and failure of at least ONE disease modifying antirheumatic drug (DMARD) for at least 3 months (e.g. hydroxychloroquine, leflunomide, methotrexate, sulfasalazine) or a contraindication to all, if clinically appropriate?"
+  find question dmard-failed
+
+evidence methotrexate_90
+  text "At least 90 days of methotrexate"
+  clause "Has the patient had an adequate trial and failure of at least ONE disease modifying antirheumatic drug (DMARD) for at least 3 months (e.g. hydroxychloroquine, leflunomide, methotrexate, sulfasalazine) or a contraindication to all, if clinically appropriate?"
+  find medication rxnorm 6851 105585 105586 283510 283511 283671 lasting 90 days
+
+evidence hydroxychloroquine_90
+  text "At least 90 days of hydroxychloroquine"
+  clause "Has the patient had an adequate trial and failure of at least ONE disease modifying antirheumatic drug (DMARD) for at least 3 months (e.g. hydroxychloroquine, leflunomide, methotrexate, sulfasalazine) or a contraindication to all, if clinically appropriate?"
+  find medication rxnorm 5521 979092 1119312 2569281 2569283 lasting 90 days
+
+evidence leflunomide_90
+  text "At least 90 days of leflunomide"
+  clause "Has the patient had an adequate trial and failure of at least ONE disease modifying antirheumatic drug (DMARD) for at least 3 months (e.g. hydroxychloroquine, leflunomide, methotrexate, sulfasalazine) or a contraindication to all, if clinically appropriate?"
+  find medication rxnorm 27169 205284 205285 205286 lasting 90 days
+
+evidence sulfasalazine_90
+  text "At least 90 days of sulfasalazine"
+  clause "Has the patient had an adequate trial and failure of at least ONE disease modifying antirheumatic drug (DMARD) for at least 3 months (e.g. hydroxychloroquine, leflunomide, methotrexate, sulfasalazine) or a contraindication to all, if clinically appropriate?"
+  find medication rxnorm 9524 198232 313142 lasting 90 days
+
+evidence dmards_contraindicated
+  text "A contraindication to all the DMARDs"
+  clause "Has the patient had an adequate trial and failure of at least ONE disease modifying antirheumatic drug (DMARD) for at least 3 months (e.g. hydroxychloroquine, leflunomide, methotrexate, sulfasalazine) or a contraindication to all, if clinically appropriate?"
+  find question dmards-contraindicated
+
+criterion no_specialist
+  text "A specialist is not involved."
+  clause "Is the medication being prescribed by or in consultation with a provider specializing in the disease treatment?"
+  defeated by specialist
+
+criterion not_fda_use
+  text "FDA-approved use is not documented."
+  clause "Does the requested medication and diagnosis follow FDA-approved age, dosing, monitoring and contraindications?"
+  defeated by fda_use
+
+criterion concurrent_unattested
+  text "That no other biologic or targeted drug is taken with it is not attested."
+  clause "Does the provider attest that the patient is not taking concurrent treatment or that the medication will not be used in combination with other TNF-inhibitors, biologic response modifiers or other biologic DMARDs, Janus kinase Inhibitors, or Phosphodiesterase 4 inhibitors (i.e., apremilast, tofacitinib, baricitinib) as verified by prescriber attestation, patient medication fill history, or submitted documentation?"
+  defeated by no_concurrent_biologic
+
+criterion not_adult
+  text "The patient is not shown to be 18 or older."
+  clause "Is the patient at least 18 years of age or older?"
+  defeated by adult
+
+criterion ra_unestablished
+  text "Moderately to severely active rheumatoid arthritis is not documented."
+  clause "Does the patient have a diagnosis of moderately to severely active rheumatoid arthritis demonstrated by description of baseline symptoms present in the chart notes?"
+  defeated by active_ra
+
+criterion no_record_trial
+  text "No 90-day DMARD trial is in the record."
+  clause "Has the patient had an adequate trial and failure of at least ONE disease modifying antirheumatic drug (DMARD) for at least 3 months (e.g. hydroxychloroquine, leflunomide, methotrexate, sulfasalazine) or a contraindication to all, if clinically appropriate?"
+  defeated by methotrexate_90 hydroxychloroquine_90 leflunomide_90 sulfasalazine_90
+
+criterion failure_unstated
+  text "That the DMARD failed is not stated."
+  clause "Has the patient had an adequate trial and failure of at least ONE disease modifying antirheumatic drug (DMARD) for at least 3 months (e.g. hydroxychloroquine, leflunomide, methotrexate, sulfasalazine) or a contraindication to all, if clinically appropriate?"
+  defeated by dmard_failed
+
+criterion record_trial_failed
+  text "A 90-day DMARD trial in the record, which failed."
+  clause "Has the patient had an adequate trial and failure of at least ONE disease modifying antirheumatic drug (DMARD) for at least 3 months (e.g. hydroxychloroquine, leflunomide, methotrexate, sulfasalazine) or a contraindication to all, if clinically appropriate?"
+  defeated by no_record_trial failure_unstated
+
+criterion step_therapy_unmet
+  text "No failed 3-month DMARD trial, and no contraindication to all DMARDs."
+  clause "Has the patient had an adequate trial and failure of at least ONE disease modifying antirheumatic drug (DMARD) for at least 3 months (e.g. hydroxychloroquine, leflunomide, methotrexate, sulfasalazine) or a contraindication to all, if clinically appropriate?"
+  defeated by dmard_trial_failed record_trial_failed dmards_contraindicated
+
+criterion general_criteria_met
+  text "The Part I criteria are met."
+  clause "PART I: Criteria for Approval: (All of the following criteria must be met)"
+  defeated by no_specialist not_fda_use concurrent_unattested
+
+criterion ra_criteria_met
+  text "The rheumatoid arthritis criteria are met."
+  clause "Section 7: Additional criteria for Rheumatoid Arthritis (RA) (All of the following criteria must be met)"
+  defeated by not_adult ra_unestablished step_therapy_unmet
+
+decision approve approves
+  text "Approve adalimumab."
+  clause "PART I: Criteria for Approval: (All of the following criteria must be met)"
+  defeated by no_specialist not_fda_use concurrent_unattested not_adult ra_unestablished step_therapy_unmet
+
+decision deny_general denies
+  text "Deny: a Part I criterion is not met (specialist, FDA-approved use, or no concurrent biologic)."
+  clause "PART I: Criteria for Approval: (All of the following criteria must be met)"
+  defeated by general_criteria_met
+
+decision deny_ra denies
+  text "Deny: a rheumatoid arthritis criterion is not met (age, active disease, or a failed 3-month DMARD trial)."
+  clause "Section 7: Additional criteria for Rheumatoid Arthritis (RA) (All of the following criteria must be met)"
+  defeated by ra_criteria_met

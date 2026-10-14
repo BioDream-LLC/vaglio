@@ -1,0 +1,17 @@
+{
+  "policy": "lumbar_mri",
+  "evidence": [
+    {
+      "argument": "conservative_therapy_6wk",
+      "finding": "present",
+      "reference": "DocumentReference/example-pt-note",
+      "quote": "Eight weeks of physical therapy and naproxen with no meaningful improvement in radicular pain."
+    },
+    {
+      "argument": "recent_same_imaging",
+      "finding": "present",
+      "reference": "DiagnosticReport/example-mri-2026-06",
+      "quote": "MRI lumbar spine without contrast, 2026-06-02."
+    }
+  ]
+}

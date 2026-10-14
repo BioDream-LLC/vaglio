@@ -1,0 +1,180 @@
+{
+    "resourceType": "Bundle",
+    "type": "collection",
+    "timestamp": "2026-10-12T10:00:00Z",
+    "identifier": {
+        "system": "http://provider.example/tx",
+        "value": "contra"
+    },
+    "entry": [
+        {
+            "fullUrl": "http://provider.example/fhir/Claim/contra",
+            "resource": {
+                "resourceType": "Claim",
+                "id": "contra",
+                "status": "active",
+                "use": "preauthorization",
+                "created": "2026-10-12",
+                "patient": {
+                    "reference": "Patient/p1"
+                },
+                "insurer": {
+                    "reference": "Organization/plan"
+                },
+                "provider": {
+                    "reference": "Organization/clinic"
+                },
+                "priority": {
+                    "coding": [
+                        {
+                            "code": "normal"
+                        }
+                    ]
+                },
+                "identifier": [
+                    {
+                        "system": "http://provider.example/trace",
+                        "value": "contra"
+                    }
+                ],
+                "item": [
+                    {
+                        "sequence": 1,
+                        "productOrService": {
+                            "coding": [
+                                {
+                                    "system": "http://www.ama-assn.org/go/cpt",
+                                    "code": "72148"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "fullUrl": "http://provider.example/fhir/Patient/p1",
+            "resource": {
+                "resourceType": "Patient",
+                "id": "p1",
+                "name": [
+                    {
+                        "family": "Synthetic",
+                        "given": [
+                            "Test"
+                        ]
+                    }
+                ],
+                "birthDate": "1970-01-01",
+                "gender": "unknown"
+            }
+        },
+        {
+            "fullUrl": "http://provider.example/fhir/Organization/plan",
+            "resource": {
+                "resourceType": "Organization",
+                "id": "plan",
+                "name": "Example Plan"
+            }
+        },
+        {
+            "fullUrl": "http://provider.example/fhir/Organization/clinic",
+            "resource": {
+                "resourceType": "Organization",
+                "id": "clinic",
+                "name": "Example Clinic",
+                "identifier": [
+                    {
+                        "system": "http://hl7.org/fhir/sid/us-npi",
+                        "value": "1234567893"
+                    }
+                ]
+            }
+        },
+        {
+            "fullUrl": "http://provider.example/fhir/QuestionnaireResponse/q-contra",
+            "resource": {
+                "resourceType": "QuestionnaireResponse",
+                "id": "q-contra",
+                "questionnaire": "https://vaglio.example/Questionnaire/lumbar-mri",
+                "status": "completed",
+                "subject": {
+                    "reference": "Patient/p1"
+                },
+                "item": [
+                    {
+                        "linkId": "conservative-therapy",
+                        "text": "Six weeks of conservative therapy without improvement?",
+                        "answer": [
+                            {
+                                "valueBoolean": true
+                            }
+                        ]
+                    },
+                    {
+                        "linkId": "prior-imaging-6mo",
+                        "text": "Lumbar MRI in the last six months?",
+                        "answer": [
+                            {
+                                "valueBoolean": true
+                            }
+                        ]
+                    },
+                    {
+                        "linkId": "new-or-worsening",
+                        "text": "Symptoms new or worse since the prior study?",
+                        "answer": [
+                            {
+                                "valueBoolean": false
+                            }
+                        ]
+                    },
+                    {
+                        "linkId": "red-flag",
+                        "text": "Any red-flag finding?",
+                        "answer": [
+                            {
+                                "valueBoolean": false
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "fullUrl": "http://provider.example/fhir/Condition/k1",
+            "resource": {
+                "resourceType": "Condition",
+                "id": "k1",
+                "subject": {
+                    "reference": "Patient/p1"
+                },
+                "code": {
+                    "coding": [
+                        {
+                            "system": "http://hl7.org/fhir/sid/icd-10-cm",
+                            "code": "G83.4",
+                            "display": "Cauda equina syndrome"
+                        }
+                    ]
+                },
+                "clinicalStatus": {
+                    "coding": [
+                        {
+                            "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+                            "code": "active"
+                        }
+                    ]
+                },
+                "verificationStatus": {
+                    "coding": [
+                        {
+                            "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+                            "code": "confirmed"
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}

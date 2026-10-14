@@ -1,0 +1,58 @@
+# ILLUSTRATIVE ONLY. Written for Vaglio development: not any payer's coverage policy, and not clinical guidance.
+#
+# A drug policy with step therapy: a first drug must have been tried, for long enough, before the second is covered.
+# The trial is found in the record as methotrexate dispensed or taken, 90 days of it in the last year, however many fills
+# that took; a provider can also answer it in the questionnaire, or say methotrexate is contraindicated.
+# RxNorm codes are the methotrexate ingredient and its oral tablets (RxNav, October 2026). Codes match exactly.
+policy adalimumab_ra
+  title "Adalimumab for rheumatoid arthritis (illustrative)"
+  version 0.1.0
+  source "ILLUSTRATIVE ONLY. Written for Vaglio development; not any payer's coverage policy and not clinical guidance."
+  drug
+  questionnaire https://vaglio.example/Questionnaire/adalimumab-ra
+  service hcpcs J0135
+  service rxnorm 327361
+
+evidence ra_diagnosis
+  text "A diagnosis of rheumatoid arthritis"
+  clause "Adalimumab is covered for adults with a diagnosis of rheumatoid arthritis."
+  find question ra-diagnosis
+  find condition icd10 M05.9 M06.9
+  request document loinc 11488-4
+
+evidence methotrexate_trial
+  text "At least 90 days of methotrexate in the last year"
+  clause "The patient must have received methotrexate for at least 90 days within the past year, unless methotrexate is contraindicated."
+  find question methotrexate-trial
+  find medication rxnorm 6851 105585 105586 283510 283511 283671 within 365 days lasting 90 days
+  request document loinc 11506-3
+
+evidence methotrexate_contraindicated
+  text "Methotrexate is contraindicated"
+  clause "The patient must have received methotrexate for at least 90 days within the past year, unless methotrexate is contraindicated."
+  find question methotrexate-contraindicated
+
+criterion diagnosis_unestablished
+  text "Rheumatoid arthritis has not been diagnosed."
+  clause "Adalimumab is covered for adults with a diagnosis of rheumatoid arthritis."
+  defeated by ra_diagnosis
+
+criterion step_therapy_unmet
+  text "Methotrexate has not been tried for long enough, and is not contraindicated."
+  clause "The patient must have received methotrexate for at least 90 days within the past year, unless methotrexate is contraindicated."
+  defeated by methotrexate_trial methotrexate_contraindicated
+
+decision approve approves
+  text "Approve adalimumab."
+  clause "Adalimumab is covered for adults with a diagnosis of rheumatoid arthritis."
+  defeated by diagnosis_unestablished step_therapy_unmet
+
+decision deny_no_diagnosis denies
+  text "Deny: rheumatoid arthritis has not been diagnosed."
+  clause "Adalimumab is covered for adults with a diagnosis of rheumatoid arthritis."
+  defeated by ra_diagnosis
+
+decision deny_step_therapy denies
+  text "Deny: methotrexate has not been tried for 90 days in the last year, and is not contraindicated."
+  clause "The patient must have received methotrexate for at least 90 days within the past year, unless methotrexate is contraindicated."
+  defeated by methotrexate_trial methotrexate_contraindicated

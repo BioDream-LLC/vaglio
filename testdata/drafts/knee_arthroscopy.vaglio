@@ -1,0 +1,86 @@
+# DRAFT, machine-drafted from knee_arthroscopy.txt with meta-llama/llama-3.3-70b-instruct (sha256 9d23074408323a33...) on 2026-10-13, in 1 round(s).
+#
+# Checked by machine: it compiles; every clause is quoted word for word from the document; every code appears in the
+# document; it decides every combination of evidence without contradicting itself; it has no lint warnings.
+# NOT checked: that its logic says what the document means, that its evidence is all the document asks for, and that the
+# questionnaire linkIds are the payer's. A person checks those, and signs the policy off by removing the status line.
+
+policy knee_arthroscopy
+  title "Arthroscopic knee surgery"
+  version 1.0
+  source "Example Health Plan - Medical Policy 7.1"
+  status draft
+  questionnaire https://payer.example/Questionnaire/knee_arthroscopy
+  service cpt 29880 29881
+
+evidence mechanical_symptoms
+  text "Mechanical symptoms of the knee"
+  clause "Arthroscopic meniscectomy is medically necessary when the member has mechanical symptoms of the knee, such as locking, catching or giving way."
+  find question mechanical-symptoms
+
+evidence conservative_treatment
+  text "At least six weeks of physical therapy or other conservative treatment"
+  clause "The member must also have completed at least six weeks of physical therapy or other conservative treatment without adequate relief."
+  find question conservative-treatment
+
+evidence meniscal_tear
+  text "Meniscal tear confirmed by MRI"
+  clause "A meniscal tear must be confirmed by MRI (CPT 73721) performed within the last 12 months."
+  find question meniscal-tear
+  find procedure cpt 73721 within 365 days
+
+evidence knee_osteoarthritis
+  text "Knee osteoarthritis"
+  clause "Arthroscopic meniscectomy is not medically necessary for knee osteoarthritis without mechanical symptoms (ICD-10-CM M17.11, M17.12)."
+  find question knee-osteoarthritis
+  find condition icd10 M17.11 M17.12
+
+criterion no_mechanical_symptoms
+  text "Mechanical symptoms are not shown."
+  clause "Arthroscopic meniscectomy is medically necessary when the member has mechanical symptoms of the knee, such as locking, catching or giving way."
+  defeated by mechanical_symptoms
+
+criterion no_conservative_treatment
+  text "Conservative treatment is not shown."
+  clause "The member must also have completed at least six weeks of physical therapy or other conservative treatment without adequate relief."
+  defeated by conservative_treatment
+
+criterion no_meniscal_tear
+  text "Meniscal tear is not confirmed."
+  clause "A meniscal tear must be confirmed by MRI (CPT 73721) performed within the last 12 months."
+  defeated by meniscal_tear
+
+criterion no_knee_osteoarthritis
+  text "Knee osteoarthritis is not shown."
+  clause "Arthroscopic meniscectomy is not medically necessary for knee osteoarthritis without mechanical symptoms (ICD-10-CM M17.11, M17.12)."
+  defeated by knee_osteoarthritis
+
+criterion excluded
+  text "Knee osteoarthritis without mechanical symptoms."
+  clause "Arthroscopic meniscectomy is not medically necessary for knee osteoarthritis without mechanical symptoms (ICD-10-CM M17.11, M17.12)."
+  defeated by no_knee_osteoarthritis mechanical_symptoms
+
+decision approve approves
+  text "Approve the procedure."
+  clause "Arthroscopic meniscectomy is medically necessary when the member has mechanical symptoms of the knee, such as locking, catching or giving way."
+  defeated by no_mechanical_symptoms no_conservative_treatment no_meniscal_tear excluded
+
+decision deny_no_mechanical_symptoms denies
+  text "Deny: mechanical symptoms are not shown."
+  clause "Arthroscopic meniscectomy is medically necessary when the member has mechanical symptoms of the knee, such as locking, catching or giving way."
+  defeated by mechanical_symptoms
+
+decision deny_no_conservative_treatment denies
+  text "Deny: conservative treatment is not shown."
+  clause "The member must also have completed at least six weeks of physical therapy or other conservative treatment without adequate relief."
+  defeated by conservative_treatment
+
+decision deny_no_meniscal_tear denies
+  text "Deny: meniscal tear is not confirmed."
+  clause "A meniscal tear must be confirmed by MRI (CPT 73721) performed within the last 12 months."
+  defeated by meniscal_tear
+
+decision deny_excluded denies
+  text "Deny: knee osteoarthritis without mechanical symptoms."
+  clause "Arthroscopic meniscectomy is not medically necessary for knee osteoarthritis without mechanical symptoms (ICD-10-CM M17.11, M17.12)."
+  defeated by no_knee_osteoarthritis mechanical_symptoms

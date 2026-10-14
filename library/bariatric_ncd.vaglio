@@ -1,0 +1,66 @@
+# Bariatric surgery, from Medicare NCD 100.1, with the procedure codes of the Medicare Claims Processing Manual chapter 32
+# section 150.2. Status draft: awaiting clinical sign-off (vaglio signoff). Every clause is quoted from
+# library/sources/NCD100.1-bariatric.txt. The sourced counterpart of the illustrative policies/bariatric_surgery.vaglio.
+#
+# Drafted by hand. The NCD's three conditions, all required: BMI of 35 or more, a co-morbidity related to obesity (type 2
+# diabetes counts, as the NCD says since 2009), and earlier unsuccessful medical treatment for obesity. The nationally
+# covered procedures only: laparoscopic sleeve gastrectomy (43775) is left to each MAC, so it is not decided here.
+# Questions only: the NCD names no codes for BMI, the co-morbidities or the earlier treatment.
+policy bariatric_ncd
+  title "Bariatric surgery for co-morbid conditions related to morbid obesity"
+  version 0.1.0
+  source "Medicare NCD 100.1, Bariatric Surgery for Treatment of Co-Morbid Conditions Related to Morbid Obesity; Medicare Claims Processing Manual chapter 32, section 150.2"
+  status draft
+  questionnaire https://vaglio.example/Questionnaire/bariatric-ncd
+  service cpt 43644 43645 43770 43845 43846 43847
+
+evidence bmi_35
+  text "A body-mass index of 35 or more"
+  clause "The beneficiary has a body-mass index (BMI) ≥ 35 kg/m2,"
+  find question bmi-35
+
+evidence comorbidity
+  text "At least one co-morbidity related to obesity"
+  clause "The beneficiary has at least one co-morbidity related to obesity, and,"
+  find question obesity-comorbidity
+
+evidence medical_treatment_failed
+  text "Earlier medical treatment for obesity was unsuccessful"
+  clause "The beneficiary has been previously unsuccessful with medical treatment for obesity."
+  find question medical-treatment-failed
+  request document loinc 11506-3
+
+criterion bmi_unestablished
+  text "A BMI of 35 or more is not documented."
+  clause "The beneficiary has a body-mass index (BMI) ≥ 35 kg/m2,"
+  defeated by bmi_35
+
+criterion comorbidity_unestablished
+  text "No co-morbidity related to obesity is documented."
+  clause "The beneficiary has at least one co-morbidity related to obesity, and,"
+  defeated by comorbidity
+
+criterion treatment_unestablished
+  text "Unsuccessful medical treatment for obesity is not documented."
+  clause "The beneficiary has been previously unsuccessful with medical treatment for obesity."
+  defeated by medical_treatment_failed
+
+decision approve approves
+  text "Approve the bariatric procedure."
+  clause "are covered for Medicare beneficiaries who have a body-mass index ≥ 35, have at least one co-morbidity related to obesity, and have been previously unsuccessful with medical treatment for obesity."
+  defeated by bmi_unestablished comorbidity_unestablished treatment_unestablished
+
+decision deny_bmi denies
+  text "Deny: a BMI of 35 or more is not documented."
+  clause "The beneficiary has a body-mass index (BMI) ≥ 35 kg/m2,"
+  defeated by bmi_35
+
+decision deny_comorbidity denies
+  text "Deny: no co-morbidity related to obesity; treatment of obesity alone is not covered."
+  clause "Treatments for obesity alone remain non-covered."
+  defeated by comorbidity
+
+decision deny_treatment denies
+  text "Deny: unsuccessful medical treatment for obesity is not documented."
+  clause "The beneficiary has been previously unsuccessful with medical treatment for obesity."
+  defeated by medical_treatment_failed

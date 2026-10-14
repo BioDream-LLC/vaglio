@@ -1,0 +1,399 @@
+<div align="center">
+
+<img src="docs/assets/vaglio-logo.svg" alt="" width="84" height="84">
+
+<h1><img src="docs/assets/wordmark.svg" alt="Vaglio" width="470"></h1>
+
+### A prior authorization decision engine that cannot deny care without proving why
+
+**Every answer is a proof.** Each step cites the clause of the plan's policy it applies and the place in the record it
+rests on. One rule outranks all the others: **a denial may rest on evidence of absence, never on absence of evidence.**
+When anything the record leaves unaddressed could change a denial, the request is pended and that evidence is asked
+for by name.
+
+**One 9 MB program. 14 MB of memory at rest.** Its reviewers' console, policy editor, reports and audit log are built
+in; it decides Da Vinci PAS requests behind [Perfuse](https://github.com/BioDream-LLC/perfuse) or any PAS server that
+calls its decision hook.
+
+[![License](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-8b5cf6.svg)](LICENSE.md) [![Go](https://img.shields.io/badge/Go-1.27%2B-00ADD8.svg?logo=go&logoColor=white)](https://go.dev) [![Version](https://img.shields.io/badge/version-v0.0.1-orange.svg)](#status) [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS-lightgrey.svg)](#build) [![Works with](https://img.shields.io/badge/works%20with-Perfuse-3b82f6.svg)](https://github.com/BioDream-LLC/perfuse)
+
+<a href="docs/Vaglio-overview.pptx"><img src="docs/assets/buttons/overview.svg" alt="Vaglio in plain words: the slides" width="240"></a>&nbsp;<a href="#build"><img src="docs/assets/buttons/source.svg" alt="Build Vaglio from source" width="240"></a>
+
+<sub>No release yet: build it from source with Go. [What it needs](#build)</sub>
+
+[**What it does**](#everything-it-does) · [**What it looks like**](#what-it-looks-like) · [**Running it**](#running-it) ·
+[**Behind Perfuse**](#behind-perfuse) · [**Writing policies**](#writing-policies) · [**Security**](#security) · [**FAQ**](#faq)
+
+</div>
+
+---
+
+## What is Vaglio?
+
+**Vaglio is the decision engine behind a health plan's prior authorization.** A doctor's system asks the plan whether
+it will cover a service; the plan's PAS server (its electronic front desk, such as Perfuse) passes the request to
+Vaglio; Vaglio reads the evidence in the request, applies the plan's signed policy for that service, and answers:
+approve, deny with its proof, or pend and say exactly what is needed.
+
+**It is built for the rules plans now work under.** CMS-0057-F asks most Medicare Advantage, Medicaid, CHIP and
+marketplace plans to decide within 7 days (72 hours when urgent), give a specific reason for every denial, take
+requests through a standard API, and publish their numbers. Vaglio gives the reason as a proof, keeps the deadline in
+front of the reviewer, and builds the published metrics from its own log.
+
+**Policies are short text files that keep the plan's own words.** Each rule quotes its source sentence exactly, and
+every policy is tested on every combination of evidence it can be given before it may decide anything. A clinician
+signs it off; until then the server refuses it.
+
+**People stay in charge.** Whatever the rules cannot settle goes to a reviewer, with the evidence found, what is
+missing and the due date. A plan can require that only a clinician ever denies. Every decision, review, override and
+appeal is kept in a tamper-evident log that can be replayed against a new policy before it goes live.
+
+<img src="docs/assets/architecture.svg" alt="A provider's system sends a prior authorization request to a PAS server such as Perfuse, which asks Vaglio. Vaglio reads the evidence, applies the plan's signed policy, proves the answer and records it. Reviewers, clinicians and auditors use the result." width="100%">
+
+New to prior authorization? **[The slides](docs/Vaglio-overview.pptx)** explain Vaglio in plain words, with no
+software background needed.
+
+## Everything it does
+
+- **Decides PAS requests** for a PAS server such as Perfuse (`POST /api/pas/decide`): reads the request's evidence,
+  decides on the policy for the service, and answers approve, deny with its clause and documented absences, or pend with
+  what is needed.
+- **Keeps every decision as a case**, in a hash-chained audit log the case list is rebuilt from. Pended cases wait in the
+  console for a reviewer, whose decision and reason go back to the PAS server as `Claim/$decide`, retried until it lands.
+- **Reads evidence from FHIR**, with a citation for every finding: DTR questionnaire answers, Conditions (with the
+  verification statuses a clause accepts), completed Procedures (within N days, or lasting N days), and final
+  Observations (thresholds in one unit, yes/no, coded values). What it cannot read with confidence is "not addressed",
+  the one state that can never support a denial; a record that says both is sent to a person; documents no rule reads
+  are listed for the reviewer.
+- **Policies in a small language** (`.vaglio`), compiled to the model the engine solves, with errors at line and column,
+  `vaglio fmt`, lint warnings, and an exhaustive check over every combination of evidence before a policy may load.
+- **Drafts policies from coverage documents** with a language model, behind gates a draft must pass: it compiles, every
+  clause is quoted word for word, every code appears in the document, it passes the exhaustive check, and it has no lint
+  warnings. What passes is written with `status draft`, which the server refuses until a person signs it off.
+
+- **Makes the DTR questionnaire from the policy** (`vaglio questionnaire`, or the policy screen): exactly the questions
+  its decisions read, so the form and the policy cannot drift. `-put` stores it on the PAS server, which serves it to
+  DTR apps. The pend report says which missing evidence pends requests most, and whether a question asks for it.
+- **Gold carding** (`serve -goldcard FILE`): providers whose recent record under a program (approval rate, look-back
+  window, minimum decisions, optionally a state and policies) qualifies are approved without review, with an answer
+  naming the program and the record, and the cases counted. Known by NPI only; exempt approvals never count toward the
+  next exemption.
+- **CMS prior authorization metrics** from the log (`vaglio report metrics`, the Reports screen, CSV): standard and
+  expedited, counts and percentages, time to determination. Appeals and extensions are not seen by Vaglio and are
+  reported as not tracked, never as zero.
+- **Clinician denials** (`serve -clinician-denials`, for California SB 1120 and laws like it): the engine never denies
+  on its own. It pends the request and proposes the denial to a reviewer; only an account recorded as a clinician
+  (`vaglio user clinician -npi -credential`) may deny, and the decision records their NPI and credential.
+- **Replay** (`vaglio replay`, or edit a policy's source in the console): runs a new policy version over every stored
+  request it covers and lists the decisions it would change, flagging those that would overrule a reviewer. It changes
+  nothing, and is audited.
+
+- **Says what would change it**: every pend and denial carries each smallest set of evidence whose documentation would
+  approve it, and says when a route needs the record to be wrong rather than more documentation. The provider is told
+  the routes that need only more documentation.
+- **Asks for documents the standard way**: evidence can name the LOINC attachment codes that would show it (`request
+  document loinc ...`). A pend names them and the questionnaire, and Perfuse asks the provider with a Da Vinci CDex Task
+  and CommunicationRequests. What the provider sends back through `$submit-attachment` is fetched into the case, and the
+  policy decides again on the request as it now stands, for the reviewer to weigh.
+- **Reads attached notes with a model, as proposals** (`serve -document-model-url`): each finding must quote the
+  document word for word or it is refused; what passes is nothing until a reviewer confirms it, and a confirmed finding
+  is evidence cited to the document and the words. Documents are patient records, so the model must be on this machine
+  unless `-document-model-remote` says the provider is covered by a business associate agreement.
+- **Drug prior authorization**: `drug` policies, `find medication rxnorm ... within N days lasting N days` over
+  MedicationDispenses and MedicationStatements (days of supply summed across fills, for step therapy), counted apart in
+  the CMS metrics. `policies/adalimumab_ra.vaglio` is an illustrative step-therapy policy.
+- **Override and appeal analytics** (`vaglio report overrides -by clause|provider|state`, the Reports screen): how often
+  the engine's denials were approved by a clinician instead, or overturned on appeal (`POST /api/cases/{id}/appeal`
+  records an appeal's outcome). Approved-after-appeal is now in the metrics.
+- **A policy library** (`library/`): policies drafted from published coverage documents, each held by a test to the
+  drafting gates against its source, which is kept beside it with where and when it was retrieved. All are drafts until
+  a clinician signs them off. The AHIP/BCBSA standard documentation set for 66 services is not public (only its
+  categories are), so the library is built from public documents:
+
+  | Policy | Basis | Category |
+  |---|---|---|
+  | `cpap_osa` | Medicare LCD L33718 (E0601) | DME: sleep |
+  | `tka` | Medicare LCD L36575, total knee arthroplasty (27447) | Musculoskeletal |
+  | `facet_rfa` | Medicare LCD L38773, facet joint radiofrequency ablation (64633-64636) | Musculoskeletal: spine |
+  | `ccta` | Medicare LCD L35121, coronary CT angiography (75574) | Advanced imaging: cardiac |
+  | `lumbar_mri_wa` | Washington L&I lumbar spine MRI guideline (72148, 72149, 72158) | Advanced imaging: spine |
+  | `bariatric_ncd` | Medicare NCD 100.1 and Claims Processing Manual ch. 32 | Surgery: bariatric |
+  | `adalimumab_ra_ut` | Utah Medicaid adalimumab criteria, RA (J0135, step therapy) | Drugs: specialty |
+
+  The last three are the sourced counterparts of the illustrative policies in `policies/`. Each policy's header says
+  which readings of its source a clinician should confirm.
+- **A policy editor in the console** (`serve -edit-policies`): drafts are written and checked as they are typed (parse
+  errors jump to the line; the exhaustive check and lint run beside it), saved to `-policies/drafts/`, and signed off by
+  a clinician's account - the signature is the account's name and credential, never typed. A signed policy is in force
+  at once, replacing its earlier version, which keeps deciding until then. Sign-off refuses a draft that fails its check,
+  has warnings, reuses the version in force, or claims another policy's service. Every save and sign-off is in the audit
+  log by the source's SHA-256.
+- **Richer date rules**: `find condition ... onset at least N days` (how long a condition has lasted), and
+  `find procedure ... within N days times N apart N days` (two blocks at least 14 days apart; two RFA sessions in a
+  year). Fewer procedures, or ones that cannot be dated apart, document nothing either way.
+- **PDFs and scans for the document reader** (`serve -extract pdftotext,tesseract`): local programs make the text, which
+  goes through the same quote gate. The case marks such documents, and the reviewer confirms against the original,
+  served as a sandboxed download.
+- **Narrower roles** (`vaglio user scopes`): `author` (write drafts), `audit` (read the log), `appeals` (record appeal
+  outcomes), `policy:ID` (see and decide only that policy's cases; other cases are not found). Changing an account's
+  scopes ends its sessions.
+- **Single sign-on** (OpenID Connect, `serve -oidc-issuer ...`): code flow with PKCE, the ID token verified against the
+  provider's keys (RSA or ECDSA; `none` and HMAC refused), with issuer, audience, expiry and nonce checked, and
+  optionally a required group. The provider says who someone is; an account made with `vaglio user sso` says what they
+  may do. A name with no such account is refused, never created.
+- **Decision timeframe extensions** (`POST /api/cases/{id}/extend`): 7 days standard and 72 hours expedited (CMS-0057-F),
+  72 and 24 hours for drugs; a reviewer may extend once, by up to 14 days (`-extension-days`), for one of the three
+  reasons 42 CFR 422.568(b)(2) allows, with what the enrollee is told, before the deadline, never for a drug. The queue
+  shows what is due and overdue; the metrics count extensions, approvals after one, and late determinations.
+- **An appeals feed** (`POST /api/feeds/appeals`, bearer token from `-appeals-token-env`): the appeals system sends
+  outcomes, matched to the denial by Claim identifier and item, recorded once by their reference.
+  `vaglio appeals import FILE.csv` sends a CSV export through it.
+
+## Status
+
+**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (111 Go test functions, the
+console's tests, and every policy checked on every combination of evidence), and the whole path has been run end to end
+through a real Perfuse. The policies in `policies/` are **illustrative only**: not any payer's policy and not clinical
+guidance.
+
+How the code is laid out:
+
+- `internal/af`: Dung framework, grounded labelling, defenders by round. Cross-checked against the definition (the
+  intersection of all complete extensions) on 600 random frameworks.
+- `internal/policy`: the model, the language (`lang.go`), and lint.
+- `internal/decide`: decisions, proofs, the absence rule, contradictory records, and `Check`. The absence rule is tested
+  by brute force over all 3^5 requests to the example policy.
+- `internal/evidence`: PAS request Bundle in, cited findings out, through Perfuse's published `pas` and `fhir` packages.
+- `internal/audit`, `internal/cases`, `internal/deliver`: the log, the cases derived from it, delivery to `Claim/$decide`.
+- `internal/auth`: accounts and sessions. `internal/draft`: the drafting loop and its gates.
+- `internal/editor`: drafts, sign-off and putting a policy in force. `internal/oidc`: single sign-on.
+- `internal/dtr`, `internal/goldcard`, `internal/report`, `internal/replay`: questionnaires, exemptions, metrics, pend
+  causes and reversals, replays. `internal/reader`: documents read by a model behind the quote gate.
+- `library/`: drafted policies, their sources and `library.json`; `library/drafts/` keeps the machine's own drafts.
+- `internal/server` + `web/`: the API and the React/Redux console (cases and review, policies and their check, trying a
+  policy by hand, the audit log), embedded in the binary.
+- `testdata/pas/`: synthetic PAS requests, run through a real Perfuse during development and pinned by a test.
+  `testdata/drafts/`: a policy the drafting loop produced from `testdata/documents/`, pinned the same way.
+
+Not yet: notices to the enrollee are the plan's (Vaglio records an extension's reason; it does not mail it); single
+sign-on is tested against a test provider only, not a real one; reading scanned images needs `tesseract` installed;
+there is no release build yet.
+
+
+## What it looks like
+
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/screens/cases.png" alt="The cases queue: waiting requests with their policy, service, claim, the engine's answer and the time left before each is due."><br><sub><b>The queue.</b> Waiting cases with what the engine said and how long each has left.</sub></td>
+<td width="50%"><img src="docs/assets/screens/denial.png" alt="A denied case: what the provider was told, quoting the policy clause, and the evidence found in the request with the record it came from."><br><sub><b>A denial with its proof.</b> The clause quoted, the absences documented, each finding cited to the record.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/screens/pend.png" alt="A pended case: the information needed, the questionnaire it was asked through, the due date and the reviewer's decision form."><br><sub><b>A pend.</b> What is needed, how it was asked for, the deadline, and the reviewer's decision.</sub></td>
+<td width="50%"><img src="docs/assets/screens/editor.png" alt="The policy editor: a draft's source, its check over all 128 combinations of evidence, and the clinician's sign-off button."><br><sub><b>The policy editor.</b> Checked on every combination as it is written; a clinician signs it into force.</sub></td>
+</tr>
+<tr>
+<td colspan="2"><img src="docs/assets/screens/reports.png" alt="The reports screen: CMS prior authorization metrics, standard and expedited, with extensions and late determinations." width="100%"><br><sub><b>Reports.</b> The CMS prior authorization metrics, from the log, on screen or as CSV.</sub></td>
+</tr>
+</table>
+
+<sub>Screens from a test server with synthetic requests and the illustrative policies.</sub>
+
+## Running it
+
+```
+vaglio serve -data data -policies policies -token-env VAGLIO_TOKEN \
+  -pas-url http://127.0.0.1:8080/fhir -pas-token-env PERFUSE_TOKEN
+```
+
+The first start creates an `admin` account and prints its password once. Add people from the command line, while the
+server runs or not:
+
+```
+vaglio user add -data data -role reviewer dr.lee     # prints a generated password, once
+vaglio user reset -data data dr.lee                  # a new password
+vaglio user remove -data data dr.lee
+vaglio user clinician -data data -npi 1234567893 -credential "MD, radiology" dr.lee
+vaglio audit verify -data data                       # check the chain; keep the hash it prints somewhere else
+vaglio report metrics -data data -from 2026-01-01 -csv
+vaglio report pends -data data -policies policies
+vaglio goldcard -data data -config goldcard.json     # every provider's standing
+```
+
+A gold card file:
+
+```
+{"programs": [{"name": "Texas gold card", "basis": "Tex. Ins. Code ch. 4201, subch. N", "states": ["TX"],
+  "minApprovalRate": 0.9, "lookBackDays": 180, "minDecisions": 5}]}
+```
+
+Check the numbers against the law you apply; the example's are illustrative. `"count"` says which decisions make a
+provider's record for a program with states: `"all"` (the default) counts every decision for the policy wherever the
+patient lives, `"states"` only those for patients in the program's states. An administrator can switch it on the
+Reports screen; the switch is recorded in the audit log and survives a restart. A state rule is matched on the patient's
+address, the closest a PAS request comes to the plan's state.
+
+Roles: **viewer** reads cases and policies; **reviewer** also decides pended cases; **admin** also reads the audit log.
+Sessions end after 30 minutes idle or 12 hours, and on a restart. Five wrong passwords lock a name for 15 minutes.
+
+`data/` holds the audit log, the request Bundles (patient data) and the accounts. The server refuses to use it unless only
+its owner can read it. Back it up as a whole: the cases are the log.
+
+## Behind Perfuse
+
+Perfuse's PAS server asks Vaglio about every item its rules file leaves to a reviewer:
+
+```
+perfuse serve -fhir -pas -crd-rules rules.yaml \
+  -pas-decider-url http://127.0.0.1:8740/api/pas/decide -pas-decider-token-env VAGLIO_TOKEN
+```
+
+Perfuse sends the Bundle with `X-PAS-Request-Id`, the ClaimResponse id; Vaglio answers Perfuse's protocol (`decision`,
+`why`, `requested`) plus the case id, the proof and the evidence. A service no policy decides is a `404`, which leaves
+Perfuse's answer standing. Perfuse pends on any failure, and Vaglio refuses to answer a decision it could not record.
+With `-pas-url`, a reviewer's decision is sent back as `Claim/$decide` under that id, and the provider's subscription
+delivers it. A Perfuse API token with the editor role is what `-pas-token-env` names.
+
+## Security
+
+- `/api/pas/` takes the bearer token from `-token-env`. Everything else takes a session cookie (HttpOnly,
+  SameSite=Strict), and every state-changing request must be JSON from this origin.
+- Off loopback the server requires `-tls-cert`, `-tls-key` and `-hostname`, and refuses any other Host header.
+  `-pas-url` must be https or this machine.
+- Reading a case is audited, as is every decision, review, sign-in, failed sign-in and change of account.
+- The audit log is tamper-evident, not tamper-proof: an edit, deletion or reordering is detected and the server will not
+  start on it, but whoever can rewrite the whole file can rewrite it consistently. Keeping the hash `vaglio audit verify`
+  prints somewhere else closes that for the log up to that point.
+- The log needs a file lock, so it runs on Linux and macOS; a Windows build refuses to write it.
+- `/api/feeds/appeals` takes only its own bearer token, and is off unless `-appeals-token-env` is set.
+- Single sign-on needs https for the provider and the callback (plain http only to this machine). The sign-in state is
+  bound to the browser that started it, good once, and expires in 10 minutes; every refused sign-in is logged.
+- Extractors run with no shell, a near-empty environment, a time limit and bounded output; the document stays on this
+  machine.
+- `vaglio draft` sends the document to the model's provider: use it for published coverage policies only, never anything
+  with patient data in it.
+
+## Writing policies
+
+```
+vaglio check policies/*.vaglio                 # every combination of evidence, plus warnings
+vaglio fmt policies/*.vaglio                   # the standard layout (comments at the top are kept)
+vaglio compile policies/lumbar_mri.vaglio      # the JSON the engine reads
+vaglio draft -id knee -out knee.vaglio document.txt    # OpenRouter by default: -url, -model, -key-env
+bin/vaglio decide -policy policies/lumbar_mri.vaglio testdata/requests/repeat_mri_unaddressed.json
+```
+
+The language is described at the top of `internal/policy/lang.go`; `policies/` has two worked examples.
+
+## Build
+
+Needs Go 1.27 (Perfuse's published `fhir` and `pas` packages come from Perfuse v0.1.15), and Node 20 or later only to
+rebuild the console (`internal/web/dist` is committed, so `go build` works without it). Runs on Linux and macOS; the
+audit log needs a file lock, so a Windows build refuses to write it.
+
+```
+git clone https://github.com/BioDream-LLC/vaglio && cd vaglio
+make check      # gofmt, vet, go test -race, typecheck, vitest, policy check; prints CHECK PASSED
+make build      # bin/vaglio, static, CGO_ENABLED=0
+make web        # rebuild the console into internal/web/dist
+```
+
+`pdftotext` (poppler) and `tesseract` are optional: `serve -extract` uses them to read PDFs and scans.
+
+## FAQ
+
+<details>
+<summary><b>Is Vaglio free? What is the licence?</b></summary>
+
+Vaglio is **source-available** under the [PolyForm Shield License 1.0.0](LICENSE.md). You may read, run, change and
+share it at no cost, including as a health plan deciding its own prior authorization requests. What the licence does
+not allow is using Vaglio to provide a product that competes with it, such as selling it, or a service built on it,
+as a prior authorization decision engine. For that, ask BioDream LLC for a commercial licence. It is not "open
+source" in the OSI sense, and we do not call it that. [Perfuse](https://github.com/BioDream-LLC/perfuse), which it
+works with, is Apache-2.0 open source.
+
+</details>
+
+<details>
+<summary><b>Do I need Perfuse?</b></summary>
+
+To receive requests from providers you need a PAS server in front of Vaglio, and Perfuse is the one it is built and
+tested with: free, Apache-2.0, and one program like Vaglio. Any PAS server that calls the decision hook
+(`POST /api/pas/decide`, described in [Behind Perfuse](#behind-perfuse)) can be used instead. Without a PAS server,
+Vaglio still runs on its own for writing and trying policies, reviewing, reports and replay. Perfuse never needs
+Vaglio.
+
+</details>
+
+<details>
+<summary><b>Can Vaglio deny a request on its own?</b></summary>
+
+Only when the record shows the patient does not meet a rule, and only with a proof that quotes the rule and cites
+the record. A missing or unclear fact never supports a denial: the request is pended and the fact is asked for. A plan
+can go further with `-clinician-denials`: the engine then never denies at all, and proposes the denial to a clinician,
+whose NPI and credential the decision records.
+
+</details>
+
+<details>
+<summary><b>Are the policies in the library ready to use?</b></summary>
+
+They are drafts. Each is drafted from a public coverage document kept beside it and quoted word for word, and passes
+every gate, but a plan's own medical director must read each one against its source and sign it off before it decides
+anything. The server refuses an unsigned policy. The policies in `policies/` are illustrative only.
+
+</details>
+
+<details>
+<summary><b>Does patient data leave the plan?</b></summary>
+
+No. Vaglio runs on the plan's own servers and sends nothing to BioDream. Reading attached notes with a language model
+needs a model on the same machine, unless `-document-model-remote` states that the provider is covered by a business
+associate agreement. Drafting policies with a model uses published coverage documents only.
+
+</details>
+
+<details>
+<summary><b>Why is it called Vaglio?</b></summary>
+
+*Vaglio* is Italian for a sieve, and for careful scrutiny: what passes has been examined. It is the idea of the
+engine, and its logo.
+
+</details>
+
+## Contributions are not accepted
+
+Vaglio is developed and maintained by BioDream LLC, and it stays that way. **Pull requests will not be reviewed or
+merged.** There is no contributor agreement to sign because there is no route for a contribution to arrive. This
+software decides whether patients get care, and the discipline that makes it worth trusting (every denial proven,
+every policy checked on every case, anything uncertain refused rather than guessed) is easy to state and slow to
+enforce across contributors.
+
+**Bug reports are wanted.** [Open an issue](https://github.com/BioDream-LLC/vaglio/issues) with the output of
+`vaglio version` and, if a request is involved, a synthetic or fully de-identified one. Never post patient data.
+
+**Security problems:** please report them privately through this repository's Security tab ("Report a
+vulnerability"), not in a public issue.
+
+## Licence
+
+[PolyForm Shield License 1.0.0](LICENSE.md). Copyright 2026 BioDream LLC. See [NOTICE](NOTICE).
+
+Vaglio includes the `fhir` and `pas` packages of Perfuse, a separate project under the Apache License 2.0, whose
+licence and notice are in [licenses/](licenses). The coverage documents in `library/sources/` belong to their
+publishers (CMS and state agencies) and are quoted as the basis of each policy.
+
+Vaglio is not affiliated with or endorsed by CMS, HL7, the Da Vinci Project, AHIP or BCBSA. HL7 and FHIR are
+registered trademarks of Health Level Seven International, used only to say what Vaglio reads and writes. The
+policies here are not medical advice and not any health plan's coverage policy.
+
+<div align="center">
+
+<details>
+<summary><b>Keywords</b></summary>
+
+<sub><b>Prior authorization:</b> prior authorization engine · utilization management · medical necessity · coverage policy · decision engine · prior auth automation · step therapy · drug prior authorization · gold carding · clinician review · appeals · peer review</sub><br><br>
+<sub><b>Standards and rules:</b> CMS-0057-F · CMS-0062-P · Da Vinci PAS · Da Vinci DTR · Da Vinci CDex · FHIR R4 · X12 278 · Questionnaire · Medicare LCD · NCD · SB 1120 · Texas gold card · 42 CFR 422.568</sub><br><br>
+<sub><b>Engine:</b> explainable decisions · argumentation · grounded semantics · proofs · evidence citation · exhaustive policy testing · audit log · hash chain · policy replay · Go · single binary · OpenID Connect · Perfuse</sub>
+</details>
+
+</div>

@@ -1,0 +1,98 @@
+Source: Washington State Department of Labor & Industries, Imaging Guidelines: Lumbar Spine MRI, February 12, 2010
+(https://www.lni.wa.gov/patient-care/treating-patients/treatment-guidelines-and-resources/_docs/LBchecklist.pdf), retrieved
+2026-10-13. A state agency's published guideline, copied from the PDF's text with layout spacing, checkboxes, page headers
+and the reference list removed. Old (2010): check it against current guidance before relying on it.
+
+Note: MRI is the preferred imaging modality for the following circumstances unless contraindicated or not tolerated by
+the patient (i.e., due to presence of ferrous metal in body, or severe anxiety) or unavailable.
+I. Acute low back pain (onset within past 6 weeks) : MRI without contrast unless specified otherwise
+*Not Appropriate: uncomplicated acute (< 6 weeks) low back pain with or without suspected radiculopathy (no
+red flags) does not warrant the use of MRI, X-ray, CT, myelography or CT xylography, NUC Tc-99m bone scan
+with SPECT. Nonspecific lumbar disc abnormalities are commonly found in asymptomatic patients.(Chou,
+Qaseem et al. 2007) (American College of Radiology 2008)
+Progressive (objective) neurological signs
+Progressive motor weakness present
+Suspect Cauda Equina syndrome (either of the following)
+Bilateral neurologic signs and symptoms
+Acute bladder or bowel dysfunction
+*ACR appropriateness recommendation ranks MRI without contrast highest (rating = 9). MRI with and
+without contrast (rating = 8) depends on clinical circumstances. Other methods: Myelography and
+postmyelography CT (rating = 6), CT with and without contrast (rating = 5)-may be indicated if MRI is
+confusing or contraindicated, x-ray, NUC Tc-99m bone scan with SPECT and x-ray myelography are
+rated < 5.
+Infection (any of the following) : MRI with and without contrast
+Fever
+Suspicion of systemic or spinal infection
+Immunosuppression (e.g., chronic steroid use)
+IV drug use
+Known bacteremia
+Elevated sedimentation rate
+History or suspicion of cancer with new onset of LBP. Suspicion of cancer criterion can be met if any two of
+the following are present:
+Unexplained weight loss,
+Failure to improve after one month,
+Age over 50.
+*ACP recommends plain radiography for unexplained weight loss, MRI or plain radiography if multiple
+risk factors present. ACR Guidelines for suspicion of cancer, infection or immunosuppression rate MRI
+without and with contract highest (rating = 8). CT without contrast (rating = 6)-useful if MRI is
+contraindicated or unavailable. Other imaging methods: use of x-ray, NUC Tc-99m bone scan whole
+body with optional targeted SPECT, myelography and postmyelography CT (appropriateness rating < 6
+for these).
+Low velocity trauma (e.g., fall from height or struck by object) OR osteoporosis, AND/OR age >70 years
+*ACP Guideline recommends: if vertebral compression fracture is suspected due to history of
+osteoporosis, use of steroids, or age ≥ 70 plain radiography should be completed prior to MRI.
+Vertebral compression fracture present on plain radiography
+Other fractures
+*For low velocity trauma, ACR Guidelines do not support use of NUC Tc-99m bone scan with SPECT,
+MRI with and without contrast, myelography and postmyelography CT, or x-ray myelography
+(appropriateness ratings < 5 for these)
+II. Subacute Low back pain >6 weeks : MRI without contrast
+At least 6 weeks medical/conservative treatment and:
+Any of the criteria under acute low back pain met
+OR
+Suspected radiculopathy with (all 3 present):
+Leg pain is > than back pain
+Pain present in nerve root distribution
+Positive straight leg raising test < 45º OR positive crossed straight leg raising test
+OR
+Motor weakness or sensory loss in a radicular distribution
+OR
+EMG/NCS consistent with radiculopathy
+*ACP recommendation: consider EMG/NCS testing if symptoms > 1 month. For suspected radiculopathy, ACR
+Guidelines rate MRI without contrast as most appropriate. CT without contrast may be useful if MRI is not
+available or contraindicated. MRI with and without contrast may be indicated if noncontrast MRI is nondiagnostic
+or indeterminate. MRI is preferred over myelography and postmyelography CT, but may be indicated if MRI is
+nondiagnostic. In some circumstances (facet arthropathy, stress fracture and spondylolysis) NUC Tc-99m bone
+scan with SPECT may be useful. Least appropriate x-ray (appropriateness rating 2).
+III. A. Chronic low back pain (> 3 months) with no prior MRI of lumbar spine : MRI without contrast
+Any of the criteria under subacute low back pain (II above)
+Suspicion of substantial spinal stenosis on another imaging procedure
+B. Chronic low back pain (> 3 months) with prior MRI of lumbar spine : MRI without contrast
+Objective worsening of neurological status by physical exam OR electrodiagnostic testing
+Patient is considered a candidate for spine surgery, (one of the following)
+Progressive changes in objective neurological findings
+At least 1 year since last lumbar MRI (without objective change in neurological signs)
+* ACR Guidelines rate MRI without contrast as most appropriate. CT without contrast may be useful if MRI
+is not available or contraindicated. MRI with and without contrast may be indicated if noncontrast MRI is
+nondiagnostic or indeterminate. MRI is preferred over myelography and postmyelography CT, but may be
+indicated if MRI is nondiagnostic. In some circumstances (facet arthropathy, stress fracture and
+spondylolysis) NUC Tc-99m bone scan with SPECT may be useful. Least appropriate x-ray (appropriateness
+rating 2).
+Prior lumbar surgery (one of the following)
+Objective and/or new or worsening neurological signs
+Plain radiography OR clinical findings suggest new adverse effects of surgery
+*Looking for epidural scarring
+*ACR appropriateness rates MRI with and without contrast highest (rating =8), CT without contrast
+(rating=6) may be indicated in postfusion patients or when MRI is contraindicated or indeterminate. Other
+methods rated lower: MRI without contrast (rating=6) as contrast is often necessary, myelography and
+postmyelography CT (rating = 5, x-ray (rating = 5)-flex/extension may be useful, NUC Tc-99m bone scan
+with SPECT (rating=5)-helps detect and localize pseudoarthrosis, x-ray myelography (rating = 2).
+IV. Indication not listed: provide clinical justification
+Indications here should be well documented. For example, while the vast majority of true radiculopathy cases
+would meet the criteria, specific syndromes (lateral stenosis, L1-L3 syndromes) may only meet some of these
+criteria. In these cases, clinical correlation should be clearly documented.
+
+CODES, not in the guideline, from Medicare's Billing and Coding article A57207, Lumbar MRI (version 33), retrieved 2026-10-13:
+72148 MAGNETIC RESONANCE (EG, PROTON) IMAGING, SPINAL CANAL AND CONTENTS, LUMBAR; WITHOUT CONTRAST MATERIAL
+72149 MAGNETIC RESONANCE (EG, PROTON) IMAGING, SPINAL CANAL AND CONTENTS, LUMBAR; WITH CONTRAST MATERIAL(S)
+72158 MAGNETIC RESONANCE (EG, PROTON) IMAGING, SPINAL CANAL AND CONTENTS, WITHOUT CONTRAST MATERIAL, FOLLOWED BY CONTRAST MATERIAL(S) AND FURTHER SEQUENCES; LUMBAR

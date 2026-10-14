@@ -1,0 +1,29 @@
+{
+  "name": "vaglio-web",
+  "private": true,
+  "license": "SEE LICENSE IN ../LICENSE.md",
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "2.5.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-redux": "9.2.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "16.3.2",
+    "@types/react": "18.3.18",
+    "@types/react-dom": "18.3.5",
+    "@vitejs/plugin-react": "4.3.4",
+    "happy-dom": "20.11.6",
+    "typescript": "5.7.2",
+    "vite": "6.0.7",
+    "vitest": "2.1.8"
+  }
+}

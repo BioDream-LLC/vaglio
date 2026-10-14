@@ -1,0 +1,82 @@
+# Coronary CT angiography (75574), from Medicare LCD L35121 (WPS). Status draft: awaiting clinical sign-off (vaglio
+# signoff). Every clause is quoted from library/sources/L35121-CCTA.txt.
+#
+# Drafted by hand. The LCD's indications are encoded as five: the seven uses as an alternative to invasive angiography
+# and stress testing (one question: "1 or more of the following"), a suspected congenital anomaly, acute chest pain in the
+# emergency department, coronary or pulmonary venous mapping, and new heart failure. Three limitations deny: screening,
+# no new information expected, and a patient who will need invasive angiography anyway. Atrial fibrillation alone is not
+# an indication and is not one of the five; with planned ablation it is venous mapping. The scanner requirements (64
+# slices, 1 mm) and supervision rules are the performing site's, not the request's, and are not encoded. Calcium scoring
+# (75571) is never covered and is not a service here. Questions only.
+policy ccta
+  title "Coronary CT angiography (75574)"
+  version 0.1.0
+  source "Medicare LCD L35121, Coronary Computed Tomography Angiography (CCTA) (WPS), indications and limitations"
+  status draft
+  questionnaire https://vaglio.example/Questionnaire/ccta
+  service cpt 75574
+
+evidence alternative_to_angiography
+  text "One of the uses as an alternative to invasive angiography and stress testing"
+  clause "CCTA is used as an alternative to invasive angiography and stress testing for patients with 1 or more of the following:"
+  find question alternative-to-angiography
+
+evidence congenital_anomaly
+  text "A suspected congenital coronary anomaly"
+  clause "CCTA used to assess patients suspected of having a congenital coronary anomaly of great vessels, cardiac chambers, and valves."
+  find question congenital-anomaly
+
+evidence ed_chest_pain
+  text "Acute chest pain in the emergency department"
+  clause "CCTA used to evaluate acute chest pain in the emergency department (ED)."
+  find question ed-chest-pain
+
+evidence venous_mapping
+  text "Coronary or pulmonary venous anatomy to be mapped"
+  clause "CCTA used to assess coronary or pulmonary venous anatomy."
+  find question venous-mapping
+
+evidence new_heart_failure
+  text "New onset heart failure, to evaluate the coronary arteries"
+  clause "CCTA used to assess etiology with new onset heart failure for evaluation of coronary arteries."
+  find question new-heart-failure
+
+evidence screening
+  text "Screening: no signs, symptoms or disease"
+  clause "The test is never covered for screening, i.e., in the absence of signs, symptoms or disease."
+  find question screening
+
+evidence no_new_information
+  text "The results are not expected to add to earlier tests"
+  clause "The test will be considered not medically necessary if the anticipated results are not expected to provide new, additional information to that already previously obtained from other tests (such as stress myocardial perfusion images or cardiac ultrasound)."
+  find question no-new-information
+
+evidence invasive_angiography_needed
+  text "The patient will need invasive angiography anyway"
+  clause "The test will be considered not medically necessary if pretest evaluation indicates that the patient would require invasive cardiac angiography for further diagnosis or for therapeutic intervention."
+  find question invasive-angiography-needed
+
+criterion no_indication
+  text "None of the indications for CCTA is documented."
+  clause "CCTA is used as an alternative to invasive angiography and stress testing for patients with 1 or more of the following:"
+  defeated by alternative_to_angiography congenital_anomaly ed_chest_pain venous_mapping new_heart_failure
+
+criterion no_limitation_shown
+  text "None of the limitations applies."
+  clause "The test is never covered for screening, i.e., in the absence of signs, symptoms or disease."
+  defeated by screening no_new_information invasive_angiography_needed
+
+decision approve approves
+  text "Approve coronary CT angiography."
+  clause "CCTA is used as an alternative to invasive angiography and stress testing for patients with 1 or more of the following:"
+  defeated by no_indication screening no_new_information invasive_angiography_needed
+
+decision deny_no_indication denies
+  text "Deny: none of the indications for CCTA is documented."
+  clause "CCTA is used as an alternative to invasive angiography and stress testing for patients with 1 or more of the following:"
+  defeated by alternative_to_angiography congenital_anomaly ed_chest_pain venous_mapping new_heart_failure
+
+decision deny_limitation denies
+  text "Deny: the test would be screening, would add nothing to earlier tests, or would be followed by invasive angiography anyway."
+  clause "The test will be considered not medically necessary if pretest evaluation indicates that the patient would require invasive cardiac angiography for further diagnosis or for therapeutic intervention."
+  defeated by no_limitation_shown

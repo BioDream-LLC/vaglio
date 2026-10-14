@@ -1,0 +1,197 @@
+# MRI of the lumbar spine, from Washington State Labor & Industries' Imaging Guidelines: Lumbar Spine MRI (2010). Status
+# draft: awaiting clinical sign-off (vaglio signoff). Every clause is quoted from library/sources/WA-LNI-lumbar-MRI.txt.
+# The sourced counterpart of the illustrative policies/lumbar_mri.vaglio.
+#
+# Drafted by hand, as five routes to approval:
+# - a red flag (section I: progressive neurological signs, suspected cauda equina, infection, suspected cancer, or
+#   fracture risk), at any time;
+# - six weeks of conservative treatment and suspected radiculopathy (II), unless the pain is chronic and there was a
+#   prior lumbar MRI, which III.B governs;
+# - chronic pain, no prior MRI, and substantial stenosis suspected on another imaging study (III.A);
+# - chronic pain with a prior MRI, and objective neurological worsening, or a surgical candidate a year or more after
+#   the last MRI (III.B);
+# - prior lumbar surgery with new neurological signs or suggested adverse effects of the surgery.
+# The red flags' sub-criteria (which findings count, "any two of" for cancer) are each one question here. A prior lumbar
+# MRI is found in the record as a completed 72148, 72149 or 72158. Section IV asks for clinical justification of any
+# other indication, which no rule can weigh: run this policy with serve -clinician-denials, so a clinician decides every
+# denial it proposes.
+policy lumbar_mri_wa
+  title "MRI of the lumbar spine (Washington L&I criteria)"
+  version 0.1.0
+  source "Washington State Department of Labor & Industries, Imaging Guidelines: Lumbar Spine MRI, February 12, 2010"
+  status draft
+  questionnaire https://vaglio.example/Questionnaire/lumbar-mri-wa
+  service cpt 72148 72149 72158
+
+evidence progressive_neuro_signs
+  text "Progressive objective neurological signs"
+  clause "Progressive (objective) neurological signs"
+  find question progressive-neuro-signs
+
+evidence cauda_equina
+  text "Suspected cauda equina syndrome"
+  clause "Suspect Cauda Equina syndrome (either of the following)"
+  find question cauda-equina
+
+evidence infection
+  text "Suspected spinal infection, or one of its risk findings"
+  clause "Infection (any of the following) : MRI with and without contrast"
+  find question infection
+
+evidence cancer
+  text "History or suspicion of cancer with new low back pain"
+  clause "History or suspicion of cancer with new onset of LBP."
+  find question cancer
+
+evidence fracture_risk
+  text "Low velocity trauma or osteoporosis, and/or age over 70"
+  clause "Low velocity trauma (e.g., fall from height or struck by object) OR osteoporosis, AND/OR age >70 years"
+  find question fracture-risk
+
+evidence conservative_6wk
+  text "At least 6 weeks of medical or conservative treatment"
+  clause "At least 6 weeks medical/conservative treatment and:"
+  find question conservative-6wk
+  request document loinc 11506-3
+
+evidence radiculopathy
+  text "Suspected radiculopathy meeting all three findings"
+  clause "Suspected radiculopathy with (all 3 present):"
+  find question radiculopathy
+
+evidence chronic
+  text "Low back pain for more than 3 months"
+  clause "Chronic low back pain (> 3 months) with no prior MRI of lumbar spine : MRI without contrast"
+  find question chronic
+
+evidence prior_mri
+  text "A prior MRI of the lumbar spine"
+  clause "Chronic low back pain (> 3 months) with prior MRI of lumbar spine : MRI without contrast"
+  find question prior-mri
+  find procedure cpt 72148 72149 72158
+
+evidence stenosis_on_imaging
+  text "Substantial spinal stenosis suspected on another imaging study"
+  clause "Suspicion of substantial spinal stenosis on another imaging procedure"
+  find question stenosis-on-imaging
+  request document loinc 18748-4
+
+evidence neuro_worsening
+  text "Objective worsening of neurological status"
+  clause "Objective worsening of neurological status by physical exam OR electrodiagnostic testing"
+  find question neuro-worsening
+
+evidence surgical_candidate
+  text "A candidate for spine surgery"
+  clause "Patient is considered a candidate for spine surgery, (one of the following)"
+  find question surgical-candidate
+
+evidence year_since_mri
+  text "At least a year since the last lumbar MRI"
+  clause "At least 1 year since last lumbar MRI (without objective change in neurological signs)"
+  find question year-since-mri
+
+evidence prior_surgery
+  text "Prior lumbar surgery"
+  clause "Prior lumbar surgery (one of the following)"
+  find question prior-surgery
+
+evidence surgery_effects
+  text "New or worsening neurological signs, or suggested adverse effects of the surgery"
+  clause "Plain radiography OR clinical findings suggest new adverse effects of surgery"
+  find question surgery-effects
+
+criterion no_conservative
+  text "Six weeks of conservative treatment is not documented."
+  clause "At least 6 weeks medical/conservative treatment and:"
+  defeated by conservative_6wk
+
+criterion no_radiculopathy
+  text "Suspected radiculopathy is not documented."
+  clause "Suspected radiculopathy with (all 3 present):"
+  defeated by radiculopathy
+
+criterion not_chronic
+  text "Chronic pain is not documented."
+  clause "Chronic low back pain (> 3 months) with no prior MRI of lumbar spine : MRI without contrast"
+  defeated by chronic
+
+criterion no_prior_mri
+  text "A prior lumbar MRI is not documented."
+  clause "Chronic low back pain (> 3 months) with prior MRI of lumbar spine : MRI without contrast"
+  defeated by prior_mri
+
+criterion chronic_with_prior_mri
+  text "Chronic pain with a prior lumbar MRI: section III.B governs."
+  clause "Chronic low back pain (> 3 months) with prior MRI of lumbar spine : MRI without contrast"
+  defeated by not_chronic no_prior_mri
+
+criterion subacute_route
+  text "Six weeks of conservative treatment and suspected radiculopathy."
+  clause "At least 6 weeks medical/conservative treatment and:"
+  defeated by no_conservative no_radiculopathy chronic_with_prior_mri
+
+criterion no_stenosis
+  text "Stenosis on another imaging study is not documented."
+  clause "Suspicion of substantial spinal stenosis on another imaging procedure"
+  defeated by stenosis_on_imaging
+
+criterion stenosis_route
+  text "Chronic pain, no prior MRI, and stenosis suspected on another study."
+  clause "Suspicion of substantial spinal stenosis on another imaging procedure"
+  defeated by not_chronic prior_mri no_stenosis
+
+criterion not_surgical_candidate
+  text "A surgical candidate is not documented."
+  clause "Patient is considered a candidate for spine surgery, (one of the following)"
+  defeated by surgical_candidate
+
+criterion no_year_since_mri
+  text "A year since the last MRI is not documented."
+  clause "At least 1 year since last lumbar MRI (without objective change in neurological signs)"
+  defeated by year_since_mri
+
+criterion surgical_repeat
+  text "A surgical candidate a year or more after the last MRI."
+  clause "Patient is considered a candidate for spine surgery, (one of the following)"
+  defeated by not_surgical_candidate no_year_since_mri
+
+criterion no_reimaging_reason
+  text "Neither neurological worsening nor a surgical candidate a year after the last MRI."
+  clause "Objective worsening of neurological status by physical exam OR electrodiagnostic testing"
+  defeated by neuro_worsening surgical_repeat
+
+criterion prior_mri_route
+  text "Chronic pain with a prior MRI, and a reason to image again."
+  clause "Chronic low back pain (> 3 months) with prior MRI of lumbar spine : MRI without contrast"
+  defeated by not_chronic no_prior_mri no_reimaging_reason
+
+criterion no_prior_surgery
+  text "Prior lumbar surgery is not documented."
+  clause "Prior lumbar surgery (one of the following)"
+  defeated by prior_surgery
+
+criterion no_post_surgical_reason
+  text "Neither new neurological signs nor adverse effects of surgery."
+  clause "Objective and/or new or worsening neurological signs"
+  defeated by neuro_worsening surgery_effects
+
+criterion post_surgical_route
+  text "Prior lumbar surgery, with new neurological signs or adverse effects."
+  clause "Prior lumbar surgery (one of the following)"
+  defeated by no_prior_surgery no_post_surgical_reason
+
+criterion no_indication
+  text "No listed indication for lumbar MRI is documented."
+  clause "Indication not listed: provide clinical justification"
+  defeated by progressive_neuro_signs cauda_equina infection cancer fracture_risk subacute_route stenosis_route prior_mri_route post_surgical_route
+
+decision approve approves
+  text "Approve the lumbar MRI."
+  clause "Note: MRI is the preferred imaging modality for the following circumstances unless contraindicated or not tolerated by the patient (i.e., due to presence of ferrous metal in body, or severe anxiety) or unavailable."
+  defeated by no_indication
+
+decision deny_no_indication denies
+  text "Deny: no listed indication for lumbar MRI is documented (any other needs clinical justification)."
+  clause "Indication not listed: provide clinical justification"
+  defeated by progressive_neuro_signs cauda_equina infection cancer fracture_risk subacute_route stenosis_route prior_mri_route post_surgical_route
