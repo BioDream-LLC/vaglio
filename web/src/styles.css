@@ -1074,6 +1074,15 @@ button.tm-row:hover {
   text-transform: uppercase;
   color: var(--faint);
 }
+
+.demo-banner {
+  padding: 0.4rem 1rem;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(90deg, #7c3aed, #c026d3);
+}
 }
 
 /* Outside the components layer: React Flow's own stylesheet is unlayered, and these must win over it. */

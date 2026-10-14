@@ -80,6 +80,10 @@ type Config struct {
 	// AppealsToken, when set, turns on /api/feeds/appeals for the payer's appeals system, which must send it as a bearer
 	// token.
 	AppealsToken string
+	// Demo marks a public demonstration (serve -demo-account): the console says so on every screen, and the sign-in
+	// page shows the published account, DemoName with DemoPassword (a viewer: it decides and changes nothing).
+	Demo                   bool
+	DemoName, DemoPassword string
 	// Versions, when set, keeps every policy version put in force (at start and at sign-off), for the replay time
 	// machine.
 	Versions *versions.Store
@@ -130,6 +134,7 @@ func New(cfg Config) http.Handler {
 	mux.HandleFunc("GET /api/sso/start", cfg.ssoStart)
 	mux.HandleFunc("GET /api/sso/callback", cfg.ssoCallback)
 	mux.HandleFunc("GET /api/receipts/{code}", cfg.checkReceipt)
+	mux.HandleFunc("GET /api/demo", cfg.demoInfo)
 	route("GET /api/me", auth.Viewer, cfg.me)
 	route("GET /api/policies", auth.Viewer, cfg.listPolicies)
 	route("GET /api/policies/{id}", auth.Viewer, cfg.getPolicy)
@@ -307,6 +312,17 @@ type Me struct {
 	Via              string   `json:"via,omitempty"`
 	// Editing says the console's policy editor is on.
 	Editing bool `json:"editing"`
+	// Demo says this is a public demonstration on invented data.
+	Demo bool `json:"demo,omitempty"`
+}
+
+// demoInfo is the public demonstration's published account, or 404 on a real deployment.
+func (cfg Config) demoInfo(w http.ResponseWriter, r *http.Request) {
+	if !cfg.Demo {
+		writeError(w, http.StatusNotFound, "not a demonstration")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"name": cfg.DemoName, "password": cfg.DemoPassword})
 }
 
 func (cfg Config) login(w http.ResponseWriter, r *http.Request) {
@@ -351,7 +367,7 @@ func (cfg Config) logout(w http.ResponseWriter, r *http.Request) {
 
 func (cfg Config) me(w http.ResponseWriter, r *http.Request, s auth.Session) {
 	me := Me{User: s.User, Role: s.Role, ClinicianDenials: cfg.ClinicianDenials, Scopes: s.Scopes, Via: s.Via,
-		Editing: cfg.PolicyDir != ""}
+		Editing: cfg.PolicyDir != "", Demo: cfg.Demo}
 	if u, ok, err := cfg.Sessions.Account(s.User); err == nil && ok {
 		me.NPI, me.Credential = u.NPI, u.Credential
 	}

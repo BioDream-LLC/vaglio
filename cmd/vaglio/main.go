@@ -124,6 +124,7 @@ func usage(w io.Writer) {
                 [-edit-policies] [-oidc-issuer URL -oidc-client-id ID -oidc-client-secret-env VAR
                  -oidc-redirect-url URL [-oidc-name-claim C] [-oidc-group G] [-oidc-label TEXT]]
                 [-extension-days N] [-appeals-token-env VAR] [-extract pdftotext,tesseract]
+                [-demo-account NAME:PASSWORD]
   vaglio user   add|reset|remove|list -data DIR [-role viewer|reviewer|admin] [NAME]
   vaglio user   sso -data DIR -role ROLE NAME          an account that signs in only through single sign-on
   vaglio user   scopes -data DIR -scopes author,audit,appeals,policy:ID NAME   (empty to clear)
@@ -176,6 +177,8 @@ func serve(args []string) error {
 		"with /fhir replaced by /api, as Perfuse serves it)")
 	clinicianDenials := fs.Bool("clinician-denials", false, "the engine never denies on its own: it proposes a denial, "+
 		"and only an account recorded as a clinician may make it (for states that require a clinician to review AI denials)")
+	demo := fs.String("demo-account", "", "NAME:PASSWORD - a public demonstration on invented data: a viewer account with "+
+		"this published password, shown on the sign-in page, and a banner on every screen. Never on real patient data")
 	editPolicies := fs.Bool("edit-policies", false, "turn on the console's policy editor: drafts are saved in -policies/drafts, "+
 		"and a draft a clinician signs off is written into -policies and put in force")
 	oidcIssuer := fs.String("oidc-issuer", "", "single sign-on: the OpenID Connect provider's issuer URL")
@@ -298,6 +301,16 @@ func serve(args []string) error {
 		// Set on the command line, never in the console: who may deny care is the deployment's to decide.
 		ClinicianDenials: *clinicianDenials,
 		Reader:           docs,
+	}
+	if *demo != "" {
+		name, pw, ok := strings.Cut(*demo, ":")
+		if !ok {
+			return errors.New("-demo-account is NAME:PASSWORD")
+		}
+		if err := st.users.SetPassword(name, pw); err != nil {
+			return fmt.Errorf("-demo-account: %w", err)
+		}
+		cfg.Demo, cfg.DemoName, cfg.DemoPassword = true, name, pw
 	}
 	if cfg.Versions, err = versions.Open(filepath.Join(*data, "versions")); err != nil {
 		return err

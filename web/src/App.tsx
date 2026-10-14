@@ -33,6 +33,7 @@ import {
   useMeQuery,
   usePoliciesQuery,
   useSsoQuery,
+  useDemoQuery,
   type RootState,
   type Screen,
 } from './store'
@@ -66,6 +67,7 @@ function SignIn() {
   const [password, setPassword] = useState('')
   const [login, { error, isLoading }] = useLoginMutation()
   const { data: sso } = useSsoQuery()
+  const { data: demo } = useDemoQuery()
   const ssoResult = /sso=(failed|unknown)/.exec(window.location.hash)?.[1]
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -129,6 +131,23 @@ function SignIn() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              {demo && (
+                <div className="note mt-4 text-sm">
+                  <strong>A public demonstration</strong>, on invented requests only. Sign in as{' '}
+                  <code>{demo.name}</code> with <code>{demo.password}</code>{' '}
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => {
+                      setName(demo.name)
+                      setPassword(demo.password)
+                    }}
+                  >
+                    fill it in
+                  </button>
+                  . It can look at everything and change nothing.
+                </div>
+              )}
               <button type="submit" disabled={isLoading} className="mt-5 w-full justify-center">
                 {isLoading ? 'Signing in…' : 'Sign in'}
               </button>
@@ -193,6 +212,11 @@ function Console({ me }: { me: Me }) {
     view.screen === 'case' ? 'cases' : view.screen === 'policy' ? 'policies' : view.screen === 'draft' ? 'drafts' : view.screen
   return (
     <>
+      {me.demo && (
+        <div className="demo-banner" role="note">
+          Public demonstration: every request here is invented. Nothing is about a real person. Viewing only.
+        </div>
+      )}
       <header className="bar sticky top-0 z-40 border-b border-line bg-page/70 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[76rem] flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3">
           <a

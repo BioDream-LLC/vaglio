@@ -1,0 +1,14 @@
+[Unit]
+Description=Invented prior authorization requests for the Vaglio demonstration
+After=vaglio-demo.service
+Requires=vaglio-demo.service
+
+[Service]
+Type=oneshot
+User=vaglio
+Group=vaglio
+ExecStart=/opt/vaglio/traffic.py 1
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true

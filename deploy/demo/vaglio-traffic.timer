@@ -1,0 +1,10 @@
+[Unit]
+Description=An invented request for the Vaglio demonstration every 20 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=20min
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

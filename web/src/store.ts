@@ -61,6 +61,7 @@ export const api = createApi({
       invalidatesTags: ['Me'],
     }),
     sso: b.query<SSOInfo, void>({ query: () => 'sso' }),
+    demo: b.query<{ name: string; password: string }, void>({ query: () => 'demo' }),
     policyDetail: b.query<PolicyDetail, string>({
       query: (id) => `policies/${encodeURIComponent(id)}`,
       providesTags: ['Policy'],
@@ -207,6 +208,7 @@ export const {
   usePolicyMapQuery,
   useLazyReceiptQuery,
   useSsoQuery,
+  useDemoQuery,
   useCheckSourceMutation,
   useDraftsQuery,
   useDraftQuery,

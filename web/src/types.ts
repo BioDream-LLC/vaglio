@@ -16,6 +16,8 @@ export interface Me {
   via?: string
   /** The policy editor is on. */
   editing: boolean
+  /** A public demonstration on invented data. */
+  demo?: boolean
 }
 
 /** Whether a session may do a job: the role, or the scope beside it. */

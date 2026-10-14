@@ -56,3 +56,28 @@ func TestReceipts(t *testing.T) {
 		t.Error("receipt checks are not limited")
 	}
 }
+
+func TestDemoAccount(t *testing.T) {
+	e := newEnvWith(t, "", func(c *Config) { c.Demo, c.DemoName, c.DemoPassword = true, "demo", "try-vaglio-demo" })
+	if err := e.users.SetPassword("demo", "try-vaglio-demo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.users.SetPassword("admin", "anything-at-all"); err == nil {
+		t.Error("a published password was given to an administrator")
+	}
+	w := e.raw("GET", "/api/demo", "", nil, "")
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "try-vaglio-demo") {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+	e.passwords["demo"] = "try-vaglio-demo"
+	demo := e.signedIn(t, "demo")
+	if w := do(demo, "GET", "/api/me", ""); !strings.Contains(strings.ReplaceAll(w.Body.String(), " ", ""), `"demo":true`) {
+		t.Errorf("me: %s", w.Body)
+	}
+	if w := do(demo, "POST", "/api/replay", `{"source":""}`); w.Code != 403 {
+		t.Errorf("the demo account replayed: %d", w.Code)
+	}
+	if w := newEnv(t, "").raw("GET", "/api/demo", "", nil, ""); w.Code != 404 {
+		t.Errorf("a real deployment names a demo account: %d", w.Code)
+	}
+}

@@ -248,7 +248,32 @@ func (u *Users) Set(name string, role Role) (string, error) {
 	if err := u.reload(); err != nil {
 		return "", err
 	}
-	password := Generate()
+	return u.setLocked(name, role, Generate())
+}
+
+// SetPassword creates or resets a viewer account with a password the deployment chose: the public demonstration's
+// published account (serve -demo-account). Only a viewer: a password anyone knows must never decide or change anything.
+func (u *Users) SetPassword(name, password string) error {
+	if !nameRe.MatchString(name) {
+		return fmt.Errorf("%q is not a usable name", name)
+	}
+	if len(password) < 8 {
+		return errors.New("a password needs 8 characters or more")
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if err := u.reload(); err != nil {
+		return err
+	}
+	if old, ok := u.byID[name]; ok && old.Role != Viewer {
+		return fmt.Errorf("%s is a %s; a published password is only ever a viewer's", name, old.Role)
+	}
+	_, err := u.setLocked(name, Viewer, password)
+	return err
+}
+
+// setLocked sets an account's role and password. The caller holds u.mu and has reloaded.
+func (u *Users) setLocked(name string, role Role, password string) (string, error) {
 	salt := make([]byte, 16)
 	_, _ = rand.Read(salt)
 	h, err := hashPassword(password, salt, Iterations)

@@ -274,6 +274,13 @@ sign-on is tested against a test provider only, not a real one; reading scanned 
 there is no release build yet.
 
 
+## Try it
+
+A public demonstration runs at **https://vaglio.perfuse.health**, on invented requests only: sign in as `demo` with
+`try-vaglio-demo` (a viewer: it can look at everything and change nothing). An invented lumbar spine MRI request
+arrives every 20 minutes, and the log starts again every night. Open a case and try the what-if sandbox, read its
+letter in English or Spanish, check its receipt, and look at the policy map. How it is run is in `deploy/demo/`.
+
 ## What it looks like
 
 <table>

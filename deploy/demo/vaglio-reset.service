@@ -1,0 +1,8 @@
+[Unit]
+Description=Start the Vaglio demonstration again from a clean log with a day's worth of invented requests
+
+[Service]
+Type=oneshot
+# The certificate authority, accounts and log go; the plan's own certificate (Let's Encrypt) is outside the data
+# directory and stays.
+ExecStart=/bin/sh -c 'systemctl stop vaglio-demo && rm -rf /opt/vaglio/data && install -d -o vaglio -g vaglio -m 0700 /opt/vaglio/data && systemctl start vaglio-demo && sleep 4 && runuser -u vaglio -- /opt/vaglio/traffic.py 24'
