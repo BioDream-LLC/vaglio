@@ -47,6 +47,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/reader"
 	"github.com/biodream-llc/vaglio/internal/server"
+	"github.com/biodream-llc/vaglio/internal/tlsserve"
 	"github.com/biodream-llc/vaglio/internal/web"
 )
 
@@ -91,6 +92,8 @@ func main() {
 		err = signoffCmd(os.Args[2:], os.Stdout, time.Now)
 	case "appeals":
 		err = appealsCmd(os.Args[2:], os.Stdout)
+	case "tls":
+		err = tlsCmd(os.Args[2:], os.Stdout)
 	case "version":
 		fmt.Println("vaglio", version)
 	case "help", "-h", "--help":
@@ -108,7 +111,7 @@ func main() {
 func usage(w io.Writer) {
 	fmt.Fprint(w, `usage:
   vaglio serve  [-addr 127.0.0.1:8740] [-policies DIR] [-data DIR] [-token-env VAR]
-                [-pas-url URL] [-pas-token-env VAR] [-tls-cert FILE -tls-key FILE -hostname NAME]
+                [-pas-url URL] [-pas-token-env VAR] [-pas-ca FILE] [-tls-cert FILE -tls-key FILE] [-hostname NAME]
                 [-goldcard FILE] [-clinician-denials] [-pas-api-url URL]
                 [-document-model-url URL -document-model M [-document-model-key-env VAR] [-document-model-remote]]
                 [-edit-policies] [-oidc-issuer URL -oidc-client-id ID -oidc-client-secret-env VAR
@@ -124,28 +127,32 @@ func usage(w io.Writer) {
   vaglio compile FILE.vaglio
   vaglio fmt    FILE...
   vaglio draft  -id ID -out FILE.vaglio [-model M] [-url URL] [-key-env VAR] DOCUMENT.txt
-  vaglio questionnaire [-put FHIR-BASE -token-env VAR] FILE.vaglio
+  vaglio questionnaire [-put FHIR-BASE -token-env VAR [-ca FILE]] FILE.vaglio
   vaglio report metrics|pends|overrides -data DIR [-from YYYY-MM-DD] [-to YYYY-MM-DD] [-csv] [-by clause|provider|state]
   vaglio goldcard -data DIR -config FILE
   vaglio replay -data DIR FILE.vaglio
   vaglio signoff -by "NAME, CREDENTIAL" [-date YYYY-MM-DD] FILE.vaglio
-  vaglio appeals import -url SERVER -token-env VAR FILE.csv    appeal outcomes, to the server's appeals feed
+  vaglio appeals import -url SERVER -token-env VAR [-ca FILE] FILE.csv    appeal outcomes, to the server's appeals feed
+  vaglio tls    show|init -data DIR [-addr ADDR] [-hostname NAME]   Vaglio's own certificate authority, and how to trust it
   vaglio version
 `)
 }
 
 func serve(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
-	addr := fs.String("addr", "127.0.0.1:8740", "listen address; anything but loopback needs -tls-cert, -tls-key and -hostname")
+	addr := fs.String("addr", "127.0.0.1:8740", "listen address (always https); anything but loopback needs -hostname")
 	dir := fs.String("policies", "policies", "directory of policy files (.vaglio, or .json)")
 	data := fs.String("data", "data", "directory for the audit log, the cases' request Bundles and the user accounts")
 	tokenEnv := fs.String("token-env", "", "name of an environment variable holding the bearer token /api/pas/ requires "+
 		"(the token itself is never a flag)")
-	pasURL := fs.String("pas-url", "", "the PAS server's FHIR base (such as http://127.0.0.1:8080/fhir): reviewers' decisions "+
+	pasURL := fs.String("pas-url", "", "the PAS server's FHIR base (such as https://127.0.0.1:8443/fhir): reviewers' decisions "+
 		"on pended cases are sent there as Claim/$decide")
 	pasTokenEnv := fs.String("pas-token-env", "", "name of an environment variable holding the bearer token for -pas-url")
-	tlsCert := fs.String("tls-cert", "", "TLS certificate file (PEM)")
-	tlsKey := fs.String("tls-key", "", "TLS private key file (PEM)")
+	pasCA := fs.String("pas-ca", "", "a PEM file of certificate authorities to trust for -pas-url, beside the system's "+
+		"(the PAS server's own or the plan's internal authority)")
+	tlsCert := fs.String("tls-cert", "", "the server's certificate (PEM, with its chain): the plan's own or a public one; "+
+		"reread when it changes. Without it, Vaglio's own authority in DATA/tls issues one")
+	tlsKey := fs.String("tls-key", "", "the private key of -tls-cert (PEM)")
 	hostname := fs.String("hostname", "", "the name browsers reach this server by, required off loopback (Host headers "+
 		"naming anything else are refused)")
 	goldCardFile := fs.String("goldcard", "", "gold card programs (JSON): providers whose record qualifies are approved "+
@@ -159,7 +166,7 @@ func serve(args []string) error {
 	pasAPI := fs.String("pas-api-url", "", "the PAS server's own API, for documents sent after a request (default: -pas-url "+
 		"with /fhir replaced by /api, as Perfuse serves it)")
 	clinicianDenials := fs.Bool("clinician-denials", false, "the engine never denies on its own: it proposes a denial, "+
-		"and only an account recorded as a clinician may make it (California SB 1120 and laws like it)")
+		"and only an account recorded as a clinician may make it (for states that require a clinician to review AI denials)")
 	editPolicies := fs.Bool("edit-policies", false, "turn on the console's policy editor: drafts are saved in -policies/drafts, "+
 		"and a draft a clinician signs off is written into -policies and put in force")
 	oidcIssuer := fs.String("oidc-issuer", "", "single sign-on: the OpenID Connect provider's issuer URL")
@@ -202,15 +209,31 @@ func serve(args []string) error {
 	switch {
 	case loopback:
 		allowed = append(allowed, *addr, "localhost:"+port)
-	case *tlsCert == "":
-		// The console carries patient data and passwords; off this machine it goes over TLS or not at all.
-		return fmt.Errorf("refusing to listen on %s without TLS: pass -tls-cert and -tls-key, or listen on loopback "+
-			"behind a TLS proxy", *addr)
 	case *hostname == "":
 		return errors.New("-hostname is required off loopback: it is the only Host header the server will accept")
 	}
 	if *hostname != "" {
-		allowed = append(allowed, *hostname, net.JoinHostPort(*hostname, port))
+		h := strings.ToLower(*hostname)
+		allowed = append(allowed, h, net.JoinHostPort(h, port))
+	}
+	// The console carries patient data and passwords: it is served over https only, on every address, loopback too.
+	var certs *tlsserve.Source
+	var authority *tlsserve.Authority
+	if *tlsCert != "" {
+		if certs, err = tlsserve.FileSource(*tlsCert, *tlsKey); err != nil {
+			return fmt.Errorf("-tls-cert: %w", err)
+		}
+	} else {
+		names, err := tlsserve.NamesFor(*addr, *hostname)
+		if err != nil {
+			return err
+		}
+		if authority, err = tlsserve.Open(filepath.Join(*data, "tls"), names); err != nil {
+			return fmt.Errorf("vaglio's certificate authority: %w", err)
+		}
+		if certs, err = tlsserve.LocalSource(authority, names); err != nil {
+			return fmt.Errorf("vaglio's certificate authority: %w", err)
+		}
 	}
 	if *pasURL != "" {
 		if err := checkPASURL(*pasURL); err != nil {
@@ -261,7 +284,7 @@ func serve(args []string) error {
 		Audit:        st.log,
 		AuditPath:    st.auditPath,
 		Cases:        st.cases,
-		Secure:       *tlsCert != "",
+		Secure:       true,
 		GoldCard:     gold,
 		// Set on the command line, never in the console: who may deny care is the deployment's to decide.
 		ClinicianDenials: *clinicianDenials,
@@ -311,7 +334,11 @@ func serve(args []string) error {
 		cfg.SSO = server.NewSSO(prov, *oidcLabel)
 	}
 	if *pasURL != "" {
-		client := &deliver.Client{Base: *pasURL, API: *pasAPI, Token: pasToken}
+		hc, err := tlsserve.Client(*pasCA, 20*time.Second)
+		if err != nil {
+			return fmt.Errorf("-pas-ca: %w", err)
+		}
+		client := &deliver.Client{Base: *pasURL, API: *pasAPI, Token: pasToken, HTTP: hc}
 		cfg.Deliver = func(c cases.Case) { go client.Deliver(ctx, st.cases, c) }
 		cfg.FetchDocuments = client.Documents
 		go client.Run(ctx, st.cases, 30*time.Second)
@@ -323,15 +350,24 @@ func serve(args []string) error {
 		defer cancel()
 		srv.Shutdown(shut)
 	}()
-	scheme := "http"
-	if *tlsCert != "" {
-		scheme = "https"
-	}
 	shown := *addr
 	if *hostname != "" {
 		shown = net.JoinHostPort(*hostname, port)
 	}
-	log.Printf("vaglio %s: %d policies, %s://%s/", version, len(policies), scheme, shown)
+	ln, err := tlsserve.Listen(*addr, tlsserve.Config(certs), allowed)
+	if err != nil {
+		return err
+	}
+	log.Printf("vaglio %s: %d policies, https://%s/", version, len(policies), shown)
+	switch {
+	case authority != nil && authority.Created:
+		describeAuthority(os.Stdout, authority, *data)
+	case authority != nil:
+		log.Printf("tls: certificate from Vaglio's own authority %s (SHA-256 %s); vaglio tls show for how to trust it",
+			filepath.Join(*data, "tls", tlsserve.CAFile), authority.Fingerprint())
+	default:
+		log.Printf("tls: certificate from %s, expires %s", *tlsCert, certs.Leaf().NotAfter.Format(time.DateOnly))
+	}
 	if gold != nil {
 		log.Printf("gold card: %d program(s) from %s", len(gold.Programs), *goldCardFile)
 	}
@@ -350,11 +386,7 @@ func serve(args []string) error {
 	if *clinicianDenials {
 		log.Printf("clinician denials: the engine proposes denials; only clinicians make them")
 	}
-	if *tlsCert != "" {
-		err = srv.ListenAndServeTLS(*tlsCert, *tlsKey)
-	} else {
-		err = srv.ListenAndServe()
-	}
+	err = srv.Serve(ln)
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}

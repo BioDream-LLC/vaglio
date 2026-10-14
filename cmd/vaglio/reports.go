@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,17 +25,19 @@ import (
 	"github.com/biodream-llc/vaglio/internal/replay"
 	"github.com/biodream-llc/vaglio/internal/report"
 	"github.com/biodream-llc/vaglio/internal/server"
+	"github.com/biodream-llc/vaglio/internal/tlsserve"
 )
 
 // questionnaireCmd prints a policy's DTR Questionnaire, or with -put stores it on a FHIR server (Perfuse serves it to
 // DTR apps from there) as Questionnaire/{id}.
 func questionnaireCmd(args []string, w io.Writer) error {
 	fs := flag.NewFlagSet("questionnaire", flag.ExitOnError)
-	put := fs.String("put", "", "a FHIR base URL to PUT the Questionnaire to, such as http://127.0.0.1:8080/fhir")
+	put := fs.String("put", "", "a FHIR base URL to PUT the Questionnaire to, such as https://127.0.0.1:8443/fhir")
 	tokenEnv := fs.String("token-env", "", "name of an environment variable holding the bearer token for -put")
+	caFile := fs.String("ca", "", "a PEM file of certificate authorities to trust for -put, beside the system's")
 	fs.Parse(args)
 	if fs.NArg() != 1 {
-		return errors.New("usage: vaglio questionnaire [-put FHIR-BASE -token-env VAR] FILE.vaglio")
+		return errors.New("usage: vaglio questionnaire [-put FHIR-BASE -token-env VAR [-ca FILE]] FILE.vaglio")
 	}
 	p, err := policy.LoadFile(fs.Arg(0))
 	if err != nil {
@@ -67,7 +70,11 @@ func questionnaireCmd(args []string, w io.Writer) error {
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	hc, err := tlsserve.Client(*caFile, 30*time.Second)
+	if err != nil {
+		return fmt.Errorf("-ca: %w", err)
+	}
+	resp, err := hc.Do(req)
 	if err != nil {
 		return err
 	}
@@ -266,21 +273,27 @@ func replayCmd(args []string, w io.Writer) error {
 // case, and optionally decided and by.
 func appealsCmd(args []string, w io.Writer) error {
 	if len(args) == 0 || args[0] != "import" {
-		return errors.New("usage: vaglio appeals import -url SERVER -token-env VAR FILE.csv")
+		return errors.New("usage: vaglio appeals import -url SERVER -token-env VAR [-ca FILE] FILE.csv")
 	}
 	fs := flag.NewFlagSet("appeals", flag.ExitOnError)
-	base := fs.String("url", "http://127.0.0.1:8740", "the Vaglio server")
+	base := fs.String("url", "https://127.0.0.1:8740", "the Vaglio server")
+	caFile := fs.String("ca", "", "a PEM file of certificate authorities to trust beside the system's: the server's "+
+		"DATA/tls/ca.crt when it uses Vaglio's own authority")
 	tokenEnv := fs.String("token-env", "", "name of an environment variable holding the server's -appeals-token-env token")
 	fs.Parse(args[1:])
 	if fs.NArg() != 1 || *tokenEnv == "" {
-		return errors.New("usage: vaglio appeals import -url SERVER -token-env VAR FILE.csv")
+		return errors.New("usage: vaglio appeals import -url SERVER -token-env VAR [-ca FILE] FILE.csv")
 	}
 	token, err := secretFrom(*tokenEnv)
 	if err != nil {
 		return err
 	}
-	if err := checkPASURL(*base); err != nil {
-		return err
+	if u, err := url.Parse(*base); err != nil || u.Scheme != "https" || u.Host == "" {
+		return fmt.Errorf("-url %q: the Vaglio server answers on https only", *base)
+	}
+	hc, err := tlsserve.Client(*caFile, time.Minute)
+	if err != nil {
+		return fmt.Errorf("-ca: %w", err)
 	}
 	f, err := os.Open(fs.Arg(0))
 	if err != nil {
@@ -301,7 +314,7 @@ func appealsCmd(args []string, w io.Writer) error {
 		}
 		req.Header.Set("Authorization", "Bearer "+token)
 		req.Header.Set("Content-Type", "application/json")
-		resp, err := (&http.Client{Timeout: time.Minute}).Do(req)
+		resp, err := hc.Do(req)
 		if err != nil {
 			return err
 		}

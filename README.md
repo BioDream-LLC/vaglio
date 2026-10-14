@@ -268,10 +268,11 @@ there is no release build yet.
 
 ```
 vaglio serve -data data -policies policies -token-env VAGLIO_TOKEN \
-  -pas-url http://127.0.0.1:8080/fhir -pas-token-env PERFUSE_TOKEN
+  -pas-url https://perfuse.plan.internal/fhir -pas-token-env PERFUSE_TOKEN
 ```
 
-The first start creates an `admin` account and prints its password once. Add people from the command line, while the
+It answers on **https only**, on every address, this machine's included; a plain-http request gets a redirect to
+https and nothing else. The first start creates an `admin` account and prints its password once. Add people from the command line, while the
 server runs or not:
 
 ```
@@ -304,14 +305,41 @@ Sessions end after 30 minutes idle or 12 hours, and on a restart. Five wrong pas
 `data/` holds the audit log, the request Bundles (patient data) and the accounts. The server refuses to use it unless only
 its owner can read it. Back it up as a whole: the cases are the log.
 
+### Its certificate
+
+Two ways, and the first is what production should use:
+
+- **The plan's own certificate.** IT issues one from the plan's internal certificate authority (which its computers
+  already trust) or a public one, and Vaglio serves it: `-tls-cert server.crt -tls-key server.key -hostname
+  vaglio.plan.internal`. A renewed file is picked up without a restart.
+- **Vaglio's own authority, the default.** With no `-tls-cert`, the first start makes a small certificate authority in
+  `data/tls` and issues the server's certificate from it, renewing it before it runs out. Browsers warn until a computer
+  trusts `data/tls/ca.crt` once (or IT pushes it to every computer); after that, never again, renewals included.
+  `vaglio tls show -data data` prints its SHA-256, to compare before trusting it, and the command for macOS, Windows,
+  Linux and Firefox. It is not a bare self-signed certificate, and it can vouch only for this server: the authority is
+  name-constrained to `localhost`, the loopback addresses and `-hostname`, so a computer that trusts it (or anyone who
+  stole its key) gains no power to impersonate another site. Change `-hostname` and it makes a new authority, keeping
+  the old file.
+
+A load balancer or proxy in front (an AWS load balancer, nginx) can show browsers a public certificate and speak https
+to Vaglio behind it, trusting `data/tls/ca.crt`. Automatic Let's Encrypt certificates are not built in. TLS 1.2 is the
+minimum, and HSTS is sent.
+
+Clients that call Vaglio name its authority when it is Vaglio's own: `vaglio appeals import -ca data/tls/ca.crt`,
+Perfuse's `-pas-decider-ca`. Vaglio trusts a private authority for Perfuse with `-pas-ca FILE`.
+
 ## Behind Perfuse
 
 Perfuse's PAS server asks Vaglio about every item its rules file leaves to a reviewer:
 
 ```
 perfuse serve -fhir -pas -crd-rules rules.yaml \
-  -pas-decider-url http://127.0.0.1:8740/api/pas/decide -pas-decider-token-env VAGLIO_TOKEN
+  -pas-decider-url https://127.0.0.1:8740/api/pas/decide -pas-decider-token-env VAGLIO_TOKEN \
+  -pas-decider-ca /path/to/vaglio/data/tls/ca.crt
 ```
+
+`-pas-decider-ca` is needed only while Vaglio uses its own authority (and needs a Perfuse built from `main` until the
+next Perfuse release).
 
 Perfuse sends the Bundle with `X-PAS-Request-Id`, the ClaimResponse id; Vaglio answers Perfuse's protocol (`decision`,
 `why`, `requested`) plus the case id, the proof and the evidence. A service no policy decides is a `404`, which leaves
@@ -323,8 +351,9 @@ delivers it. A Perfuse API token with the editor role is what `-pas-token-env` n
 
 - `/api/pas/` takes the bearer token from `-token-env`. Everything else takes a session cookie (HttpOnly,
   SameSite=Strict), and every state-changing request must be JSON from this origin.
-- Off loopback the server requires `-tls-cert`, `-tls-key` and `-hostname`, and refuses any other Host header.
-  `-pas-url` must be https or this machine.
+- https only, everywhere (TLS 1.2 or later, HSTS). A plain-http request is redirected only to a name the server
+  answers to, and a plain-http POST is refused, never redirected. Off loopback the server requires `-hostname` and
+  refuses any other Host header. `-pas-url` must be https, or plain http to this machine only.
 - Reading a case is audited, as is every decision, review, sign-in, failed sign-in and change of account.
 - The audit log is tamper-evident, not tamper-proof: an edit, deletion or reordering is detected and the server will not
   start on it, but whoever can rewrite the whole file can rewrite it consistently. Keeping the hash `vaglio audit verify`

@@ -9,7 +9,7 @@ import {
   usePendsQuery,
   type Period,
 } from './store'
-import type { MetricsGroup } from './types'
+import type { MetricsGroup, Metrics as MetricsReport } from './types'
 
 function num(v: number | null | undefined, digits: number, suffix = ''): string {
   return v == null ? 'n/a' : v.toFixed(digits) + suffix
@@ -78,6 +78,7 @@ function Metrics({ period, csv }: { period: Period; csv: string }) {
       <p className="meta">
         As CMS-0057-F asks payers to publish them, with the counts CMS-0062-P proposes. <a href={csv}>Download as CSV</a>
       </p>
+      <Glance m={m} />
       <table className="cases">
         <thead>
           <tr>
@@ -340,5 +341,89 @@ function GoldCard() {
         </>
       )}
     </>
+  )
+}
+
+/** The window at a glance: how requests ended, drawn as a ring, and how fast they were decided. All requests, medical
+ * and drug, standard and expedited; the table below has each count on its own. */
+function Glance({ m }: { m: MetricsReport }) {
+  const groups = [m.standard, m.expedited, m.drugStandard, m.drugExpedited]
+  const sum = (f: (g: (typeof groups)[number]) => number) => groups.reduce((n, g) => n + f(g), 0)
+  const approved = sum((g) => g.approved)
+  const denied = sum((g) => g.denied)
+  const pending = sum((g) => g.pending)
+  const total = approved + denied + pending
+  const realTime = sum((g) => g.realTime)
+  const late = sum((g) => g.late)
+  const median = m.standard.medianHours
+  const segments = [
+    { label: 'Approved', n: approved, color: 'var(--ok)' },
+    { label: 'Denied', n: denied, color: 'var(--bad)' },
+    { label: 'Waiting', n: pending, color: 'var(--due)' },
+  ]
+  const r = 52
+  const c = 2 * Math.PI * r
+  let offset = 0
+  return (
+    <div className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+      <figure className="m-0 flex items-center gap-6 rounded-xl border border-line bg-raised p-5">
+        <svg width="148" height="148" viewBox="0 0 140 140" role="img" aria-label={`${approved} approved, ${denied} denied, ${pending} waiting`}>
+          <circle cx="70" cy="70" r={r} fill="none" stroke="var(--line)" strokeWidth="16" />
+          {total > 0 &&
+            segments.map((sg) => {
+              const len = (sg.n / total) * c
+              const el = (
+                <circle
+                  key={sg.label}
+                  cx="70"
+                  cy="70"
+                  r={r}
+                  fill="none"
+                  stroke={sg.color}
+                  strokeWidth="16"
+                  strokeDasharray={`${len} ${c - len}`}
+                  strokeDashoffset={-offset}
+                  transform="rotate(-90 70 70)"
+                  style={{ transition: 'stroke-dasharray .6s ease' }}
+                />
+              )
+              offset += len
+              return el
+            })}
+          <text x="70" y="66" textAnchor="middle" fontSize="28" fontWeight="800" fill="var(--ink)">
+            {total}
+          </text>
+          <text x="70" y="86" textAnchor="middle" fontSize="11" fill="var(--muted)">
+            requests
+          </text>
+        </svg>
+        <figcaption className="flex-1">
+          <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-faint">How requests ended</div>
+          <ul className="m-0 mt-2 list-none space-y-2 p-0">
+            {segments.map((sg) => (
+              <li key={sg.label} className="flex items-center gap-3">
+                <span className="h-3 w-3 rounded-full" style={{ background: sg.color }} aria-hidden="true" />
+                <span className="flex-1">{sg.label}</span>
+                <span className="font-bold tabular-nums">{sg.n}</span>
+                <span className="meta w-12 text-right tabular-nums">{total ? Math.round((sg.n / total) * 100) : 0}%</span>
+              </li>
+            ))}
+          </ul>
+        </figcaption>
+      </figure>
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'Decided as received', value: realTime, note: 'no person needed', tone: 'text-accent' },
+          { label: 'Median turnaround', value: median == null ? '—' : `${median.toFixed(1)} h`, note: 'standard requests', tone: 'text-info' },
+          { label: 'Late', value: late, note: late ? 'past the deadline' : 'none past the deadline', tone: late ? 'text-bad' : 'text-ok' },
+        ].map((k) => (
+          <div key={k.label} className="flex flex-col justify-between rounded-xl border border-line bg-raised p-4">
+            <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-faint">{k.label}</span>
+            <span className={`mt-2 text-3xl font-extrabold tabular-nums ${k.tone}`}>{k.value}</span>
+            <span className="meta text-xs">{k.note}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }

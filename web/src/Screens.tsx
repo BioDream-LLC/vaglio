@@ -1,3 +1,4 @@
+import { IconPolicies } from './Icons'
 import { useState, type FormEvent } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { errorText, Result, when } from './common'
@@ -126,21 +127,35 @@ export function Policies() {
     <section aria-labelledby="pol-h">
       <h2 id="pol-h">Policies</h2>
       {error && <p role="alert">Could not load policies.</p>}
-      <ul className="plain">
+      <p className="meta -mt-2 mb-4">The plan&apos;s policies in force. Each is checked on every combination of evidence before it can decide.</p>
+      <ul className="m-0 grid list-none gap-3 p-0 md:grid-cols-2 xl:grid-cols-3">
         {data?.map((p) => (
           <li key={p.id}>
             <a
               href={`#/policy/${p.id}`}
+              className="group flex h-full flex-col rounded-xl border border-line bg-raised p-4 no-underline transition hover:-translate-y-0.5 hover:border-accent hover:no-underline hover:shadow-lg"
               onClick={(e) => {
                 e.preventDefault()
                 dispatch(go({ screen: 'policy', id: p.id }))
               }}
             >
-              {p.title}
-            </a>{' '}
-            <span className="meta">
-              v{p.version} · {p.services.map((s) => s.code).join(', ')}
-            </span>
+              <span className="flex items-start gap-3">
+                <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white shadow">
+                  <IconPolicies size={18} />
+                </span>
+                <span className="font-semibold text-ink group-hover:text-accent">{p.title}</span>
+              </span>
+              <span className="mt-3 flex flex-wrap gap-1.5">
+                {p.services.map((sv) => (
+                  <span key={sv.code} className="rounded-md bg-surface px-2 py-0.5 font-mono text-xs text-muted ring-1 ring-line">
+                    {sv.code}
+                  </span>
+                ))}
+              </span>
+              <span className="meta mt-auto pt-3 text-xs">
+                v{p.version} · {p.evidence.length} kinds of evidence
+              </span>
+            </a>
           </li>
         ))}
       </ul>

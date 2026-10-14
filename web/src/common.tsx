@@ -1,3 +1,4 @@
+import { IconAlert, IconCheck, IconClock, IconCross } from './Icons'
 import type { Change, DecideResult, Item, Outcome, ProofNode, Reason } from './types'
 
 export const outcomeText: Record<Outcome, string> = {
@@ -20,7 +21,12 @@ export function Result({ result, heading = 2 }: { result: DecideResult; heading?
   const H = heading === 2 ? 'h2' : 'h3'
   return (
     <article className={`result ${result.outcome}`}>
-      <H>{outcomeText[result.outcome]}</H>
+      <H>
+        <span className="tone-icon" aria-hidden="true">
+          <OutcomeIcon outcome={result.outcome} />
+        </span>
+        {outcomeText[result.outcome]}
+      </H>
       {reasonText[result.reason] && <p>{reasonText[result.reason]}</p>}
       <Items title="Information needed" items={result.missing} />
       <Items title="Assumed absent (not addressed in the record)" items={result.assumptions} />
@@ -132,3 +138,16 @@ export function when(iso: string): string {
 }
 
 export const decisionText = { approve: 'Approve', deny: 'Deny', pend: 'Pend' } as const
+
+function OutcomeIcon({ outcome }: { outcome: Outcome }) {
+  switch (outcome) {
+    case 'approved':
+      return <IconCheck size={20} strokeWidth={2.6} />
+    case 'denied':
+      return <IconCross size={20} strokeWidth={2.6} />
+    case 'pended':
+      return <IconClock size={20} strokeWidth={2.4} />
+    default:
+      return <IconAlert size={20} strokeWidth={2.2} />
+  }
+}

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useDispatch } from 'react-redux'
 import { Cite, decisionText, errorText, Result, when } from './common'
+import { IconCases, IconCheck, IconClock, IconCross } from './Icons'
 import {
   go,
   useAppealMutation,
@@ -47,7 +48,15 @@ export function Cases() {
   const dispatch = useDispatch()
   return (
     <section aria-labelledby="cases-h">
-      <h2 id="cases-h">Cases</h2>
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 id="cases-h" className="m-0">
+            Cases
+          </h2>
+          <p className="meta m-0">Every request the PAS server sent, what the engine decided, and what waits for a person.</p>
+        </div>
+      </div>
+      <Stats />
       <div className="filters" role="group" aria-label="Show">
         {filters.map((f) => (
           <button
@@ -87,6 +96,72 @@ export function Cases() {
         </table>
       )}
     </section>
+  )
+}
+
+/** The queue at a glance: what waits, what is due soon, and what the policies settled on their own. */
+function Stats() {
+  const { data } = useCasesQuery('', { pollingInterval: 15000, refetchOnMountOrArgChange: true })
+  if (!data) return null
+  const now = Date.now()
+  const waiting = data.filter((c) => c.status === 'pended')
+  const soon = waiting.filter((c) => new Date(c.due).getTime() - now < 24 * 36e5)
+  const overdue = waiting.filter((c) => new Date(c.due).getTime() < now)
+  const auto = data.filter((c) => c.status === 'decided')
+  const approved = data.filter((c) => (c.review ?? c.decision) === 'approve' && c.status !== 'pended')
+  const denied = data.filter((c) => (c.review ?? c.decision) === 'deny' && c.status !== 'pended')
+  const cards = [
+    {
+      label: 'Waiting for review',
+      value: waiting.length,
+      note: waiting.length ? 'a person decides these' : 'queue is clear',
+      icon: IconCases,
+      tone: 'from-amber-400 to-orange-500',
+      text: 'text-due',
+    },
+    {
+      label: 'Due within a day',
+      value: soon.length,
+      note: overdue.length ? `${overdue.length} overdue` : 'none overdue',
+      icon: IconClock,
+      tone: overdue.length ? 'from-rose-500 to-red-600' : 'from-sky-400 to-blue-600',
+      text: overdue.length ? 'text-bad' : 'text-info',
+    },
+    {
+      label: 'Approved',
+      value: approved.length,
+      note: `${auto.length} settled by policy alone`,
+      icon: IconCheck,
+      tone: 'from-emerald-400 to-teal-600',
+      text: 'text-ok',
+    },
+    {
+      label: 'Denied',
+      value: denied.length,
+      note: 'each with its proof',
+      icon: IconCross,
+      tone: 'from-rose-400 to-fuchsia-600',
+      text: 'text-bad',
+    },
+  ]
+  return (
+    <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="The queue at a glance">
+      {cards.map((k) => {
+        const I = k.icon
+        return (
+          <div key={k.label} className="rounded-xl border border-line bg-raised p-4 shadow-sm">
+            <div className="flex items-start justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-faint">{k.label}</span>
+              <span className={`grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br ${k.tone} text-white shadow`}>
+                <I size={16} />
+              </span>
+            </div>
+            <div className={`mt-1 text-3xl font-extrabold tabular-nums ${k.text}`}>{k.value}</div>
+            <div className="meta text-xs">{k.note}</div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -253,6 +328,9 @@ function CaseBody({ c, me }: { c: CaseDetail; me: Me }) {
       {c.review && (
         <article className={`result ${c.review.decision === 'approve' ? 'approved' : 'denied'}`}>
           <h3>
+            <span className="tone-icon" aria-hidden="true">
+              {c.review.decision === 'approve' ? <IconCheck size={20} strokeWidth={2.6} /> : <IconCross size={20} strokeWidth={2.6} />}
+            </span>
             Reviewed: {decisionText[c.review.decision]}, by {c.review.by}
           </h3>
           <p>{c.review.reason}</p>
