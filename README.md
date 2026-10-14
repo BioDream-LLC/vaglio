@@ -396,6 +396,21 @@ what would change that. It opens no case and decides nothing; the request that f
 shows it as one more CRD card with `-crd-advisor-url https://.../api/pas/advise` (on its `crd-advisor` branch until that
 is merged). Perfuse never needs Vaglio: with no answer, the cards are what its rules say.
 
+## Speed
+
+Measured with `vaglio bench` (temporary data, invented lumbar MRI requests; run it on your own hardware), October 2026:
+
+| | Apple M4, 16 GB, internal SSD | Amazon Lightsail nano, 2 vCPUs (burstable), 512 MB, about $5 a month |
+|---|---|---|
+| Engine alone, one core | 53,000 decisions/s (19 µs each) | 26,000 decisions/s (38 µs each) |
+| Whole PAS requests, one at a time | 213/s; p50 4.0 ms, p99 11 ms | 251/s; p50 3.5 ms, p99 6.9 ms |
+| Whole PAS requests, all cores busy | 196/s; p50 51 ms, p99 74 ms (10 in flight) | 258/s; p50 6.9 ms, p99 13 ms (2 in flight) |
+
+The engine's figure is a decision with its full proof and every route to approval. A whole request reads the PAS Bundle,
+finds the evidence, decides, writes the case to the audit log and syncs it to disk before answering, so the disk's sync
+time, not the engine, sets the pace: one decision at a time in the log, by design. Not included: TLS, the network and
+the PAS server in front. For scale, 250 requests a second is over 20 million a day.
+
 ## Security
 
 - `/api/pas/` takes the bearer token from `-token-env`. Everything else takes a session cookie (HttpOnly,
