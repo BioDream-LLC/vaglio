@@ -169,9 +169,16 @@ describe('clinician denials and reports', () => {
       '/api/reports/pends': { from: '', to: '', forInformation: {}, missing: [], contradicted: [] },
       '/api/goldcard': { enabled: false, programs: [], standings: [] },
       '/api/reports/overrides': { from: '', to: '', by: 'clause', rows: [] },
+      '/api/reports/list': { from: '', to: '', criteria: { minRequests: 30, minApprovedPercent: 95, minReversedPercent: 50 },
+        note: 'It recommends.', rows: [{ service: 'cpt|72148', code: '72148', policy: 'lumbar_mri', title: 'Lumbar MRI',
+          requests: 40, approved: 40, approvedPercent: 100, engineApproved: 39, pended: 1, exempt: 0, denied: 0,
+          engineDenials: 0, reversed: 0, reversedPercent: null, waiting: 0, medianReviewHours: 3, verdict: 'consider-removing',
+          why: 'approved 40 of 40 (100.0%), never denied: review changed no answer' }] },
     })
     renderApp()
     expect((await screen.findAllByText('1 (50.0%)', undefined, { timeout: 3000 })).length).toBe(2) // approved and denied
+    expect(await screen.findByRole('heading', { name: 'Which services still need prior authorization' })).toBeTruthy()
+    expect(screen.getByText('Consider removing')).toBeTruthy()
     expect(screen.getByText('Approved after an extension')).toBeTruthy()
     expect(screen.getByText('Determined late, or waiting past the deadline')).toBeTruthy()
     expect(screen.getByText(/No gold card programs are configured/)).toBeTruthy()
@@ -227,6 +234,8 @@ describe('gold card counting', () => {
       superseded: 0, notTracked: [] },
     '/api/reports/pends': { from: '', to: '', forInformation: {}, missing: [], contradicted: [] },
     '/api/reports/overrides': { from: '', to: '', by: 'clause', rows: [] },
+    '/api/reports/list': { from: '', to: '', criteria: { minRequests: 30, minApprovedPercent: 95, minReversedPercent: 50 },
+      note: '', rows: [] },
     '/api/goldcard': { enabled: true, standings: [], programs: [{ name: 'Texas', states: ['TX'], minApprovalRate: 0.9,
       lookBackDays: 365, minDecisions: 5, count: 'states' }] },
   })

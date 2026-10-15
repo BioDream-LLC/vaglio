@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -102,9 +103,10 @@ func openCases(dir string) (*cases.Store, func(), error) {
 }
 
 func reportCmd(args []string, w io.Writer) error {
-	if len(args) == 0 || (args[0] != "metrics" && args[0] != "pends" && args[0] != "overrides") {
-		return errors.New("usage: vaglio report metrics|pends|overrides -data DIR [-from YYYY-MM-DD] [-to YYYY-MM-DD] [-csv] " +
-			"[-policies DIR] [-by clause|provider|state]")
+	kinds := []string{"metrics", "pends", "overrides", "list"}
+	if len(args) == 0 || !slices.Contains(kinds, args[0]) {
+		return errors.New("usage: vaglio report metrics|pends|overrides|list -data DIR [-from YYYY-MM-DD] [-to YYYY-MM-DD] " +
+			"[-csv] [-policies DIR] [-by clause|provider|state] [-min-requests N] [-min-approved PCT] [-min-reversed PCT]")
 	}
 	fs := flag.NewFlagSet("report", flag.ExitOnError)
 	dir := fs.String("data", "data", "the server's data directory")
@@ -113,6 +115,12 @@ func reportCmd(args []string, w io.Writer) error {
 	csv := fs.Bool("csv", false, "metrics: as CSV in the shape of CMS's template")
 	policies := fs.String("policies", "", "pends and overrides: the policy directory, to name questions and clauses")
 	by := fs.String("by", "clause", "overrides: group by clause, provider or state")
+	crit := report.DefaultListCriteria
+	fs.IntVar(&crit.MinRequests, "min-requests", crit.MinRequests, "list: the fewest decided requests for a verdict")
+	fs.Float64Var(&crit.MinApprovedPercent, "min-approved", crit.MinApprovedPercent, "list: approved at least this often "+
+		"(percent) to be a candidate to stop reviewing")
+	fs.Float64Var(&crit.MinReversedPercent, "min-reversed", crit.MinReversedPercent, "list: a candidate with denials had "+
+		"at least this share of them reversed (percent)")
 	fs.Parse(args[1:])
 	p, err := report.ParsePeriod(*from, *to, time.Now().UTC())
 	if err != nil {
@@ -147,6 +155,27 @@ func reportCmd(args []string, w io.Writer) error {
 		if ps, err = loadDir(*policies); err != nil {
 			return err
 		}
+	}
+	if args[0] == "list" {
+		l := report.BuildListReview(all, p, ps, crit)
+		if *csv {
+			_, err := io.WriteString(w, l.CSV())
+			return err
+		}
+		fmt.Fprintf(tw, "Prior authorization list review, %s to %s\trequests\tapproved\tdenials reversed\tverdict\n", l.From, l.To)
+		for _, r := range l.Rows {
+			rev := "no denials"
+			if r.ReversedPercent != nil {
+				rev = fmt.Sprintf("%d of %d", r.Reversed, r.EngineDenials)
+			}
+			fmt.Fprintf(tw, "  %s %s\t%d\t%.1f%%\t%s\t%s\n", r.Code, r.Title, r.Requests, r.ApprovedPercent, rev, r.Verdict)
+		}
+		if len(l.Rows) == 0 {
+			fmt.Fprintln(tw, "  no requests in this period")
+		}
+		tw.Flush()
+		fmt.Fprintf(w, "\n%s\n", l.Note)
+		return nil
 	}
 	if args[0] == "overrides" {
 		o, err := report.BuildOverrides(all, p, *by, ps)

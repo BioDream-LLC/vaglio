@@ -5,6 +5,7 @@ import {
   useGoldCardQuery,
   useMeQuery,
   useMetricsQuery,
+  useListReviewQuery,
   useOverridesQuery,
   usePendsQuery,
   type Period,
@@ -60,6 +61,7 @@ export function Reports() {
       </form>
       <Metrics period={shown} csv={csv} />
       <Reversals period={shown} />
+      <ListReviewTable period={shown} />
       <PendCauses period={shown} />
       <GoldCard />
     </section>
@@ -208,6 +210,73 @@ function Reversals({ period }: { period: Period }) {
           </tbody>
         </table>
       )}
+    </>
+  )
+}
+
+const verdictText: Record<string, string> = {
+  'consider-removing': 'Consider removing',
+  keep: 'Keep',
+  'not-enough': 'Not enough requests',
+}
+const verdictClass: Record<string, string> = {
+  'consider-removing': 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/30',
+  keep: 'bg-sky-500/10 text-sky-300 ring-sky-500/30',
+  'not-enough': 'text-muted ring-line',
+}
+
+/** Which services review rarely changes: candidates to take off the prior authorization list. */
+function ListReviewTable({ period }: { period: Period }) {
+  const { data: l, error } = useListReviewQuery(period, { refetchOnMountOrArgChange: true })
+  if (error) return <p role="alert">{errorText(error, 'Could not load the list review.')}</p>
+  if (!l) return null
+  const q = new URLSearchParams({ ...Object.fromEntries(Object.entries(period).filter(([, v]) => v)), format: 'csv' })
+  return (
+    <>
+      <h3>Which services still need prior authorization</h3>
+      <p className="meta">
+        Per service, how often requests were approved in the end and how often a denial did not stand. A candidate to
+        stop reviewing was approved at least {l.criteria.minApprovedPercent}% of the time over at least{' '}
+        {l.criteria.minRequests} requests, with any denials reversed at least {l.criteria.minReversedPercent}% of the
+        time. <a href={`/api/reports/list?${q}`}>Download as CSV</a>
+      </p>
+      {l.rows.length === 0 && <p>No requests in this period.</p>}
+      {l.rows.length > 0 && (
+        <table className="cases">
+          <thead>
+            <tr>
+              <th scope="col">Service</th>
+              <th scope="col">Requests</th>
+              <th scope="col">Approved</th>
+              <th scope="col">At once</th>
+              <th scope="col">Denials reversed</th>
+              <th scope="col">Median review</th>
+              <th scope="col">Verdict</th>
+            </tr>
+          </thead>
+          <tbody>
+            {l.rows.map((r) => (
+              <tr key={r.service}>
+                <td>
+                  <span className="font-mono">{r.code}</span> <span className="meta">{r.title}</span>
+                </td>
+                <td>{r.requests}</td>
+                <td>{r.approvedPercent.toFixed(1)}%</td>
+                <td>{r.engineApproved}</td>
+                <td>{r.reversedPercent == null ? 'no denials' : `${r.reversed} of ${r.engineDenials}`}</td>
+                <td>{r.medianReviewHours == null ? 'n/a' : `${r.medianReviewHours.toFixed(1)} h`}</td>
+                <td>
+                  <span className={`rounded-md px-2 py-0.5 text-xs ring-1 ${verdictClass[r.verdict]}`} title={r.why}>
+                    {verdictText[r.verdict]}
+                  </span>
+                  <div className="meta text-xs">{r.why}</div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p className="meta">{l.note}</p>
     </>
   )
 }

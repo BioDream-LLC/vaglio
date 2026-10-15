@@ -20,6 +20,7 @@ import type {
   Overrides,
   Pends,
   Reading,
+  ListReview,
   PolicySummary,
   ReplayReport,
   ReceiptCheck,
@@ -163,6 +164,7 @@ export const api = createApi({
       }),
       invalidatesTags: ['Case', 'Audit'],
     }),
+    listReview: b.query<ListReview, Period>({ query: (p) => `reports/list?${period(p)}`, providesTags: ['Case'] }),
     overrides: b.query<Overrides, Period & { by: string }>({
       query: ({ by, ...p }) => `reports/overrides?${period(p)}&by=${by}`,
       providesTags: ['Case'],
@@ -244,6 +246,7 @@ export const {
   useGoldCardCountingMutation,
   useReplayMutation,
   useOverridesQuery,
+  useListReviewQuery,
   useDocumentsQuery,
   useReadMutation,
   useConfirmMutation,

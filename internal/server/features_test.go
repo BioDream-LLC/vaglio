@@ -183,6 +183,17 @@ func TestReports(t *testing.T) {
 	if w := do(viewer, "GET", "/api/reports/metrics?from=2026-13-01", ""); w.Code != 400 {
 		t.Errorf("a bad date: %d", w.Code)
 	}
+	var l report.ListReview
+	json.Unmarshal(do(viewer, "GET", "/api/reports/list?min-requests=2", "").Body.Bytes(), &l)
+	if len(l.Rows) != 1 || l.Rows[0].Requests != 3 || l.Rows[0].Verdict != report.VerdictKeep || l.Criteria.MinRequests != 2 {
+		t.Errorf("list review: %+v", l)
+	}
+	if w := do(viewer, "GET", "/api/reports/list?min-approved=120", ""); w.Code != 400 {
+		t.Errorf("a percent over 100: %d", w.Code)
+	}
+	if w := do(viewer, "GET", "/api/reports/list?format=csv", ""); !strings.Contains(w.Body.String(), "not-enough") {
+		t.Errorf("list csv: %s", w.Body)
+	}
 	var p report.Pends
 	json.Unmarshal(do(viewer, "GET", "/api/reports/pends", "").Body.Bytes(), &p)
 	if p.ForInformation["lumbar_mri"] != 1 || len(p.Missing) == 0 || p.Missing[0].Pends != 1 || p.Missing[0].Question == "" {

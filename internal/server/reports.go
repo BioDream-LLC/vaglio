@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/biodream-llc/vaglio/internal/auth"
@@ -108,6 +109,43 @@ func (cfg Config) replay(w http.ResponseWriter, r *http.Request, s auth.Session)
 		return
 	}
 	writeJSON(w, http.StatusOK, rep)
+}
+
+// listReport is the prior authorization list review: per service, how often requests were approved and denials
+// reversed, and whether reviewing it changes the answer (?min-requests, ?min-approved, ?min-reversed; ?format=csv).
+func (cfg Config) listReport(w http.ResponseWriter, r *http.Request, _ auth.Session) {
+	p, ok := period(w, r)
+	if !ok {
+		return
+	}
+	crit := report.DefaultListCriteria
+	q := r.URL.Query()
+	for name, dst := range map[string]*float64{"min-approved": &crit.MinApprovedPercent, "min-reversed": &crit.MinReversedPercent} {
+		if v := q.Get(name); v != "" {
+			f, err := strconv.ParseFloat(v, 64)
+			if err != nil || f < 0 || f > 100 {
+				writeError(w, http.StatusBadRequest, name+" is a percent, 0 to 100")
+				return
+			}
+			*dst = f
+		}
+	}
+	if v := q.Get("min-requests"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 {
+			writeError(w, http.StatusBadRequest, "min-requests is a whole number, at least 1")
+			return
+		}
+		crit.MinRequests = n
+	}
+	l := report.BuildListReview(cfg.Cases.Select(nil), p, cfg.set.snapshot(), crit)
+	if q.Get("format") == "csv" {
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition", `attachment; filename="prior-authorization-list-review-`+l.From+`-`+l.To+`.csv"`)
+		_, _ = w.Write([]byte(l.CSV()))
+		return
+	}
+	writeJSON(w, http.StatusOK, l)
 }
 
 // overridesReport is how often the engine's denials were reversed, ?by=clause|provider|state.

@@ -348,6 +348,36 @@ export interface Overrides {
   rows: OverrideRow[]
 }
 
+/** One service in the prior authorization list review. */
+export interface ListRow {
+  service: string
+  code: string
+  policy: string
+  title: string
+  requests: number
+  approved: number
+  approvedPercent: number
+  engineApproved: number
+  pended: number
+  exempt: number
+  denied: number
+  engineDenials: number
+  reversed: number
+  reversedPercent: number | null
+  waiting: number
+  medianReviewHours: number | null
+  verdict: 'consider-removing' | 'keep' | 'not-enough'
+  why: string
+}
+
+export interface ListReview {
+  from: string
+  to: string
+  criteria: { minRequests: number; minApprovedPercent: number; minReversedPercent: number }
+  rows: ListRow[]
+  note: string
+}
+
 export interface Exemption {
   program: string
   basis?: string

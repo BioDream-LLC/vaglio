@@ -210,6 +210,13 @@ software a plan runs, not an outcome a vendor sells.
 - **Override and appeal analytics** (`vaglio report overrides -by clause|provider|state`, the Reports screen): how often
   the engine's denials were approved by a clinician instead, or overturned on appeal (`POST /api/cases/{id}/appeal`
   records an appeal's outcome). Approved-after-appeal is now in the metrics.
+- **Which services still need prior authorization** (`vaglio report list`, the Reports screen, CSV): health plans have
+  committed to require prior authorization for fewer services. Per service, how often requests were approved in the end
+  (by the engine, a reviewer, a gold card or on appeal), how many at once, how often the engine's denials were reversed,
+  and the median time a person took. Each service gets a verdict by thresholds the plan sets and the report states
+  (`-min-requests`, `-min-approved`, `-min-reversed`; 30 requests, 95% approved, half of any denials reversed by
+  default): consider removing (review rarely changes the answer, and is mostly wrong when it does), keep, or not enough
+  requests. It recommends and changes nothing; services no policy here decides are not seen.
 - **A policy library** (`library/`): policies drafted from published coverage documents, each held by a test to the
   drafting gates against its source, which is kept beside it with where and when it was retrieved. All are drafts until
   a clinician signs them off. The AHIP/BCBSA standard documentation set for 66 services is not public (only its
