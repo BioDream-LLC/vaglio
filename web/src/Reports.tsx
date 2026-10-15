@@ -5,6 +5,7 @@ import {
   useGoldCardQuery,
   useMeQuery,
   useMetricsQuery,
+  useFairnessQuery,
   useListReviewQuery,
   useOverridesQuery,
   usePendsQuery,
@@ -62,6 +63,7 @@ export function Reports() {
       <Metrics period={shown} csv={csv} />
       <Reversals period={shown} />
       <ListReviewTable period={shown} />
+      <Fairness period={shown} />
       <PendCauses period={shown} />
       <GoldCard />
     </section>
@@ -277,6 +279,91 @@ function ListReviewTable({ period }: { period: Period }) {
         </table>
       )}
       <p className="meta">{l.note}</p>
+    </>
+  )
+}
+
+const dimensionName: Record<string, string> = {
+  sex: 'Sex',
+  age: 'Age',
+  race: 'Race',
+  ethnicity: 'Ethnicity',
+  state: 'State',
+  line: 'Line of business',
+}
+
+/** Whether the engine's errors fall harder on some patients. Reads demographics from the stored requests: a reviewer's. */
+function Fairness({ period }: { period: Period }) {
+  const { data: me } = useMeQuery()
+  const [open, setOpen] = useState(false)
+  const allowed = me && me.role !== 'viewer'
+  const { data: f, error, isFetching } = useFairnessQuery(period, { skip: !open || !allowed })
+  if (!allowed) return null
+  const pc = (v?: number) => (v == null ? 'n/a' : `${v.toFixed(0)}%`)
+  return (
+    <>
+      <h3>Do errors fall harder on some patients?</h3>
+      <p className="meta">
+        Of the engine's denials, how many a clinician or an appeal reversed, and how often requests were pended to ask for
+        more, by the patient's sex, age, race, ethnicity, state and line of business. Error, not approval: criteria treat
+        patients differently on purpose. The report reads the demographics in each stored request, so making it is in the
+        audit log.
+      </p>
+      {!open && (
+        <button type="button" onClick={() => setOpen(true)}>
+          Make the report
+        </button>
+      )}
+      {open && isFetching && <p>Reading the requests…</p>}
+      {error && <p role="alert">{errorText(error, 'Could not make the fairness report.')}</p>}
+      {f && open && (
+        <>
+          <p>
+            {f.requests} requests{f.unreadable ? `; ${f.unreadable} could not be read and are not counted` : ''}.
+          </p>
+          {f.dimensions.map((d) => (
+            <table key={d.name} className="cases">
+              <caption className="text-left font-semibold">{dimensionName[d.name] ?? d.name}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Group</th>
+                  <th scope="col">Requests</th>
+                  <th scope="col">Denials reversed</th>
+                  <th scope="col">Pended for more</th>
+                  <th scope="col">Approved (context)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {d.groups.map((g) => (
+                  <tr key={g.value}>
+                    <td>
+                      {g.value}
+                      {g.flags?.map((fl) => (
+                        <div key={fl} className="text-xs text-amber-300">
+                          ⚑ {fl}
+                        </div>
+                      ))}
+                    </td>
+                    {g.suppressed ? (
+                      <td colSpan={4} className="meta">
+                        Fewer than 11 requests: not shown
+                      </td>
+                    ) : (
+                      <>
+                        <td>{g.requests}</td>
+                        <td>{g.engineDenials ? `${g.reversed} of ${g.engineDenials} (${pc(g.reversedPercent)})` : 'no denials'}</td>
+                        <td>{pc(g.pendedPercent)}</td>
+                        <td>{pc(g.approvedPercent)}</td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ))}
+          <p className="meta">{f.note}</p>
+        </>
+      )}
     </>
   )
 }

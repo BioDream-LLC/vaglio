@@ -217,6 +217,15 @@ software a plan runs, not an outcome a vendor sells.
   (`-min-requests`, `-min-approved`, `-min-reversed`; 30 requests, 95% approved, half of any denials reversed by
   default): consider removing (review rarely changes the answer, and is mostly wrong when it does), keep, or not enough
   requests. It recommends and changes nothing; services no policy here decides are not seen.
+- **Fairness** (`vaglio report fairness`, the Reports screen for reviewers): whether the engine's errors fall harder on
+  some patients. Approval rates differ between groups for good reasons (criteria treat ages differently on purpose), so
+  the measure is error, as in the method published as arXiv:2603.14631: of the engine's denials, how many a clinician or
+  an appeal reversed, and how often requests were pended to ask for more, by sex, age band, race and ethnicity (US Core),
+  state and line of business. A group that differs from the rest beyond chance (two-sided Fisher exact test, p < 0.01) is
+  flagged, in words, as a place to read cases, not a finding. The engine reads no demographics, so a difference comes
+  from the records sent, reviewers or appeals. Demographics are read from the stored requests when the report is made,
+  never copied into cases; groups under 11 requests are not shown; making the report is in the audit log. Income and
+  disability are not in a prior authorization request and are not reported.
 - **A policy library** (`library/`): policies drafted from published coverage documents, each held by a test to the
   drafting gates against its source, which is kept beside it with where and when it was retrieved. All are drafts until
   a clinician signs them off. The AHIP/BCBSA standard documentation set for 66 services is not public (only its

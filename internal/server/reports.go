@@ -11,6 +11,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/cases"
 	"github.com/biodream-llc/vaglio/internal/decide"
 	"github.com/biodream-llc/vaglio/internal/dtr"
+	"github.com/biodream-llc/vaglio/internal/fairness"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/replay"
@@ -146,6 +147,34 @@ func (cfg Config) listReport(w http.ResponseWriter, r *http.Request, _ auth.Sess
 		return
 	}
 	writeJSON(w, http.StatusOK, l)
+}
+
+// ActFairness records a fairness report made: it reads the patient's demographics from every stored request in the
+// period, so it is audited as reading them.
+const ActFairness = "report.fairness"
+
+// fairnessReport is whether the engine's errors fall harder on some patients (?policy=ID for one policy). It reads the
+// stored requests, which a viewer may not, so it takes a reviewer, and the reading is in the audit log.
+func (cfg Config) fairnessReport(w http.ResponseWriter, r *http.Request, s auth.Session) {
+	p, ok := period(w, r)
+	if !ok {
+		return
+	}
+	pol := r.URL.Query().Get("policy")
+	all := cfg.Cases.Select(func(c *cases.Case) bool { return s.Sees(c.Policy) })
+	rep := fairness.Build(all, p.From, p.To, pol, func(c *cases.Case) (fairness.Patient, error) {
+		raw, err := cfg.Cases.Bundle(c)
+		if err != nil {
+			return fairness.Patient{}, err
+		}
+		return fairness.ReadPatient(raw, c.PatientState)
+	})
+	if _, err := cfg.Audit.Append("user:"+s.User, ActFairness, "", map[string]any{"from": rep.From, "to": rep.To,
+		"policy": pol, "requests": rep.Requests}); err != nil {
+		writeError(w, http.StatusInternalServerError, "the report could not be recorded, so it is not shown: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, rep)
 }
 
 // overridesReport is how often the engine's denials were reversed, ?by=clause|provider|state.

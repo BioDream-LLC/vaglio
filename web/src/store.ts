@@ -20,6 +20,7 @@ import type {
   Overrides,
   Pends,
   Reading,
+  FairnessReport,
   ListReview,
   PolicySummary,
   ReplayReport,
@@ -164,6 +165,7 @@ export const api = createApi({
       }),
       invalidatesTags: ['Case', 'Audit'],
     }),
+    fairness: b.query<FairnessReport, Period>({ query: (p) => `reports/fairness?${period(p)}`, providesTags: ['Case', 'Audit'] }),
     listReview: b.query<ListReview, Period>({ query: (p) => `reports/list?${period(p)}`, providesTags: ['Case'] }),
     overrides: b.query<Overrides, Period & { by: string }>({
       query: ({ by, ...p }) => `reports/overrides?${period(p)}&by=${by}`,
@@ -247,6 +249,7 @@ export const {
   useReplayMutation,
   useOverridesQuery,
   useListReviewQuery,
+  useFairnessQuery,
   useDocumentsQuery,
   useReadMutation,
   useConfirmMutation,

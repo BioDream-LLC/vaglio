@@ -21,6 +21,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/audit"
 	"github.com/biodream-llc/vaglio/internal/cases"
 	"github.com/biodream-llc/vaglio/internal/dtr"
+	"github.com/biodream-llc/vaglio/internal/fairness"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/replay"
@@ -103,9 +104,9 @@ func openCases(dir string) (*cases.Store, func(), error) {
 }
 
 func reportCmd(args []string, w io.Writer) error {
-	kinds := []string{"metrics", "pends", "overrides", "list"}
+	kinds := []string{"metrics", "pends", "overrides", "list", "fairness"}
 	if len(args) == 0 || !slices.Contains(kinds, args[0]) {
-		return errors.New("usage: vaglio report metrics|pends|overrides|list -data DIR [-from YYYY-MM-DD] [-to YYYY-MM-DD] " +
+		return errors.New("usage: vaglio report metrics|pends|overrides|list|fairness -data DIR [-from YYYY-MM-DD] [-to YYYY-MM-DD] " +
 			"[-csv] [-policies DIR] [-by clause|provider|state] [-min-requests N] [-min-approved PCT] [-min-reversed PCT]")
 	}
 	fs := flag.NewFlagSet("report", flag.ExitOnError)
@@ -115,6 +116,7 @@ func reportCmd(args []string, w io.Writer) error {
 	csv := fs.Bool("csv", false, "metrics: as CSV in the shape of CMS's template")
 	policies := fs.String("policies", "", "pends and overrides: the policy directory, to name questions and clauses")
 	by := fs.String("by", "clause", "overrides: group by clause, provider or state")
+	policy1 := fs.String("policy", "", "fairness: one policy's requests only")
 	crit := report.DefaultListCriteria
 	fs.IntVar(&crit.MinRequests, "min-requests", crit.MinRequests, "list: the fewest decided requests for a verdict")
 	fs.Float64Var(&crit.MinApprovedPercent, "min-approved", crit.MinApprovedPercent, "list: approved at least this often "+
@@ -155,6 +157,46 @@ func reportCmd(args []string, w io.Writer) error {
 		if ps, err = loadDir(*policies); err != nil {
 			return err
 		}
+	}
+	if args[0] == "fairness" {
+		rep := fairness.Build(all, p.From, p.To, *policy1, func(c *cases.Case) (fairness.Patient, error) {
+			raw, err := cs.Bundle(c)
+			if err != nil {
+				return fairness.Patient{}, err
+			}
+			return fairness.ReadPatient(raw, c.PatientState)
+		})
+		fmt.Fprintf(tw, "Fairness, %s to %s: %d requests\tdenials\treversed\tpended for more\tapproved\n", rep.From, rep.To, rep.Requests)
+		pc := func(v *float64) string {
+			if v == nil {
+				return "n/a"
+			}
+			return fmt.Sprintf("%.0f%%", *v)
+		}
+		var flags []string
+		for _, d := range rep.Dimensions {
+			fmt.Fprintf(tw, "%s\n", d.Name)
+			for _, g := range d.Groups {
+				if g.Suppressed {
+					fmt.Fprintf(tw, "  %s\t(fewer than %d requests: not shown)\n", g.Value, fairness.MinCell)
+					continue
+				}
+				fmt.Fprintf(tw, "  %s (%d)\t%d\t%s\t%s\t%s\n", g.Value, g.Requests, g.EngineDenials, pc(g.ReversedPercent),
+					pc(g.PendedPercent), pc(g.ApprovedPercent))
+				for _, f := range g.Flags {
+					flags = append(flags, d.Name+" "+g.Value+": "+f)
+				}
+			}
+		}
+		tw.Flush()
+		if rep.Unreadable > 0 {
+			fmt.Fprintf(w, "\n%d request(s) could not be read and are not counted\n", rep.Unreadable)
+		}
+		for _, f := range flags {
+			fmt.Fprintf(w, "\nFLAG %s", f)
+		}
+		fmt.Fprintf(w, "\n\n%s\n", rep.Note)
+		return nil
 	}
 	if args[0] == "list" {
 		l := report.BuildListReview(all, p, ps, crit)

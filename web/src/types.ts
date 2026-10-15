@@ -378,6 +378,29 @@ export interface ListReview {
   note: string
 }
 
+export interface FairnessGroup {
+  value: string
+  requests: number
+  suppressed?: boolean
+  engineDenials?: number
+  reversed?: number
+  reversedPercent?: number
+  pendedForInformation?: number
+  pendedPercent?: number
+  approvedPercent?: number
+  flags?: string[]
+}
+
+export interface FairnessReport {
+  from: string
+  to: string
+  policy?: string
+  requests: number
+  unreadable?: number
+  dimensions: { name: string; groups: FairnessGroup[] }[]
+  note: string
+}
+
 export interface Exemption {
   program: string
   basis?: string

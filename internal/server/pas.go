@@ -212,7 +212,7 @@ func patientState(req *pas.Request) string {
 // nil when none applies.
 func (cfg Config) policyFor(svc pas.Service, req *pas.Request) (precedence.Choice, string) {
 	cfg.activateDue()
-	rq := precedence.Request{Day: cfg.today(), Line: lineOfBusiness(req), State: patientState(req)}
+	rq := precedence.Request{Day: cfg.today(), Line: precedence.LineOfBusiness(req), State: patientState(req)}
 	all := cfg.set.all()
 	for _, cc := range svc.Codes {
 		for _, c := range pas.Slice(cc["coding"]) {
@@ -230,41 +230,6 @@ func (cfg Config) policyFor(svc pas.Service, req *pas.Request) (precedence.Choic
 		}
 	}
 	return precedence.Choice{}, ""
-}
-
-// soptSystem is the Source of Payment Typology (PHDSC), the code system US Coverage.type uses for the payer's line.
-const soptSystem = "https://nahdo.org/sopt"
-
-// lineOfBusiness is the member's line of business, from the Coverage the Claim's focal insurance names: its type coded
-// in the Source of Payment Typology (11x Medicare managed care, that is Medicare Advantage; other 1x Medicare; 2x
-// Medicaid; 5x and 6x private insurance and Blue Cross Blue Shield, commercial). Nothing, when the request does not say.
-func lineOfBusiness(req *pas.Request) string {
-	var cov map[string]any
-	for _, ins := range pas.Slice(req.Claim["insurance"]) {
-		m := pas.Map(ins)
-		res := pas.Map(req.Resolve(pas.Str(pas.Map(m["coverage"])["reference"]))["resource"])
-		if res != nil && (cov == nil || m["focal"] == true) {
-			cov = res
-		}
-	}
-	for _, c := range pas.Slice(pas.Map(cov["type"])["coding"]) {
-		cm := pas.Map(c)
-		sys, code := pas.Str(cm["system"]), pas.Str(cm["code"])
-		if sys != soptSystem && sys != "urn:oid:2.16.840.1.113883.3.221.5" {
-			continue
-		}
-		switch {
-		case strings.HasPrefix(code, "11"):
-			return "medicare-advantage"
-		case strings.HasPrefix(code, "1"):
-			return "medicare"
-		case strings.HasPrefix(code, "2"):
-			return "medicaid"
-		case strings.HasPrefix(code, "5"), strings.HasPrefix(code, "6"):
-			return "commercial"
-		}
-	}
-	return ""
 }
 
 // unsettledWhy is the answer when a policy above the one deciding may apply and the request does not say: the lower

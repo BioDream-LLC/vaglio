@@ -10,6 +10,8 @@ package precedence
 
 import (
 	"fmt"
+
+	"github.com/biodream-llc/perfuse/pas"
 	"slices"
 	"sort"
 	"strings"
@@ -169,6 +171,41 @@ func Conflicts(ps []*policy.Policy) string {
 			if why := Conflict(a, b); why != "" {
 				return a.ID + ": " + why
 			}
+		}
+	}
+	return ""
+}
+
+// SOPTSystem is the Source of Payment Typology (PHDSC), the code system US Coverage.type uses for the payer's line.
+const SOPTSystem = "https://nahdo.org/sopt"
+
+// LineOfBusiness is the member's line of business, from the Coverage the Claim's focal insurance names: its type coded
+// in the Source of Payment Typology (11x Medicare managed care, that is Medicare Advantage; other 1x Medicare; 2x
+// Medicaid; 5x and 6x private insurance and Blue Cross Blue Shield, commercial). Nothing, when the request does not say.
+func LineOfBusiness(req *pas.Request) string {
+	var cov map[string]any
+	for _, ins := range pas.Slice(req.Claim["insurance"]) {
+		m := pas.Map(ins)
+		res := pas.Map(req.Resolve(pas.Str(pas.Map(m["coverage"])["reference"]))["resource"])
+		if res != nil && (cov == nil || m["focal"] == true) {
+			cov = res
+		}
+	}
+	for _, c := range pas.Slice(pas.Map(cov["type"])["coding"]) {
+		cm := pas.Map(c)
+		sys, code := pas.Str(cm["system"]), pas.Str(cm["code"])
+		if sys != SOPTSystem && sys != "urn:oid:2.16.840.1.113883.3.221.5" {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(code, "11"):
+			return "medicare-advantage"
+		case strings.HasPrefix(code, "1"):
+			return "medicare"
+		case strings.HasPrefix(code, "2"):
+			return "medicaid"
+		case strings.HasPrefix(code, "5"), strings.HasPrefix(code, "6"):
+			return "commercial"
 		}
 	}
 	return ""

@@ -161,6 +161,7 @@ func New(cfg Config) http.Handler {
 	route("GET /api/reports/pends", auth.Viewer, cfg.pendsReport)
 	route("GET /api/reports/overrides", auth.Viewer, cfg.overridesReport)
 	route("GET /api/reports/list", auth.Viewer, cfg.listReport)
+	route("GET /api/reports/fairness", auth.Reviewer, cfg.fairnessReport)
 	scoped("POST /api/cases/{id}/appeal", auth.Reviewer, auth.ScopeAppeals, cfg.appealCase)
 	route("GET /api/cases/{id}/documents", auth.Viewer, cfg.caseDocuments)
 	route("GET /api/cases/{id}/documents/original", auth.Viewer, cfg.documentOriginal)

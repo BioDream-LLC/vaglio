@@ -13,6 +13,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/auth"
 	"github.com/biodream-llc/vaglio/internal/cases"
 	"github.com/biodream-llc/vaglio/internal/draft"
+	"github.com/biodream-llc/vaglio/internal/fairness"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/pastest"
 	"github.com/biodream-llc/vaglio/internal/policy"
@@ -193,6 +194,21 @@ func TestReports(t *testing.T) {
 	}
 	if w := do(viewer, "GET", "/api/reports/list?format=csv", ""); !strings.Contains(w.Body.String(), "not-enough") {
 		t.Errorf("list csv: %s", w.Body)
+	}
+	if w := do(viewer, "GET", "/api/reports/fairness", ""); w.Code != 403 {
+		t.Errorf("a viewer read demographics: %d", w.Code)
+	}
+	var f fairness.Report
+	json.Unmarshal(do(e.signedIn(t, "reviewer"), "GET", "/api/reports/fairness", "").Body.Bytes(), &f)
+	if f.Requests != 3 || len(f.Dimensions) != len(fairness.Dimensions) || !f.Dimensions[0].Groups[0].Suppressed {
+		t.Errorf("fairness: %+v", f)
+	}
+	audited := false
+	for _, r := range e.log.Records(0, 0) {
+		audited = audited || r.Action == ActFairness
+	}
+	if !audited {
+		t.Error("reading demographics for the fairness report is not in the audit log")
 	}
 	var p report.Pends
 	json.Unmarshal(do(viewer, "GET", "/api/reports/pends", "").Body.Bytes(), &p)

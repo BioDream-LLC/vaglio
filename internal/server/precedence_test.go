@@ -6,13 +6,14 @@ import (
 
 	"github.com/biodream-llc/vaglio/internal/pastest"
 	"github.com/biodream-llc/vaglio/internal/policy"
+	"github.com/biodream-llc/vaglio/internal/precedence"
 )
 
 // withCoverage gives a request a Coverage whose type is this Source of Payment Typology code.
 func withCoverage(b map[string]any, sopt string) map[string]any {
 	b["entry"] = append(pastest.Entries(b), map[string]any{"fullUrl": pastest.Base + "/Coverage/cov1", "resource": map[string]any{
 		"resourceType": "Coverage", "id": "cov1", "status": "active",
-		"type": map[string]any{"coding": []any{map[string]any{"system": soptSystem, "code": sopt}}}}})
+		"type": map[string]any{"coding": []any{map[string]any{"system": precedence.SOPTSystem, "code": sopt}}}}})
 	pastest.Map(pastest.Entries(b)[0])["insurance"] = []any{map[string]any{"sequence": 1, "focal": true,
 		"coverage": map[string]any{"reference": "Coverage/cov1"}}}
 	return b
