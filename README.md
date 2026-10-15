@@ -600,16 +600,16 @@ Measured with `vaglio bench` (temporary data, invented lumbar MRI requests; run 
 
 | | Apple M4, 16 GB, internal SSD | Amazon Lightsail nano, 2 vCPUs (burstable), 512 MB, about $5 a month |
 |---|---|---|
-| Engine alone, one core | 84,000 decisions/s (12 µs each) | 26,000 decisions/s (38 µs each) |
-| Whole PAS requests, one at a time | 213/s; p50 4.0 ms, p99 10 ms | 251/s; p50 3.5 ms, p99 6.9 ms |
-| Whole PAS requests, all cores busy | 544/s; p50 19 ms, p99 54 ms (10 in flight) | 258/s; p50 6.9 ms, p99 13 ms (2 in flight) |
+| Engine alone, one core | 84,000 decisions/s (12 µs each) | 25,000 decisions/s (40 µs each) |
+| Whole PAS requests, one at a time | 213/s; p50 4.0 ms, p99 10 ms | 269/s; p50 3.6 ms, p99 6.9 ms |
+| Whole PAS requests, several in flight | 544/s; p50 19 ms, p99 54 ms (10 in flight) | 1,077/s; p50 7.1 ms, p99 17 ms (8 in flight) |
 
 The engine's figure is a decision with its full proof and every route to approval. A whole request reads the PAS Bundle,
 finds the evidence, decides, writes the request and then the case to disk, synced, before answering, so the disk's sync
 time, not the engine, sets the pace. Requests arriving together share one sync of the audit log (group commit): each is
 still answered only once its record is on disk, but ten in flight need far fewer syncs than ten one after another.
-The nano's figures were measured before group commit. Not included: TLS, the network and the PAS server in front. For
-scale, 500 requests a second is over 40 million a day.
+Not included: TLS, the network and the PAS server in front. For
+scale, 1,000 requests a second is over 80 million a day.
 
 **A standby** (`vaglio standby -from https://PRIMARY -token-env VAR -data DIR [-ca FILE]`, with the primary started
 with `-replica-token-env VAR`) keeps a copy of the primary's data on another machine, a few seconds behind: the audit
