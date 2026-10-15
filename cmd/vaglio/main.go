@@ -49,6 +49,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/oidc"
 	"github.com/biodream-llc/vaglio/internal/policy"
+	"github.com/biodream-llc/vaglio/internal/precedence"
 	"github.com/biodream-llc/vaglio/internal/reader"
 	"github.com/biodream-llc/vaglio/internal/server"
 	"github.com/biodream-llc/vaglio/internal/tlsserve"
@@ -275,7 +276,12 @@ func serve(args []string) error {
 		}
 	}
 
-	policies, err := loadDir(*dir)
+	// A policy signed for a date that has come since the last start goes into force now, before anything decides.
+	moved, err := (editor.Dir{Path: *dir}).Activate(time.Now().Format(time.DateOnly))
+	if err != nil {
+		return fmt.Errorf("putting scheduled policies in force: %w", err)
+	}
+	policies, scheduled, err := loadPolicies(*dir)
 	if err != nil {
 		return err
 	}
@@ -323,6 +329,8 @@ func serve(args []string) error {
 		// Set on the command line, never in the console: who may deny care is the deployment's to decide.
 		ClinicianDenials: *clinicianDenials,
 		Reader:           docs,
+		Scheduled:        scheduled,
+		PolicyRoot:       *dir,
 	}
 	if *draftURL != "" {
 		if !*editPolicies {
@@ -444,6 +452,14 @@ func serve(args []string) error {
 	default:
 		log.Printf("tls: certificate from %s, expires %s", *tlsCert, certs.Leaf().NotAfter.Format(time.DateOnly))
 	}
+	for _, p := range moved {
+		log.Printf("policies: %s v%s in force from %s, its effective date", p.ID, p.Version, p.Effective)
+		st.log.Append("system", server.ActInForce, "", map[string]string{"policy": p.ID, "version": p.Version,
+			"effective": p.Effective})
+	}
+	for _, p := range scheduled {
+		log.Printf("policies: %s v%s is signed and scheduled: in force from %s", p.ID, p.Version, p.Effective)
+	}
 	if gold != nil {
 		log.Printf("gold card: %d program(s) from %s", len(gold.Programs), *goldCardFile)
 	}
@@ -563,43 +579,58 @@ func openData(dir string) (*data, error) {
 // loadDir loads every policy in a directory, and refuses to start if any of them fails its exhaustive check: a policy
 // that contradicts itself on some evidence must not be in front of a request.
 func loadDir(dir string) (map[string]*policy.Policy, error) {
+	live, _, err := loadPolicies(dir)
+	return live, err
+}
+
+// loadPolicies reads the policies in force in dir and those signed and waiting in dir/scheduled for their effective
+// date. Every one must be signed and pass its check, and no two may tie for a request (package precedence).
+func loadPolicies(dir string) (live, scheduled map[string]*policy.Policy, err error) {
 	var files []string
 	for _, ext := range []string{policy.Ext, ".json"} {
 		found, err := filepath.Glob(filepath.Join(dir, "*"+ext))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		files = append(files, found...)
 	}
 	if len(files) == 0 {
-		return nil, fmt.Errorf("no policies in %s", dir)
+		return nil, nil, fmt.Errorf("no policies in %s", dir)
 	}
-	out := map[string]*policy.Policy{}
-	claimed := map[policy.Service]string{} // service -> policy id
+	live = map[string]*policy.Policy{}
+	var all []*policy.Policy
 	for _, f := range files {
 		p, err := policy.LoadFile(f)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		if _, dup := out[p.ID]; dup {
-			return nil, fmt.Errorf("%s: policy id %q is already loaded", f, p.ID)
-		}
-		for _, sv := range p.Services {
-			if other, dup := claimed[sv]; dup {
-				return nil, fmt.Errorf("%s: %s %s is decided by policy %q as well; a service has one policy", f, sv.System, sv.Code, other)
-			}
-			claimed[sv] = p.ID
+		if _, dup := live[p.ID]; dup {
+			return nil, nil, fmt.Errorf("%s: policy id %q is already loaded", f, p.ID)
 		}
 		if p.Status == policy.Draft {
-			return nil, fmt.Errorf("%s: policy %s is a draft; it decides nothing until a clinician signs it off "+
+			return nil, nil, fmt.Errorf("%s: policy %s is a draft; it decides nothing until a clinician signs it off "+
 				"(vaglio signoff -by \"NAME, CREDENTIAL\", or the console with -edit-policies)", f, p.ID)
 		}
 		if r := decide.Check(p); !r.OK() {
-			return nil, fmt.Errorf("%s: fails its check (run vaglio check %s)", f, f)
+			return nil, nil, fmt.Errorf("%s: fails its check (run vaglio check %s)", f, f)
 		}
-		out[p.ID] = p
+		live[p.ID] = p
+		all = append(all, p)
 	}
-	return out, nil
+	if scheduled, err = (editor.Dir{Path: dir}).ScheduledPolicies(); err != nil {
+		return nil, nil, err
+	}
+	for _, p := range scheduled {
+		if r := decide.Check(p); !r.OK() {
+			return nil, nil, fmt.Errorf("scheduled policy %s fails its check (run vaglio check)", p.ID)
+		}
+		all = append(all, p)
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].ID < all[j].ID })
+	if why := precedence.Conflicts(all); why != "" {
+		return nil, nil, errors.New(why)
+	}
+	return live, scheduled, nil
 }
 
 func decideCmd(args []string, w io.Writer) error {
@@ -711,6 +742,11 @@ func signoffCmd(args []string, w io.Writer, now func() time.Time) error {
 	}
 	if err := os.WriteFile(f, signed, 0o644); err != nil {
 		return err
+	}
+	if editor.Scheduled(p, *date) {
+		fmt.Fprintf(w, "%s signed off by %s on %s, effective %s: copy it into the policy directory's scheduled/ folder, and "+
+			"the server puts it in force on that day\n", f, p.Signed.By, p.Signed.Date, p.Effective)
+		return nil
 	}
 	fmt.Fprintf(w, "%s signed off by %s on %s; copy it into the policy directory and restart the server to use it\n", f, p.Signed.By, p.Signed.Date)
 	return nil

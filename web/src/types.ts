@@ -43,10 +43,34 @@ export interface Service {
 export interface PolicySummary {
   id: string
   title: string
+  /** Empty for a new policy that is only scheduled: nothing of it is in force yet. */
   version: string
   source: string
   evidence: Argument[]
   services: Service[]
+  authority?: 'ncd' | 'lcd' | 'state' | 'plan'
+  effective?: string
+  ends?: string
+  lines?: string[]
+  states?: string[]
+  inEffect: boolean
+  /** The version signed and waiting for its effective date. */
+  next?: { version: string; effective: string; title: string }
+}
+
+/** A policy for the same service that did not decide this request, and why. */
+export interface Aside {
+  policy: string
+  version: string
+  title: string
+  why: string
+}
+
+/** Why a case's policy decided it when others are for the same service. */
+export interface Precedence {
+  why: string
+  setAside?: Aside[]
+  unsettled?: Aside[]
 }
 
 export interface CheckReport {
@@ -213,6 +237,7 @@ export interface CaseDetail {
   providerNpi?: string
   exemption?: Exemption
   proposed?: { decision: 'deny'; why: string }
+  precedence?: Precedence
   patientState?: string
   drug?: boolean
   appeal?: Appeal
@@ -464,7 +489,7 @@ export interface SourceCheck {
   error?: string
   line?: number
   col?: number
-  policy?: { id: string; title: string; version: string; status?: string }
+  policy?: { id: string; title: string; version: string; status?: string; effective?: string }
   check?: CheckReport
   ready: boolean
   notReady?: string

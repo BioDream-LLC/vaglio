@@ -61,8 +61,8 @@ export function Drafts({ me }: { me: Me }) {
       <h2 id="drafts-h">Policy drafts</h2>
       <p className="meta">
         A draft decides nothing. Save it as often as you like; it is checked as you write. When it passes, a clinician
-        signs it off, and it is in force at once, replacing the version before it. Every save and sign-off is in the
-        audit log.
+        signs it off, and it is in force at once, replacing the version before it, or on its effective date when it names
+        a later one. Every save and sign-off is in the audit log.
       </p>
       {error && <p role="alert">{errorText(error, 'Could not load the drafts.')}</p>}
       {drafts && drafts.length === 0 && <p>No drafts.</p>}
@@ -258,8 +258,10 @@ export function DraftView({ id, me }: { id: string; me: Me }) {
         <div className="note warn">
           <p>
             You sign that you have read every rule of {id} v{d.policy?.version} against its source, as {me.user},{' '}
-            {me.credential}, NPI {me.npi}. It decides requests from now on
-            {d.inForce ? `, in place of v${d.inForce}` : ''}.
+            {me.credential}, NPI {me.npi}.{' '}
+            {d.policy?.effective && d.policy.effective > today()
+              ? `It waits, signed, and decides requests from ${d.policy.effective}${d.inForce ? `; v${d.inForce} keeps deciding until then` : ''}.`
+              : `It decides requests from now on${d.inForce ? `, in place of v${d.inForce}` : ''}.`}
           </p>
           <button
             type="button"
@@ -322,4 +324,10 @@ function CheckPanel({ c, goTo }: { c: SourceCheck; goTo: (line?: number, col?: n
       {!c.ready && c.notReady && !c.notReady.startsWith('it fails its check') && <p className="meta">{c.notReady}</p>}
     </div>
   )
+}
+
+/** Today in this browser's time zone, YYYY-MM-DD. The server decides by its own; they differ only near midnight. */
+function today(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }

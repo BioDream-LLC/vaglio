@@ -23,6 +23,7 @@ import (
 
 	"github.com/biodream-llc/vaglio/internal/decide"
 	"github.com/biodream-llc/vaglio/internal/policy"
+	"github.com/biodream-llc/vaglio/internal/precedence"
 )
 
 // Head is a policy source's leading comment block. Rewriting a policy (Format) keeps it and drops nothing else, so a
@@ -211,9 +212,10 @@ func (d Dir) RemoveDraft(id string) error {
 	return err
 }
 
-// Promote signs a draft off and puts it in force beside the policies in force now (live), returning the policy and its
-// signed source. The draft is removed once the policy is written.
-func (d Dir) Promote(id, by, date string, live map[string]*policy.Policy) (*policy.Policy, []byte, error) {
+// Promote signs a draft off and puts it in force beside the policies in force or scheduled now (others), returning the
+// policy and its signed source. The draft is removed once the policy is written. A policy whose effective date is after
+// date (the day it is signed) is written to scheduled/ instead, and the version it replaces keeps deciding until then.
+func (d Dir) Promote(id, by, date string, others []*policy.Policy) (*policy.Policy, []byte, error) {
 	dr, ok, err := d.Draft(id)
 	if err != nil {
 		return nil, nil, err
@@ -228,10 +230,20 @@ func (d Dir) Promote(id, by, date string, live map[string]*policy.Policy) (*poli
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := Fits(p, live); err != nil {
+	if err := Fits(p, others); err != nil {
 		return nil, nil, err
 	}
-	if err := writeAtomic(d.LiveFile(id), signed); err != nil {
+	if p.Ends != "" && p.Ends < date {
+		return nil, nil, fmt.Errorf("it ended on %s, before it is signed: it would never decide anything", p.Ends)
+	}
+	target := d.LiveFile(id)
+	if Scheduled(p, date) {
+		if err := os.MkdirAll(d.scheduled(), 0o755); err != nil {
+			return nil, nil, err
+		}
+		target = d.ScheduledFile(id)
+	}
+	if err := writeAtomic(target, signed); err != nil {
 		return nil, nil, err
 	}
 	if err := d.RemoveDraft(id); err != nil {
@@ -240,23 +252,77 @@ func (d Dir) Promote(id, by, date string, live map[string]*policy.Policy) (*poli
 	return p, signed, nil
 }
 
-// Fits is why a policy may not join the policies in force, or nil. It may replace the policy of its own id, with a new
-// version: a version names one text, and replays, reports and the audit log rely on that. It may not claim a service
-// another policy decides.
-func Fits(p *policy.Policy, live map[string]*policy.Policy) error {
-	if old, ok := live[p.ID]; ok && old.Version == p.Version {
-		return fmt.Errorf("version %s of %s is in force already; a changed policy is a new version", p.Version, p.ID)
+// Scheduled says whether a signed policy waits for its effective date, seen on day.
+func Scheduled(p *policy.Policy, day string) bool { return p.Effective != "" && p.Effective > day }
+
+func (d Dir) scheduled() string { return filepath.Join(d.Path, "scheduled") }
+
+// ScheduledFile is where a policy waiting for its effective date lives.
+func (d Dir) ScheduledFile(id string) string { return filepath.Join(d.scheduled(), id+policy.Ext) }
+
+// ScheduledPolicies are the signed policies waiting for their effective date, by id.
+func (d Dir) ScheduledPolicies() (map[string]*policy.Policy, error) {
+	files, err := filepath.Glob(filepath.Join(d.scheduled(), "*"+policy.Ext))
+	if err != nil {
+		return nil, err
 	}
-	for _, o := range live {
-		if o.ID == p.ID {
+	out := map[string]*policy.Policy{}
+	for _, f := range files {
+		p, err := policy.LoadFile(f)
+		if err != nil {
+			return nil, err
+		}
+		if p.ID+policy.Ext != filepath.Base(f) {
+			return nil, fmt.Errorf("%s holds policy %s: a scheduled policy's file is named for its id", f, p.ID)
+		}
+		if p.Signed == nil || p.Status == policy.Draft {
+			return nil, fmt.Errorf("%s: only a signed policy is scheduled", f)
+		}
+		out[p.ID] = p
+	}
+	return out, nil
+}
+
+// Activate puts in force every scheduled policy whose effective date has come by day: its file replaces the one in
+// force for its id. It returns the policies it moved.
+func (d Dir) Activate(day string) ([]*policy.Policy, error) {
+	sched, err := d.ScheduledPolicies()
+	if err != nil {
+		return nil, err
+	}
+	var out []*policy.Policy
+	ids := make([]string, 0, len(sched))
+	for id := range sched {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		p := sched[id]
+		if Scheduled(p, day) {
 			continue
 		}
-		for _, a := range o.Services {
-			for _, b := range p.Services {
-				if a == b {
-					return fmt.Errorf("%s %s is decided by policy %s already; a service has one policy", b.System, b.Code, o.ID)
-				}
+		if err := os.Rename(d.ScheduledFile(id), d.LiveFile(id)); err != nil {
+			return out, err
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+// Fits is why a policy may not join the policies in force and scheduled (others), or nil. It may replace a policy of
+// its own id, with a new version: a version names one text, and replays, reports and the audit log rely on that. It may
+// not share a service with another policy of the same rank on the same days, lines and states: which one decided a
+// request would be a tie (package precedence).
+func Fits(p *policy.Policy, others []*policy.Policy) error {
+	for _, o := range others {
+		if o.ID == p.ID {
+			if o.Version == p.Version {
+				return fmt.Errorf("version %s of %s is in force or scheduled already; a changed policy is a new version", p.Version, p.ID)
 			}
+			continue
+		}
+		if why := precedence.Conflict(p, o); why != "" {
+			return errors.New(why)
 		}
 	}
 	return nil

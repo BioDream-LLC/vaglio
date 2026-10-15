@@ -48,7 +48,7 @@ func TestLoadDir(t *testing.T) {
 func TestLoadDirRefusesOneServiceTwice(t *testing.T) {
 	second := strings.Replace(example(t), "policy lumbar_mri\n", "policy lumbar_mri_2\n", 1)
 	_, err := loadDir(writePolicies(t, map[string]string{"a.vaglio": example(t), "b.vaglio": second}))
-	if err == nil || !strings.Contains(err.Error(), "a service has one policy") {
+	if err == nil || !strings.Contains(err.Error(), "same rank") {
 		t.Fatalf("err = %v", err)
 	}
 }

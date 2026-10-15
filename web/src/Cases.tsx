@@ -17,7 +17,7 @@ import {
   useReadMutation,
   useReviewMutation,
 } from './store'
-import { can, type CaseDetail, type CaseStatus, type CaseSummary, type Exemption, type ExtensionReason, type Me } from './types'
+import { can, type CaseDetail, type CaseStatus, type CaseSummary, type Exemption, type ExtensionReason, type Me, type Precedence } from './types'
 
 const statusText: Record<CaseStatus, string> = {
   pended: 'Waiting for review',
@@ -315,6 +315,7 @@ function CaseBody({ c, me }: { c: CaseDetail; me: Me }) {
       )}
 
       {c.exemption && <ExemptionNote e={c.exemption} />}
+      {c.precedence && <PrecedenceNote p={c.precedence} title={c.policyTitle} />}
       {c.proposed && (
         <div className="note warn">
           <p>
@@ -617,6 +618,30 @@ function AppealForm({ c }: { c: CaseDetail }) {
         {error && <p role="alert">{errorText(error, 'Not recorded.')}</p>}
       </form>
     </details>
+  )
+}
+
+/** Why this policy decided when other policies are for the same service. */
+function PrecedenceNote({ p, title }: { p: Precedence; title: string }) {
+  return (
+    <div className={p.unsettled && p.unsettled.length > 0 ? 'note warn' : 'note'}>
+      <p>
+        <strong>Decided under {title}</strong>: {p.why}.
+      </p>
+      <ul>
+        {p.unsettled?.map((a) => (
+          <li key={a.policy}>
+            May also fall under <strong>{a.title}</strong> v{a.version}: {a.why}. Under it, this policy may approve but not
+            deny.
+          </li>
+        ))}
+        {p.setAside?.map((a) => (
+          <li key={a.policy}>
+            Not <strong>{a.title}</strong> v{a.version}: {a.why}.
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

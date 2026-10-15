@@ -26,6 +26,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/audit"
 	"github.com/biodream-llc/vaglio/internal/decide"
 	"github.com/biodream-llc/vaglio/internal/evidence"
+	"github.com/biodream-llc/vaglio/internal/precedence"
 	"github.com/biodream-llc/vaglio/internal/reader"
 )
 
@@ -79,6 +80,8 @@ type Opening struct {
 	// Proposed is set when the engine would have denied, but only a clinician may deny: the denial it proposes, which
 	// the case waits on a clinician to make or not.
 	Proposed *Proposal `json:"proposed,omitempty"`
+	// Precedence is why this policy decided when other policies are for the same service.
+	Precedence *precedence.Choice `json:"precedence,omitempty"`
 }
 
 // Exemption is a gold card approval: the program, and the provider's record it rests on.

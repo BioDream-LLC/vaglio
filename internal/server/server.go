@@ -90,6 +90,13 @@ type Config struct {
 	// machine.
 	Versions *versions.Store
 
+	// Scheduled are signed policies waiting for their effective date; each is put in force on its day.
+	Scheduled map[string]*policy.Policy
+	// PolicyRoot is the policy directory, where a scheduled policy's file is moved into force on its day.
+	PolicyRoot string
+	// Today is the day requests are decided on (YYYY-MM-DD); nil, today in the server's time zone.
+	Today func() string
+
 	set          *policySet
 	edit         *sync.Mutex
 	receiptLimit *limiter
@@ -100,7 +107,7 @@ func New(cfg Config) http.Handler {
 	if cfg.Sessions == nil || cfg.Audit == nil || cfg.Cases == nil {
 		panic("server: Sessions, Audit and Cases are required")
 	}
-	cfg.set, cfg.edit, cfg.receiptLimit = newPolicySet(cfg.Policies), &sync.Mutex{}, newLimiter(30)
+	cfg.set, cfg.edit, cfg.receiptLimit = newPolicySet(cfg.Policies, cfg.Scheduled), &sync.Mutex{}, newLimiter(30)
 	if cfg.Versions != nil {
 		for _, p := range cfg.Policies {
 			if _, err := cfg.Versions.Keep(p); err != nil {
@@ -108,7 +115,7 @@ func New(cfg Config) http.Handler {
 			}
 		}
 	}
-	cfg.Policies = nil // read through cfg.set from here on, so a signed-off policy is seen everywhere
+	cfg.Policies, cfg.Scheduled = nil, nil // read through cfg.set from here on, so a signed-off policy is seen everywhere
 	if cfg.GoldCard != nil {
 		// Counting switches made in the console, in order: the last one per program stands. One for a program no longer
 		// in the file, or no longer valid for it, is ignored; the file is the starting point.
@@ -388,13 +395,52 @@ type Summary struct {
 	Source   string            `json:"source"`
 	Evidence []policy.Argument `json:"evidence"`
 	Services []policy.Service  `json:"services"`
+	// Scope: which requests it decides, and from when.
+	Authority string   `json:"authority,omitempty"`
+	Effective string   `json:"effective,omitempty"`
+	Ends      string   `json:"ends,omitempty"`
+	Lines     []string `json:"lines,omitempty"`
+	States    []string `json:"states,omitempty"`
+	// InEffect is false for a policy past its ends date: kept, and shown, but deciding nothing.
+	InEffect bool `json:"inEffect"`
+	// Next is its version signed and waiting for its effective date, if any.
+	Next *Scheduled `json:"next,omitempty"`
+}
+
+// Scheduled is a version signed and waiting for its effective date.
+type Scheduled struct {
+	Version   string `json:"version"`
+	Effective string `json:"effective"`
+	Title     string `json:"title"`
 }
 
 func (cfg Config) listPolicies(w http.ResponseWriter, r *http.Request, _ auth.Session) {
+	cfg.activateDue()
 	out := []Summary{}
+	day := cfg.today()
+	summary := func(p *policy.Policy) Summary {
+		return Summary{ID: p.ID, Title: p.Title, Version: p.Version, Source: p.Source, Evidence: []policy.Argument{},
+			Services: p.Services, Authority: p.Authority, Effective: p.Effective, Ends: p.Ends, Lines: p.Lines,
+			States: p.States, InEffect: p.InEffect(day)}
+	}
+	seen := map[string]bool{}
 	for _, p := range cfg.set.all() {
-		s := Summary{ID: p.ID, Title: p.Title, Version: p.Version, Source: p.Source, Evidence: []policy.Argument{},
-			Services: p.Services}
+		seen[p.ID] = true
+	}
+	for _, p := range cfg.set.everything() {
+		if !seen[p.ID] {
+			// A new policy, signed for a later date: listed, with nothing in force yet.
+			s := summary(p)
+			s.Version, s.InEffect, s.Next = "", false, &Scheduled{Version: p.Version, Effective: p.Effective, Title: p.Title}
+			out = append(out, s)
+			seen[p.ID] = true
+		}
+	}
+	for _, p := range cfg.set.all() {
+		s := summary(p)
+		if n := cfg.set.scheduled(p.ID); n != nil {
+			s.Next = &Scheduled{Version: n.Version, Effective: n.Effective, Title: n.Title}
+		}
 		for _, a := range p.Arguments {
 			if a.Kind == policy.Evidence {
 				s.Evidence = append(s.Evidence, a)

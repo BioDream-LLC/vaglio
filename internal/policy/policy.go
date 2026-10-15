@@ -19,7 +19,9 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
+	"time"
 )
 
 // Kind is what an argument stands for.
@@ -199,7 +201,22 @@ type Policy struct {
 	Drug bool `json:"drug,omitempty"`
 	// Signed is the clinical sign-off a policy carries once someone qualified has read it against its source. A draft has
 	// none; vaglio signoff writes it and clears the draft status.
-	Signed    *SignOff   `json:"signed,omitempty"`
+	Signed *SignOff `json:"signed,omitempty"`
+	// Effective is the first day (YYYY-MM-DD, in the server's time zone) the policy decides; empty, from its sign-off.
+	// Signed off before then, it waits in the policy directory's scheduled/ folder, and the version it replaces keeps
+	// deciding until the day comes.
+	Effective string `json:"effective,omitempty"`
+	// Ends is the last day it decides; empty, until it is replaced.
+	Ends string `json:"ends,omitempty"`
+	// Authority is the kind of document the policy encodes, which settles which of two policies for one service decides:
+	// a national coverage determination (ncd) outranks a local one (lcd) or a state's own criteria (state), which outrank
+	// the plan's own policy (plan, the default). Two policies of one rank may not both apply to a request.
+	Authority string `json:"authority,omitempty"`
+	// Lines are the lines of business the policy applies to (medicare-advantage, medicare, medicaid, commercial); empty,
+	// every line. A request's line is read from its Coverage.
+	Lines []string `json:"lines,omitempty"`
+	// States are the states (two-letter codes) it applies to, by the patient's address; empty, every state.
+	States    []string   `json:"states,omitempty"`
 	Arguments []Argument `json:"arguments"`
 	Attacks   []Attack   `json:"attacks"`
 }
@@ -269,6 +286,9 @@ func (p *Policy) Validate() error {
 		if p.Status == Draft {
 			return fmt.Errorf("policy %s: a draft cannot carry a sign-off", p.ID)
 		}
+	}
+	if err := p.validateScope(); err != nil {
+		return fmt.Errorf("policy %s: %w", p.ID, err)
 	}
 	byName := map[string]Argument{}
 	verdicts := map[Verdict]int{}
@@ -474,4 +494,85 @@ func (p *Policy) EvidenceNames() []string {
 		}
 	}
 	return out
+}
+
+// Authorities, highest rank first. A policy names none to be the plan's own.
+const (
+	NCD   = "ncd"   // a Medicare national coverage determination
+	LCD   = "lcd"   // a Medicare local coverage determination
+	State = "state" // a state's own criteria (a Medicaid program, a state mandate)
+	Plan  = "plan"  // the plan's own medical policy
+)
+
+// Lines of business a policy may be limited to.
+var Lines = []string{"medicare-advantage", "medicare", "medicaid", "commercial"}
+
+var stateRe = regexp.MustCompile(`^[A-Z]{2}$`)
+
+// Rank orders authorities: a higher rank decides where both apply.
+func (p *Policy) Rank() int {
+	switch p.Authority {
+	case NCD:
+		return 3
+	case LCD, State:
+		return 2
+	}
+	return 1
+}
+
+// AuthorityName is the authority in words.
+func (p *Policy) AuthorityName() string {
+	switch p.Authority {
+	case NCD:
+		return "national coverage determination"
+	case LCD:
+		return "local coverage determination"
+	case State:
+		return "state criteria"
+	}
+	return "plan policy"
+}
+
+func (p *Policy) validateScope() error {
+	for _, d := range []string{p.Effective, p.Ends} {
+		if d == "" {
+			continue
+		}
+		if _, err := time.Parse(time.DateOnly, d); err != nil {
+			return fmt.Errorf("%q is not a date (YYYY-MM-DD)", d)
+		}
+	}
+	if p.Effective != "" && p.Ends != "" && p.Ends < p.Effective {
+		return fmt.Errorf("it ends (%s) before it takes effect (%s)", p.Ends, p.Effective)
+	}
+	switch p.Authority {
+	case "", NCD, LCD, State, Plan:
+	default:
+		return fmt.Errorf("authority is ncd, lcd, state or plan, not %q", p.Authority)
+	}
+	seen := map[string]bool{}
+	for _, l := range p.Lines {
+		if !slices.Contains(Lines, l) {
+			return fmt.Errorf("line of business %q is not one of %s", l, strings.Join(Lines, ", "))
+		}
+		if seen[l] {
+			return fmt.Errorf("line of business %q is listed twice", l)
+		}
+		seen[l] = true
+	}
+	for _, st := range p.States {
+		if !stateRe.MatchString(st) {
+			return fmt.Errorf("state %q is not a two-letter code in capitals", st)
+		}
+		if seen["state:"+st] {
+			return fmt.Errorf("state %q is listed twice", st)
+		}
+		seen["state:"+st] = true
+	}
+	return nil
+}
+
+// InEffect says whether the policy decides on day (YYYY-MM-DD).
+func (p *Policy) InEffect(day string) bool {
+	return (p.Effective == "" || p.Effective <= day) && (p.Ends == "" || day <= p.Ends)
 }

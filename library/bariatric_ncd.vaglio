@@ -11,6 +11,8 @@ policy bariatric_ncd
   version 0.1.0
   source "Medicare NCD 100.1, Bariatric Surgery for Treatment of Co-Morbid Conditions Related to Morbid Obesity; Medicare Claims Processing Manual chapter 32, section 150.2"
   status draft
+  authority ncd
+  lines medicare-advantage medicare
   questionnaire https://vaglio.example/Questionnaire/bariatric-ncd
   service cpt 43644 43645 43770 43845 43846 43847
 

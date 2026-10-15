@@ -26,7 +26,7 @@ func editorEnv(t *testing.T) (*env, string) {
 		}
 		os.WriteFile(filepath.Join(dir, f+policy.Ext), src, 0o644)
 	}
-	e := newEnvWith(t, "", func(c *Config) { c.PolicyDir = dir })
+	e := newEnvWith(t, "", func(c *Config) { c.PolicyDir, c.PolicyRoot = dir, dir })
 	return e, dir
 }
 
@@ -265,5 +265,47 @@ func TestAppealsFeed(t *testing.T) {
 	off.h.ServeHTTP(w, r)
 	if w.Code != 404 {
 		t.Errorf("the feed off: %d", w.Code)
+	}
+}
+
+// A draft naming a later effective date is signed and waits; the version in force decides until the day, when the
+// scheduled one takes its place, on disk too.
+func TestScheduledSignOff(t *testing.T) {
+	day := "2026-10-15"
+	dir := t.TempDir()
+	src, _ := os.ReadFile("../../policies/lumbar_mri" + policy.Ext)
+	os.WriteFile(filepath.Join(dir, "lumbar_mri"+policy.Ext), src, 0o644)
+	e := newEnvWith(t, "", func(c *Config) { c.PolicyDir, c.PolicyRoot, c.Today = dir, dir, func() string { return day } })
+	admin, reviewer := e.signedIn(t, "admin"), e.signedIn(t, "reviewer")
+	e.users.SetClinician("reviewer", testNPI, "MD, radiology")
+	next := strings.Replace(nextLumbar(t, "0.2.0"), "  status draft\n", "  status draft\n  effective 2027-01-01\n", 1)
+	b, _ := json.Marshal(map[string]string{"source": next})
+	if w := do(admin, "PUT", "/api/drafts/lumbar_mri", string(b)); w.Code != 200 {
+		t.Fatalf("save: %d %s", w.Code, w.Body)
+	}
+	if w := do(reviewer, "POST", "/api/drafts/lumbar_mri/signoff", ""); w.Code != 200 {
+		t.Fatalf("sign-off: %d %s", w.Code, w.Body)
+	}
+	var list []Summary
+	json.Unmarshal(do(reviewer, "GET", "/api/policies", "").Body.Bytes(), &list)
+	var lumbar Summary
+	for _, s := range list {
+		if s.ID == "lumbar_mri" {
+			lumbar = s
+		}
+	}
+	if lumbar.Version != "0.1.0" || lumbar.Next == nil || lumbar.Next.Effective != "2027-01-01" {
+		t.Fatalf("before the day: %+v", lumbar)
+	}
+	day = "2027-01-01"
+	list = nil
+	json.Unmarshal(do(reviewer, "GET", "/api/policies", "").Body.Bytes(), &list)
+	for _, s := range list {
+		if s.ID == "lumbar_mri" && (s.Version != "0.2.0" || s.Next != nil) {
+			t.Fatalf("on the day: %+v", s)
+		}
+	}
+	if on, err := policy.LoadFile(filepath.Join(dir, "lumbar_mri"+policy.Ext)); err != nil || on.Version != "0.2.0" {
+		t.Fatalf("on disk: %v %v", on, err)
 	}
 }

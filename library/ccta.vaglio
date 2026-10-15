@@ -13,6 +13,9 @@ policy ccta
   version 0.1.0
   source "Medicare LCD L35121, Coronary Computed Tomography Angiography (CCTA) (WPS), indications and limitations"
   status draft
+  authority lcd
+  lines medicare-advantage medicare
+  states IA KS MO NE IN MI
   questionnaire https://vaglio.example/Questionnaire/ccta
   service cpt 75574
 

@@ -15,6 +15,9 @@ policy adalimumab_ra_ut
   version 0.1.0
   source "Utah Medicaid Pharmacy Prior Authorization Request Form, Humira (adalimumab) and Biosimilars, last updated 4-1-26, Part I and Part II section 7"
   status draft
+  authority state
+  lines medicaid
+  states UT
   drug
   questionnaire https://vaglio.example/Questionnaire/adalimumab-ra-ut
   service hcpcs J0135

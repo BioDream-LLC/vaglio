@@ -20,6 +20,8 @@ policy lumbar_mri_wa
   version 0.1.0
   source "Washington State Department of Labor & Industries, Imaging Guidelines: Lumbar Spine MRI, February 12, 2010"
   status draft
+  authority state
+  states WA
   questionnaire https://vaglio.example/Questionnaire/lumbar-mri-wa
   service cpt 72148 72149 72158
 

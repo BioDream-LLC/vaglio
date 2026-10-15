@@ -13,6 +13,11 @@ package policy
 //	  source "Plan medical policy 123, section 4"
 //	  status draft                                  # optional: not yet signed off; the server will not use it
 //	  signed "Dr A. Example, MD" 2026-10-13         # optional: the clinician who signed it off, and when
+//	  effective 2027-01-01                          # optional: the first day it decides (signed early, it waits)
+//	  ends 2027-12-31                               # optional: the last day it decides
+//	  authority lcd                                 # optional: ncd, lcd, state or plan (the default); a higher one wins
+//	  lines medicare-advantage medicare             # optional: only these lines of business (medicaid, commercial)
+//	  states WA OR                                  # optional: only patients in these states
 //	  drug                                          # optional: a drug policy, counted apart in the CMS metrics
 //	  questionnaire https://payer.example/Questionnaire/lumbar-mri
 //	  service cpt 72148 72149 72158
@@ -279,6 +284,35 @@ func (ps *parser) parse() (*Policy, error) {
 				case "questionnaire":
 					p.Questionnaire = v
 				}
+			case "effective", "ends", "authority":
+				if err := once(kw, kw.text); err != nil {
+					return nil, err
+				}
+				if len(args) != 1 || args[0].quoted {
+					return nil, ps.errAt(kw, "%s takes one value", kw.text)
+				}
+				switch kw.text {
+				case "effective":
+					p.Effective = args[0].text
+				case "ends":
+					p.Ends = args[0].text
+				default:
+					p.Authority = args[0].text
+				}
+			case "lines", "states":
+				if err := once(kw, kw.text); err != nil {
+					return nil, err
+				}
+				if len(args) == 0 {
+					return nil, ps.errAt(kw, "write: %s <value>...", kw.text)
+				}
+				for _, a := range args {
+					if kw.text == "lines" {
+						p.Lines = append(p.Lines, a.text)
+					} else {
+						p.States = append(p.States, a.text)
+					}
+				}
 			case "drug":
 				if err := once(kw, "drug"); err != nil {
 					return nil, err
@@ -307,7 +341,8 @@ func (ps *parser) parse() (*Policy, error) {
 					p.Services = append(p.Services, Service{System: sys, Code: c.text})
 				}
 			default:
-				return nil, ps.errAt(kw, "%q is not a policy field (title, version, source, status, signed, drug, questionnaire, service), "+
+				return nil, ps.errAt(kw, "%q is not a policy field (title, version, source, status, signed, effective, ends, authority, lines, "+
+					"states, drug, questionnaire, service), "+
 					"and no argument has been started", kw.text)
 			}
 			continue
@@ -602,6 +637,21 @@ func Format(p *Policy) string {
 	}
 	if p.Signed != nil {
 		w("  signed %s %s\n", quote(p.Signed.By), p.Signed.Date)
+	}
+	if p.Effective != "" {
+		w("  effective %s\n", p.Effective)
+	}
+	if p.Ends != "" {
+		w("  ends %s\n", p.Ends)
+	}
+	if p.Authority != "" {
+		w("  authority %s\n", p.Authority)
+	}
+	if len(p.Lines) > 0 {
+		w("  lines %s\n", strings.Join(p.Lines, " "))
+	}
+	if len(p.States) > 0 {
+		w("  states %s\n", strings.Join(p.States, " "))
 	}
 	if p.Drug {
 		w("  drug\n")

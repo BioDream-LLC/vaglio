@@ -15,6 +15,9 @@ policy tka
   version 0.1.0
   source "Medicare LCD L36575, Total Knee Arthroplasty (Noridian, Jurisdiction F), indications and limitations"
   status draft
+  authority lcd
+  lines medicare-advantage medicare
+  states AK AZ ID MT ND OR SD UT WA WY
   questionnaire https://vaglio.example/Questionnaire/tka
   service cpt 27447
 

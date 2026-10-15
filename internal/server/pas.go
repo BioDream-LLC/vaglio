@@ -15,6 +15,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/evidence"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/policy"
+	"github.com/biodream-llc/vaglio/internal/precedence"
 )
 
 // maxBundle bounds a PAS request Bundle, which may carry documents inline.
@@ -37,6 +38,9 @@ type PASAnswer struct {
 	Evidence      evidence.Extraction `json:"evidence"`
 	Exemption     *cases.Exemption    `json:"exemption,omitempty"` // approved because the provider is gold carded
 	Proposed      *cases.Proposal     `json:"proposed,omitempty"`  // a denial left to a clinician
+	// Precedence is why this policy decided when others were for the same service: they were outranked, not in effect,
+	// or for another line of business or state.
+	Precedence *precedence.Choice `json:"precedence,omitempty"`
 	// Receipt checks this decision against the audit log, by anyone holding it, at /api/receipts/{receipt}.
 	Receipt string `json:"receipt,omitempty"`
 }
@@ -78,10 +82,16 @@ func (cfg Config) decidePAS(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("the Claim has no item %q", seq))
 		return
 	}
-	p, service := cfg.policyFor(svc)
+	choice, service := cfg.policyFor(svc, req)
+	p := choice.Policy
 	if p == nil {
 		// 404 is the protocol's "decides nothing": the PAS server keeps whatever it would otherwise have answered.
-		writeError(w, http.StatusNotFound, "no policy decides this service")
+		msg := "no policy decides this service"
+		if len(choice.Unsettled) > 0 {
+			msg = "no policy decides this service for this request as it stands: " + unsettledWhy(precedence.Choice{
+				Policy: &policy.Policy{Title: "the plan's policy"}, Unsettled: choice.Unsettled})
+		}
+		writeError(w, http.StatusNotFound, msg)
 		return
 	}
 	x := evidence.Extract(p, req)
@@ -115,7 +125,13 @@ func (cfg Config) decidePAS(w http.ResponseWriter, r *http.Request) {
 		a.Why = "Pended for review by a licensed clinician: a denial on medical necessity is made by a clinician, " +
 			"never by this system alone."
 	}
-	a.Exemption, a.Proposed = o.Exemption, o.Proposed
+	if len(choice.Unsettled) > 0 && a.Decision == "deny" {
+		a.Decision, a.Why, a.Requested = "pend", unsettledWhy(choice), nil
+	}
+	if len(choice.SetAside)+len(choice.Unsettled) > 0 {
+		o.Precedence = &choice
+	}
+	a.Exemption, a.Proposed, a.Precedence = o.Exemption, o.Proposed, o.Precedence
 	if a.Decision != "pend" {
 		a.Questionnaire, a.Attachments = "", nil
 	}
@@ -191,20 +207,75 @@ func patientState(req *pas.Request) string {
 	return first
 }
 
-// policyFor is the policy deciding any of a service's codes, and the code (system|code). Load refuses two policies
-// claiming one service.
-func (cfg Config) policyFor(svc pas.Service) (*policy.Policy, string) {
+// policyFor chooses the policy deciding a service for this request, and the code it matched (system|code): among the
+// policies in force for the first of its codes any policy decides, the one package precedence picks. Choice.Policy is
+// nil when none applies.
+func (cfg Config) policyFor(svc pas.Service, req *pas.Request) (precedence.Choice, string) {
+	cfg.activateDue()
+	rq := precedence.Request{Day: cfg.today(), Line: lineOfBusiness(req), State: patientState(req)}
+	all := cfg.set.all()
 	for _, cc := range svc.Codes {
 		for _, c := range pas.Slice(cc["coding"]) {
 			cm := pas.Map(c)
-			for _, p := range cfg.set.all() {
-				if p.Decides(pas.Str(cm["system"]), pas.Str(cm["code"])) {
-					return p, pas.Str(cm["system"]) + "|" + pas.Str(cm["code"])
+			sys, code := pas.Str(cm["system"]), pas.Str(cm["code"])
+			var cands []*policy.Policy
+			for _, p := range all {
+				if p.Decides(sys, code) {
+					cands = append(cands, p)
 				}
+			}
+			if len(cands) > 0 {
+				return precedence.Choose(cands, rq), sys + "|" + code
 			}
 		}
 	}
-	return nil, ""
+	return precedence.Choice{}, ""
+}
+
+// soptSystem is the Source of Payment Typology (PHDSC), the code system US Coverage.type uses for the payer's line.
+const soptSystem = "https://nahdo.org/sopt"
+
+// lineOfBusiness is the member's line of business, from the Coverage the Claim's focal insurance names: its type coded
+// in the Source of Payment Typology (11x Medicare managed care, that is Medicare Advantage; other 1x Medicare; 2x
+// Medicaid; 5x and 6x private insurance and Blue Cross Blue Shield, commercial). Nothing, when the request does not say.
+func lineOfBusiness(req *pas.Request) string {
+	var cov map[string]any
+	for _, ins := range pas.Slice(req.Claim["insurance"]) {
+		m := pas.Map(ins)
+		res := pas.Map(req.Resolve(pas.Str(pas.Map(m["coverage"])["reference"]))["resource"])
+		if res != nil && (cov == nil || m["focal"] == true) {
+			cov = res
+		}
+	}
+	for _, c := range pas.Slice(pas.Map(cov["type"])["coding"]) {
+		cm := pas.Map(c)
+		sys, code := pas.Str(cm["system"]), pas.Str(cm["code"])
+		if sys != soptSystem && sys != "urn:oid:2.16.840.1.113883.3.221.5" {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(code, "11"):
+			return "medicare-advantage"
+		case strings.HasPrefix(code, "1"):
+			return "medicare"
+		case strings.HasPrefix(code, "2"):
+			return "medicaid"
+		case strings.HasPrefix(code, "5"), strings.HasPrefix(code, "6"):
+			return "commercial"
+		}
+	}
+	return ""
+}
+
+// unsettledWhy is the answer when a policy above the one deciding may apply and the request does not say: the lower
+// policy may approve, but a denial under it could be the wrong policy's denial.
+func unsettledWhy(c precedence.Choice) string {
+	var parts []string
+	for _, u := range c.Unsettled {
+		parts = append(parts, fmt.Sprintf("%s (%s)", u.Title, u.Why))
+	}
+	return "Pended: the request may fall under " + strings.Join(parts, "; ") + ", which would outrank " + c.Policy.Title +
+		". Send the member's coverage (its type) and the patient's address, and it will be decided under the right policy."
 }
 
 // answerFor says a result the way a PAS response says it to a provider. A denial names the policy, the clause and what it

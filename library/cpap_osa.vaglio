@@ -11,6 +11,8 @@ policy cpap_osa
   version 0.1.0
   source "Medicare LCD L33718, Positive Airway Pressure (PAP) Devices for the Treatment of Obstructive Sleep Apnea: initial coverage of E0601"
   status draft
+  authority lcd
+  lines medicare-advantage medicare
   questionnaire https://vaglio.example/Questionnaire/cpap-osa
   service hcpcs E0601
 

@@ -21,7 +21,7 @@ import {
   useVerifyQuery,
   type RootState,
 } from './store'
-import { can, type Argument, type AuditRecord, type Me, type ReplayReport } from './types'
+import { can, type Argument, type AuditRecord, type Me, type PolicySummary, type ReplayReport } from './types'
 
 /** Try a policy on evidence entered by hand. Nothing is recorded. */
 export function Try() {
@@ -135,10 +135,11 @@ export function Policies() {
           <li key={p.id}>
             <a
               href={`#/policy/${p.id}`}
+              aria-disabled={!p.version || undefined}
               className="group flex h-full flex-col rounded-xl border border-line bg-raised p-4 no-underline transition hover:-translate-y-0.5 hover:border-accent hover:no-underline hover:shadow-lg"
               onClick={(e) => {
                 e.preventDefault()
-                dispatch(go({ screen: 'policy', id: p.id }))
+                if (p.version) dispatch(go({ screen: 'policy', id: p.id }))
               }}
             >
               <span className="flex items-start gap-3">
@@ -154,14 +155,51 @@ export function Policies() {
                   </span>
                 ))}
               </span>
+              <PolicyScope p={p} />
               <span className="meta mt-auto pt-3 text-xs">
-                v{p.version} · {p.evidence.length} kinds of evidence
+                {p.version ? `v${p.version}` : 'Not in force yet'} · {p.evidence.length} kinds of evidence
               </span>
             </a>
           </li>
         ))}
       </ul>
     </section>
+  )
+}
+
+const authorityName: Record<string, string> = {
+  ncd: 'National coverage determination',
+  lcd: 'Local coverage determination',
+  state: 'State criteria',
+  plan: 'Plan policy',
+}
+
+/** What a policy decides beyond its codes: its authority, the members and states it covers, and its days. */
+export function PolicyScope({ p }: { p: PolicySummary }) {
+  const tag = 'rounded-md px-2 py-0.5 text-xs ring-1'
+  return (
+    <span className="mt-2 flex flex-wrap gap-1.5">
+      <span className={`${tag} bg-violet-500/10 text-violet-300 ring-violet-500/30`}>{authorityName[p.authority || 'plan']}</span>
+      {p.lines?.map((l) => (
+        <span key={l} className={`${tag} bg-sky-500/10 text-sky-300 ring-sky-500/30`}>
+          {l.replace('-', ' ')}
+        </span>
+      ))}
+      {p.states && p.states.length > 0 && (
+        <span className={`${tag} bg-sky-500/10 text-sky-300 ring-sky-500/30`}>{p.states.join(' ')}</span>
+      )}
+      {p.effective && p.version && <span className={`${tag} text-muted ring-line`}>from {p.effective}</span>}
+      {p.ends && (
+        <span className={`${tag} ${p.inEffect ? 'text-muted ring-line' : 'bg-rose-500/10 text-rose-300 ring-rose-500/30'}`}>
+          {p.inEffect ? `until ${p.ends}` : `ended ${p.ends}`}
+        </span>
+      )}
+      {p.next && (
+        <span className={`${tag} bg-amber-500/10 text-amber-300 ring-amber-500/30`}>
+          v{p.next.version} signed, in force from {p.next.effective}
+        </span>
+      )}
+    </span>
   )
 }
 

@@ -71,7 +71,8 @@ func (cfg Config) crdAdvise(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	svc, _ := req.Service("1")
-	p, _ := cfg.policyFor(svc)
+	choice, _ := cfg.policyFor(svc, req)
+	p := choice.Policy
 	if p == nil {
 		writeJSON(w, http.StatusOK, Advice{Decides: false})
 		return

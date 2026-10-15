@@ -230,9 +230,18 @@ software a plan runs, not an outcome a vendor sells.
 - **A policy editor in the console** (`serve -edit-policies`): drafts are written and checked as they are typed (parse
   errors jump to the line; the exhaustive check and lint run beside it), saved to `-policies/drafts/`, and signed off by
   a clinician's account - the signature is the account's name and credential, never typed. A signed policy is in force
-  at once, replacing its earlier version, which keeps deciding until then. Sign-off refuses a draft that fails its check,
-  has warnings, reuses the version in force, or claims another policy's service. Every save and sign-off is in the audit
+  at once (or on its effective date), replacing its earlier version, which keeps deciding until then. Sign-off refuses a
+  draft that fails its check, has warnings, reuses the version in force, or ties with another policy for a service. Every save and sign-off is in the audit
   log by the source's SHA-256.
+- **Effective dates and which policy wins** (`effective`, `ends`, `authority ncd|lcd|state|plan`, `lines`, `states` in a
+  policy's header): a policy signed off before its effective date waits in `-policies/scheduled/`, and the version it
+  replaces keeps deciding until the first request of that day, which the audit log records. When several policies are
+  for one service, the one deciding a request is in effect that day, covers the member's line of business (from the
+  request's Coverage type) and the patient's state, and has the highest authority: a national coverage determination
+  over a local one or a state's criteria, over the plan's own policy. The case says why that one, and why not each of
+  the others. Two policies of one rank that could both reach a request are refused at load and at sign-off, so the
+  choice is never a tie. When a higher policy may apply but the request does not say (no Coverage type, no address), the
+  lower one may approve, never deny: the request is pended and the missing coverage or address asked for.
 - **Richer date rules**: `find condition ... onset at least N days` (how long a condition has lasted), and
   `find procedure ... within N days times N apart N days` (two blocks at least 14 days apart; two RFA sessions in a
   year). Fewer procedures, or ones that cannot be dated apart, document nothing either way.

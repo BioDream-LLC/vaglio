@@ -15,17 +15,22 @@ import (
 	"github.com/biodream-llc/vaglio/internal/policy"
 )
 
-// policySet is the policies in force. Signing a draft off replaces one while requests are being decided, so every read
-// goes through it; a request decided while a policy is replaced is decided wholly by the old one or wholly by the new.
+// policySet is the policies in force, and those signed and waiting for their effective date. Signing a draft off
+// replaces one while requests are being decided, so every read goes through it; a request decided while a policy is
+// replaced is decided wholly by the old one or wholly by the new.
 type policySet struct {
-	mu sync.RWMutex
-	m  map[string]*policy.Policy
+	mu   sync.RWMutex
+	m    map[string]*policy.Policy
+	next map[string]*policy.Policy // scheduled, by id
 }
 
-func newPolicySet(m map[string]*policy.Policy) *policySet {
-	out := &policySet{m: map[string]*policy.Policy{}}
+func newPolicySet(m, next map[string]*policy.Policy) *policySet {
+	out := &policySet{m: map[string]*policy.Policy{}, next: map[string]*policy.Policy{}}
 	for id, p := range m {
 		out.m[id] = p
+	}
+	for id, p := range next {
+		out.next[id] = p
 	}
 	return out
 }
@@ -36,7 +41,14 @@ func (s *policySet) get(id string) *policy.Policy {
 	return s.m[id]
 }
 
-// all is every policy, by id.
+// scheduled is the version of id waiting for its effective date, if any.
+func (s *policySet) scheduled(id string) *policy.Policy {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.next[id]
+}
+
+// all is every policy in force, by id.
 func (s *policySet) all() []*policy.Policy {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -45,6 +57,20 @@ func (s *policySet) all() []*policy.Policy {
 		out = append(out, p)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+// everything is the policies in force and scheduled: what a new one must not tie with.
+func (s *policySet) everything() []*policy.Policy {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]*policy.Policy, 0, len(s.m)+len(s.next))
+	for _, p := range s.m {
+		out = append(out, p)
+	}
+	for _, p := range s.next {
+		out = append(out, p)
+	}
 	return out
 }
 
@@ -62,6 +88,78 @@ func (s *policySet) put(p *policy.Policy) {
 	s.mu.Lock()
 	s.m[p.ID] = p
 	s.mu.Unlock()
+}
+
+func (s *policySet) schedule(p *policy.Policy) {
+	s.mu.Lock()
+	s.next[p.ID] = p
+	s.mu.Unlock()
+}
+
+// due takes out of the schedule the policies whose day has come.
+func (s *policySet) due(day string) []*policy.Policy {
+	s.mu.RLock()
+	any := false
+	for _, p := range s.next {
+		any = any || !editor.Scheduled(p, day)
+	}
+	s.mu.RUnlock()
+	if !any {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []*policy.Policy
+	for id, p := range s.next {
+		if !editor.Scheduled(p, day) {
+			out = append(out, p)
+			delete(s.next, id)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+// ActInForce records a scheduled policy put in force on its effective date.
+const ActInForce = "policy.in_force"
+
+// today is the day requests are decided on, in the server's time zone.
+func (cfg Config) today() string {
+	if cfg.Today != nil {
+		return cfg.Today()
+	}
+	return time.Now().Format(time.DateOnly)
+}
+
+// activateDue puts in force the scheduled policies whose effective date has come: it is checked whenever a policy is
+// looked up, so a policy is in force from the first request of its first day. The audit log records each.
+func (cfg Config) activateDue() {
+	day := cfg.today()
+	due := cfg.set.due(day)
+	if len(due) == 0 {
+		return
+	}
+	if cfg.PolicyRoot != "" {
+		if _, err := (editor.Dir{Path: cfg.PolicyRoot}).Activate(day); err != nil {
+			log.Printf("policies: moving scheduled policies into force: %v (in force in memory; the files are as they were)", err)
+		}
+	}
+	for _, p := range due {
+		prev := ""
+		if old := cfg.set.get(p.ID); old != nil {
+			prev = old.Version
+		}
+		cfg.set.put(p)
+		if _, err := cfg.Audit.Append("system", ActInForce, "", map[string]string{"policy": p.ID, "version": p.Version,
+			"effective": p.Effective, "replaces": prev}); err != nil {
+			log.Printf("policies: %s v%s is in force from %s but the audit log could not record it: %v", p.ID, p.Version, day, err)
+		}
+		if cfg.Versions != nil {
+			if _, err := cfg.Versions.Keep(p); err != nil {
+				log.Printf("versions: %s v%s is in force but could not be kept: %v", p.ID, p.Version, err)
+			}
+		}
+	}
 }
 
 // Audit actions for policies.
@@ -107,7 +205,7 @@ func (cfg Config) checkSource(src string) SourceCheck {
 	}
 	if err := editor.Ready(p); err != nil {
 		out.NotReady = err.Error()
-	} else if err := editor.Fits(p, cfg.set.snapshot()); err != nil {
+	} else if err := editor.Fits(p, cfg.set.everything()); err != nil {
 		out.NotReady = err.Error()
 	} else {
 		out.Ready = true
@@ -258,7 +356,7 @@ func (cfg Config) signDraft(w http.ResponseWriter, r *http.Request, s auth.Sessi
 		return
 	}
 	by := u.Name + ", " + u.Credential
-	date := time.Now().UTC().Format(time.DateOnly)
+	date := cfg.today()
 	cfg.edit.Lock() // one sign-off at a time, so two cannot both pass Fits against the same policies
 	defer cfg.edit.Unlock()
 	signed, _, err := editor.SignOff(id+policy.Ext, []byte(d.Source), by, date)
@@ -276,9 +374,15 @@ func (cfg Config) signDraft(w http.ResponseWriter, r *http.Request, s auth.Sessi
 		writeError(w, http.StatusInternalServerError, "the sign-off could not be recorded, so it is not made: "+err.Error())
 		return
 	}
-	p, _, err := dir.Promote(id, by, date, cfg.set.snapshot())
+	p, _, err := dir.Promote(id, by, date, cfg.set.everything())
 	if err != nil {
 		writeError(w, http.StatusConflict, "not signed: "+err.Error())
+		return
+	}
+	if editor.Scheduled(p, cfg.today()) {
+		// Signed, and waiting: the version in force keeps deciding until the effective date.
+		cfg.set.schedule(p)
+		writeJSON(w, http.StatusOK, p)
 		return
 	}
 	cfg.set.put(p)
