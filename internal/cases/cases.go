@@ -255,6 +255,11 @@ type Case struct {
 	Received     []Received `json:"received,omitempty"`
 	SupersededBy string     `json:"supersededBy,omitempty"`
 	QA           *QA        `json:"qa,omitempty"`
+	// Work on the case (work.go): who has it, whether a physician must decide it, peer-to-peer calls, an appeal taken in.
+	Assigned    *Assignment    `json:"assigned,omitempty"`
+	Escalated   *Escalation    `json:"escalated,omitempty"`
+	PeerToPeer  []PeerToPeer   `json:"peerToPeer,omitempty"`
+	AppealTaken *AppealRequest `json:"appealTaken,omitempty"`
 }
 
 // Audit actions this package writes and replays.
@@ -402,6 +407,15 @@ func (s *Store) apply(r audit.Record) error {
 		}
 		q.Time = r.Time
 		c.QA, c.Updated = &q, r.Time
+	case ActAssigned, ActEscalated, ActPeerToPeer, ActAppealTaken:
+		c, ok := s.cases[r.Case]
+		if !ok {
+			return fmt.Errorf("%s on unknown case %s", r.Action, r.Case)
+		}
+		if _, err := s.applyWork(r.Action, c, r.Time, func(v any) error { return json.Unmarshal(r.Data, v) }); err != nil {
+			return err
+		}
+		c.Updated = r.Time
 	case ActDelivered:
 		c, ok := s.cases[r.Case]
 		if !ok {
@@ -575,6 +589,10 @@ func (s *Store) Appealed(id, user string, a Appeal) (*Case, error) {
 	}
 	if c.Final() != "deny" {
 		return nil, ErrNotDenied
+	}
+	if t := c.AppealTaken; t != nil && a.Reference == "" && strings.EqualFold(user, t.Denier) {
+		// 42 CFR 422.590(h)(2): an appeal is decided by someone who took no part in the denial.
+		return nil, errors.New("you made this denial: its appeal is decided by someone else")
 	}
 	if c.Appeal != nil {
 		if a.Reference != "" && c.Appeal.Reference == a.Reference && c.Appeal.Outcome == a.Outcome {

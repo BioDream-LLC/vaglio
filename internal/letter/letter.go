@@ -50,6 +50,7 @@ type words struct {
 	why, rule, showed, present, absent, need, needIntro, change, changeIntro       string
 	changeNone, contradicts, reviewerSaid, rights, rightsDenied, rightsOther       string
 	check, checkText, quoted, dateLayout                                           string
+	appealReceived, appealReason, rightsUpheld                                     string
 	months                                                                         [12]string
 }
 
@@ -87,6 +88,9 @@ var lang = map[string]words{
 		rights:           "Your rights",
 		rightsDenied:     "You, or your provider for you, can ask your health plan for an appeal: another review, by people who did not make this decision. Your plan's member materials say how, and by when. You can ask your plan for a copy of the policy this decision used, free of charge.",
 		rightsOther:      "You can ask your health plan for a copy of the policy this decision used, free of charge.",
+		appealReceived:   "Your appeal was received on %s. A decision is due by %s, from people who did not make the first decision.",
+		appealReason:     "The appeal's reason",
+		rightsUpheld:     "You may be able to ask for a further review by an independent organization outside your health plan; for some plans it is sent there for you. Your plan's member materials say how, and by when. You can ask your plan for a copy of the policy this decision used, free of charge.",
 		check:            "Check this letter",
 		checkText:        "Anyone can check that this decision is genuine and unchanged, without seeing any of your health information: scan the code, or enter the receipt at your health plan's decision-check page.",
 		quoted:           "",
@@ -126,6 +130,9 @@ var lang = map[string]words{
 		rights:           "Sus derechos",
 		rightsDenied:     "Usted, o su proveedor en su nombre, puede pedir a su plan de salud una apelación: otra revisión, hecha por personas que no tomaron esta decisión. Los materiales para miembros de su plan explican cómo y en qué plazo. Puede pedir a su plan, sin costo, una copia de la póliza que se usó en esta decisión.",
 		rightsOther:      "Puede pedir a su plan de salud, sin costo, una copia de la póliza que se usó en esta decisión.",
+		appealReceived:   "Su apelación se recibió el %s. Debe decidirse a más tardar el %s, por personas que no tomaron la primera decisión.",
+		appealReason:     "El motivo de la decisión de la apelación",
+		rightsUpheld:     "Es posible que pueda pedir otra revisión a una organización independiente, fuera de su plan de salud; en algunos planes se envía allí por usted. Los materiales para miembros de su plan explican cómo y en qué plazo. Puede pedir a su plan, sin costo, una copia de la póliza que se usó en esta decisión.",
 		check:            "Verifique esta carta",
 		checkText:        "Cualquier persona puede verificar que esta decisión es auténtica y no ha cambiado, sin ver nada de su información de salud: escanee el código o escriba el recibo en la página de verificación de decisiones de su plan de salud.",
 		quoted:           "Las palabras de la póliza del plan se citan en el idioma en que el plan las escribió (inglés). No se traducen: una traducción automática de una regla de cobertura no es la regla.",
@@ -188,6 +195,11 @@ func Write(c cases.Case, l, receipt string, now time.Time) (*Letter, error) {
 	default:
 		out.Title = w.title + ": " + w.pended
 		head.Paragraphs = append(head.Paragraphs, w.outcomePended)
+	}
+	if t := c.AppealTaken; t != nil && c.Appeal == nil {
+		got, _ := time.Parse(time.RFC3339, t.Received)
+		due, _ := time.Parse(time.RFC3339, t.Due)
+		head.Paragraphs = append(head.Paragraphs, fmt.Sprintf(w.appealReceived, w.date(got), w.date(due)))
 	}
 	if c.Appeal != nil {
 		if c.Appeal.Outcome == "overturned" {
@@ -252,8 +264,14 @@ func Write(c cases.Case, l, receipt string, now time.Time) (*Letter, error) {
 		}
 		out.Sections = append(out.Sections, s)
 	}
+	if c.Appeal != nil && c.Appeal.Reason != "" {
+		out.Sections = append(out.Sections, Section{Heading: w.appealReason, Paragraphs: []string{c.Appeal.Reason}})
+	}
 	rights := w.rightsOther
-	if decision == "deny" && (c.Appeal == nil || c.Appeal.Outcome != "overturned") {
+	switch {
+	case decision == "deny" && c.Appeal != nil && c.Appeal.Outcome == "upheld":
+		rights = w.rightsUpheld
+	case decision == "deny" && c.Appeal == nil && c.AppealTaken == nil:
 		rights = w.rightsDenied
 	}
 	out.Sections = append(out.Sections, Section{Heading: w.rights, Paragraphs: []string{rights}})

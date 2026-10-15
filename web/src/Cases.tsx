@@ -4,6 +4,7 @@ import { Cite, decisionText, errorText, Result, when } from './common'
 import { WhatIf } from './WhatIf'
 import { CaseReceipts } from './Receipt'
 import { LetterView } from './LetterView'
+import { ReceiveAppeal, WorkPanel } from './Work'
 import { IconCases, IconCheck, IconClock, IconCross } from './Icons'
 import {
   go,
@@ -356,6 +357,7 @@ function CaseBody({ c, me }: { c: CaseDetail; me: Me }) {
           <Delivery c={c} />
         </article>
       )}
+      <WorkPanel c={c} me={me} />
       {c.status === 'pended' && me.role !== 'viewer' && <ReviewForm c={c} me={me} />}
       {c.status === 'pended' && me.role === 'viewer' && <p className="note">A reviewer decides this case.</p>}
 
@@ -365,6 +367,9 @@ function CaseBody({ c, me }: { c: CaseDetail; me: Me }) {
           {c.appeal.decided && ` on ${c.appeal.decided}`}: {c.appeal.reason}{' '}
           <span className="meta">(recorded by {c.appeal.by}, {when(c.appeal.time)})</span>
         </p>
+      )}
+      {!c.appeal && (c.status === 'reviewed' ? c.review?.decision : c.answer.decision) === 'deny' && c.status !== 'superseded' && (
+        <ReceiveAppeal c={c} me={me} />
       )}
       {!c.appeal && can(me, 'reviewer', 'appeals') &&
         (c.status === 'reviewed' ? c.review?.decision : c.answer.decision) === 'deny' &&
@@ -636,7 +641,7 @@ function AppealForm({ c }: { c: CaseDetail }) {
   const [appeal, { error, isLoading }] = useAppealMutation()
   return (
     <details className="review">
-      <summary>Record the outcome of an appeal</summary>
+      <summary>{c.appealTaken ? 'Decide the appeal' : 'Record the outcome of an appeal decided elsewhere'}</summary>
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -830,6 +835,12 @@ const actionText: Record<string, string> = {
   'case.confirmed': 'A proposed finding decided',
   'case.received': 'Documents received from the PAS server',
   'case.appealed': 'Appeal outcome recorded',
+  'case.appeal-received': 'Appeal received',
+  'case.assigned': 'Assigned',
+  'case.escalated': 'Sent to a physician',
+  'case.peer-to-peer': 'Peer-to-peer call',
+  'case.extended': 'Timeframe extended',
+  'case.qa': 'Quality check',
   'case.reviewed': 'Reviewed',
   'case.superseded': 'Superseded',
   'case.delivered': 'Delivery attempt',

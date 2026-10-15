@@ -19,10 +19,12 @@ import {
   IconTheme,
   Mark,
   IconInbox,
+  IconQueue,
 } from './Icons'
 import { ReceiptPage, receiptFromHash } from './Receipt'
 import { Reports } from './Reports'
 import { Intake } from './Intake'
+import { Queue } from './Queue'
 import { Audit, Policies, PolicyView, Try } from './Screens'
 import {
   api,
@@ -165,6 +167,7 @@ function SignIn() {
 type Tab = { screen: Screen; label: string; icon: (p: { size?: number; className?: string }) => JSX.Element; tone: string; shown?: (me: Me) => boolean }
 
 const tabs: Tab[] = [
+  { screen: 'queue', label: 'Queue', icon: IconQueue, tone: 'text-orange-400' },
   { screen: 'cases', label: 'Cases', icon: IconCases, tone: 'text-amber-400' },
   { screen: 'policies', label: 'Policies', icon: IconPolicies, tone: 'text-violet-400' },
   {
@@ -319,6 +322,7 @@ function Console({ me }: { me: Me }) {
       <CommandPalette commands={commands} open={palette} onClose={() => setPalette(false)} />
       <div className="layout">
         <main>
+          {view.screen === 'queue' && <Queue me={me} />}
           {view.screen === 'cases' && <Cases />}
           {view.screen === 'case' && view.id && <CaseView id={view.id} me={me} />}
           {view.screen === 'policies' && <Policies />}

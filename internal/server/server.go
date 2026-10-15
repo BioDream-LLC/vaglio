@@ -75,6 +75,8 @@ type Config struct {
 	// PolicyDir, when set, turns on the console's policy editor: drafts are saved in its drafts/ subdirectory, and a
 	// draft a clinician signs off is written into it and put in force at once.
 	PolicyDir string
+	// Now is the clock the work queue reads (time.Now when nil); tests set it.
+	Now func() time.Time
 	// SSO, when set, signs people in through the organization's identity provider (OpenID Connect).
 	SSO SSO
 	// ExtensionDays is the longest extension of a decision timeframe a reviewer may record (at most 14, the default).
@@ -207,6 +209,13 @@ func New(cfg Config) http.Handler {
 	scoped("POST /api/fax/{id}/set-aside", auth.Reviewer, auth.ScopeIntake, cfg.setAsideFax)
 	mux.HandleFunc("POST /api/feeds/fax", cfg.receiveFax)
 	scoped("POST /api/cases/{id}/appeal", auth.Reviewer, auth.ScopeAppeals, cfg.appealCase)
+	scoped("POST /api/cases/{id}/appeal/received", auth.Reviewer, auth.ScopeAppeals, cfg.receiveAppeal)
+	route("GET /api/queue", auth.Viewer, cfg.queue)
+	route("POST /api/queue/next", auth.Reviewer, cfg.takeNext)
+	route("GET /api/workload", auth.Viewer, cfg.workload)
+	route("POST /api/cases/{id}/assign", auth.Reviewer, cfg.assignCase)
+	route("POST /api/cases/{id}/escalate", auth.Reviewer, cfg.escalateCase)
+	route("POST /api/cases/{id}/peer-to-peer", auth.Reviewer, cfg.peerToPeer)
 	route("GET /api/cases/{id}/documents", auth.Viewer, cfg.caseDocuments)
 	route("GET /api/cases/{id}/documents/original", auth.Viewer, cfg.documentOriginal)
 	route("POST /api/cases/{id}/read", auth.Reviewer, cfg.readDocument)
@@ -628,6 +637,10 @@ type CaseSummary struct {
 	// by it.
 	Due      string `json:"due"`
 	Extended bool   `json:"extended,omitempty"`
+	// Assigned is who works it; Physician whether it was sent to a physician; Appealing whether an appeal waits.
+	Assigned  string `json:"assigned,omitempty"`
+	Physician bool   `json:"physician,omitempty"`
+	Appealing bool   `json:"appealing,omitempty"`
 }
 
 func (cfg Config) listCases(w http.ResponseWriter, r *http.Request, sess auth.Session) {
@@ -643,22 +656,32 @@ func (cfg Config) listCases(w http.ResponseWriter, r *http.Request, sess auth.Se
 		if !sess.Sees(c.Policy) {
 			continue
 		}
-		s := CaseSummary{ID: c.ID, Created: c.Created, Updated: c.Updated, Status: c.Status, Policy: c.Policy,
-			PolicyTitle: c.PolicyTitle, Item: c.Item, Service: c.Service, Claim: c.Claim, Patient: c.Patient,
-			Decision: c.Answer.Decision, Delivery: c.Delivery, GoldCard: c.Exemption != nil, Expedited: c.Expedited(),
-			Due: c.Due().UTC().Format(time.RFC3339), Extended: c.Extension != nil}
-		if c.Proposed != nil {
-			s.Proposed = c.Proposed.Decision
-		}
-		if c.Result != nil {
-			s.Reason = c.Result.Reason
-		}
-		if c.Review != nil {
-			s.Review = c.Review.Decision
-		}
-		out = append(out, s)
+		out = append(out, cfg.summary(&c))
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// summary is a case as the lists show it.
+func (cfg Config) summary(c *cases.Case) CaseSummary {
+	s := CaseSummary{ID: c.ID, Created: c.Created, Updated: c.Updated, Status: c.Status, Policy: c.Policy,
+		PolicyTitle: c.PolicyTitle, Item: c.Item, Service: c.Service, Claim: c.Claim, Patient: c.Patient,
+		Decision: c.Answer.Decision, Delivery: c.Delivery, GoldCard: c.Exemption != nil, Expedited: c.Expedited(),
+		Due: c.Due().UTC().Format(time.RFC3339), Extended: c.Extension != nil}
+	if c.Proposed != nil {
+		s.Proposed = c.Proposed.Decision
+	}
+	if c.Result != nil {
+		s.Reason = c.Result.Reason
+	}
+	if c.Review != nil {
+		s.Review = c.Review.Decision
+	}
+	if c.Assigned != nil {
+		s.Assigned = c.Assigned.To
+	}
+	s.Physician = c.Escalated != nil
+	s.Appealing = c.AppealTaken != nil && c.Appeal == nil
+	return s
 }
 
 func (cfg Config) extensionDays() int {
@@ -747,6 +770,11 @@ func (cfg Config) reviewCase(w http.ResponseWriter, r *http.Request, s auth.Sess
 		writeError(w, http.StatusUnauthorized, "the session has ended; sign in again")
 		return
 	}
+	if pc, ok := cfg.Cases.Get(r.PathValue("id")); ok && pc.Assigned != nil && pc.Assigned.To != "" &&
+		pc.Assigned.To != s.User && !acct.Role.Can(auth.Admin) {
+		writeError(w, http.StatusConflict, pc.Assigned.To+" has this case; they decide it, or hand it back")
+		return
+	}
 	rv := cases.Review{Decision: body.Decision, Reason: body.Reason, ReviewerNPI: body.ReviewerNPI}
 	if acct.Clinician() {
 		// A clinician's decision carries the NPI and credential their account records, not whatever a form says.
@@ -755,6 +783,9 @@ func (cfg Config) reviewCase(w http.ResponseWriter, r *http.Request, s auth.Sess
 			return
 		}
 		rv.ReviewerNPI, rv.Credential = acct.NPI, acct.Credential
+	} else if pc, ok := cfg.Cases.Get(r.PathValue("id")); ok && pc.Escalated != nil {
+		writeError(w, http.StatusForbidden, "this case was sent to a physician: a clinician decides it")
+		return
 	} else if cfg.ClinicianDenials && body.Decision == "deny" {
 		writeError(w, http.StatusForbidden, "here only a clinician may deny: an administrator records your NPI and "+
 			"credential with vaglio user clinician, or approve it or leave it for a clinician")

@@ -184,6 +184,48 @@ export interface CaseSummary {
   expedited?: boolean
   due: string
   extended?: boolean
+  assigned?: string
+  physician?: boolean
+  appealing?: boolean
+}
+
+/** An open case as the work queue shows it, ranked by stated rules that only order the work. */
+export interface QueueItem extends CaseSummary {
+  rank: { score: number; why: string[] }
+  workDue: string
+  physician?: boolean
+  appeal?: AppealRequest
+  nextCall?: string
+  overdue?: boolean
+  mayTake: boolean
+}
+
+export interface Workload {
+  reviewer: string
+  open: number
+  overdue: number
+  physician: number
+}
+
+export interface AppealRequest {
+  by: string
+  time: string
+  from: 'provider' | 'member' | 'representative'
+  received: string
+  expedited?: boolean
+  reason: string
+  due: string
+  denier: string
+}
+
+export interface PeerToPeer {
+  id: string
+  by: string
+  time: string
+  at: string
+  with: string
+  status: 'scheduled' | 'held' | 'missed' | 'cancelled'
+  note?: string
 }
 
 export interface Review {
@@ -270,6 +312,10 @@ export interface CaseDetail {
   patientState?: string
   drug?: boolean
   appeal?: Appeal
+  appealTaken?: AppealRequest
+  assigned?: { to: string; by: string; time: string }
+  escalated?: { by: string; time: string; note: string }
+  peerToPeer?: PeerToPeer[]
   extension?: Extension
   due: string
   maxExtensionDays: number

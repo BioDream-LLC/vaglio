@@ -38,6 +38,10 @@ import type {
   PolicyDetail,
   DecisionMap,
   ReviewRequest,
+  QueueItem,
+  Workload,
+  PeerToPeer,
+  AppealRequest,
   Verification,
 } from './types'
 
@@ -215,6 +219,35 @@ export const api = createApi({
       query: ({ id, ...body }) => ({ url: `cases/${encodeURIComponent(id)}/appeal`, method: 'POST', body }),
       invalidatesTags: ['Case', 'Audit'],
     }),
+    queue: b.query<QueueItem[], { who?: string; tier?: string }>({
+      query: ({ who, tier }) => `queue?${new URLSearchParams({ ...(who ? { who } : {}), ...(tier ? { tier } : {}) })}`,
+      providesTags: ['Case'],
+    }),
+    workload: b.query<Workload[], void>({ query: () => 'workload', providesTags: ['Case'] }),
+    takeNext: b.mutation<QueueItem, void>({
+      query: () => ({ url: 'queue/next', method: 'POST', body: {} }),
+      invalidatesTags: ['Case', 'Audit'],
+    }),
+    assign: b.mutation<CaseDetail, { id: string; to: string }>({
+      query: ({ id, ...body }) => ({ url: `cases/${encodeURIComponent(id)}/assign`, method: 'POST', body }),
+      invalidatesTags: ['Case', 'Audit'],
+    }),
+    escalate: b.mutation<CaseDetail, { id: string; note: string }>({
+      query: ({ id, ...body }) => ({ url: `cases/${encodeURIComponent(id)}/escalate`, method: 'POST', body }),
+      invalidatesTags: ['Case', 'Audit'],
+    }),
+    peerToPeer: b.mutation<CaseDetail, { id: string } & Partial<Pick<PeerToPeer, 'at' | 'with' | 'status' | 'note'>> & { call?: string }>({
+      query: ({ id, call, ...body }) => ({
+        url: `cases/${encodeURIComponent(id)}/peer-to-peer`,
+        method: 'POST',
+        body: { ...body, ...(call ? { id: call } : {}) },
+      }),
+      invalidatesTags: ['Case', 'Audit'],
+    }),
+    receiveAppeal: b.mutation<CaseDetail, { id: string } & Pick<AppealRequest, 'from' | 'reason'> & { expedited: boolean; received?: string }>({
+      query: ({ id, ...body }) => ({ url: `cases/${encodeURIComponent(id)}/appeal/received`, method: 'POST', body }),
+      invalidatesTags: ['Case', 'Audit'],
+    }),
     replay: b.mutation<ReplayReport, string>({
       query: (source) => ({ url: 'replay', method: 'POST', body: { source } }),
       invalidatesTags: ['Audit'],
@@ -286,6 +319,13 @@ export const {
   useConfirmMutation,
   useFetchDocumentsMutation,
   useAppealMutation,
+  useQueueQuery,
+  useWorkloadQuery,
+  useTakeNextMutation,
+  useAssignMutation,
+  useEscalateMutation,
+  usePeerToPeerMutation,
+  useReceiveAppealMutation,
 } = api
 
 /** What the person trying a policy has entered for one piece of evidence. Unaddressed is the absence of an entry. */
@@ -336,7 +376,7 @@ export function toRequest(state: RequestState): DecideRequest | null {
 }
 
 /** Where the console is: one screen, and what it shows. Kept in the URL's hash so a link and a reload land in place. */
-export type Screen = 'cases' | 'case' | 'try' | 'policies' | 'policy' | 'reports' | 'audit' | 'drafts' | 'draft' | 'intake'
+export type Screen = 'queue' | 'cases' | 'case' | 'try' | 'policies' | 'policy' | 'reports' | 'audit' | 'drafts' | 'draft' | 'intake'
 
 export interface ViewState {
   screen: Screen
@@ -353,6 +393,7 @@ export function parseHash(hash: string): ViewState {
       return id ? { screen, id: decodeURIComponent(id) } : { screen: list[screen], id: null }
     }
     case 'drafts':
+    case 'queue':
     case 'intake':
     case 'try':
     case 'policies':

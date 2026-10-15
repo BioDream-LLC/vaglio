@@ -55,4 +55,25 @@ func TestLetters(t *testing.T) {
 	if _, code := get(p.Case, "fr"); code != 400 {
 		t.Errorf("a letter in French: %d", code)
 	}
+
+	// The denial appealed: the letter says when it was received and when it is due, then, upheld, the further review.
+	reviewer := e.signedIn(t, "reviewer")
+	if w := do(reviewer, "POST", "/api/cases/"+d.Case+"/appeal/received",
+		`{"from":"member","received":"2026-10-15T10:00:00Z","reason":"My doctor says it is needed."}`); w.Code != 200 {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+	l, _ = get(d.Case, "en")
+	if body := text(l); !strings.Contains(body, "Your appeal was received on October 15, 2026") ||
+		!strings.Contains(body, "November 14, 2026") || strings.Contains(body, "can ask your health plan for an appeal") {
+		t.Errorf("the letter while appealed:\n%s", body)
+	}
+	e.users.SetClinician("reviewer", "1234567893", "MD")
+	if w := do(e.signedIn(t, "reviewer"), "POST", "/api/cases/"+d.Case+"/appeal",
+		`{"outcome":"upheld","reason":"A repeat MRI within six months without new findings."}`); w.Code != 200 {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+	l, _ = get(d.Case, "en")
+	if body := text(l); !strings.Contains(body, "The appeal's reason") || !strings.Contains(body, "independent organization") {
+		t.Errorf("the letter after the appeal:\n%s", body)
+	}
 }

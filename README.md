@@ -195,6 +195,20 @@ software a plan runs, not an outcome a vendor sells.
   document means; a second reading that disagrees is where a person should look. `library/readings/` holds a second
   reading of the TKA LCD.
 
+- **A work queue** (the Queue screen, `GET /api/queue`): every request waiting for a decision and every appeal waiting
+  for its outcome, in the order to work them, by a stated rule: past its deadline first, then expedited, then the least
+  time left, with a nudge for one whose documents have arrived. Each row says why it is where it is. The order only
+  orders; it decides nothing. A reviewer takes the next case they may decide, or a case of their choice; an
+  administrator gives a case to someone; a held case is decided by its holder. Open cases per reviewer, late ones and
+  those for a physician are counted at the top.
+- **Sent to a physician, and peer-to-peer calls**: a reviewer sends a case to a physician with a note, and from then
+  only an account recorded as a clinician may decide it. A call with the ordering provider is scheduled on the case, and
+  recorded as held (with what was said), missed or cancelled.
+- **Appeals, worked here** (`POST /api/cases/{id}/appeal/received`): an appeal of a denial is taken in with who sent it,
+  its reason and whether it is expedited; it is due 30 days from receipt (7 for a drug, 72 hours expedited) and joins
+  the queue. It is decided by someone other than the person who denied, and a denial is upheld on appeal only by a
+  clinician. The letter says when it was received and is due, then the appeal's reason, and after an upheld appeal
+  points to the further, independent review. An outcome decided elsewhere still comes by the appeals feed.
 - **Says what would change it**: every pend and denial carries each smallest set of evidence whose documentation would
   approve it, and says when a route needs the record to be wrong rather than more documentation. The provider is told
   the routes that need only more documentation.

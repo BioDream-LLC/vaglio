@@ -199,6 +199,34 @@ describe('clinician denials and reports', () => {
   })
 })
 
+describe('the work queue', () => {
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+    window.location.hash = ''
+  })
+
+  it('lists open cases in working order, with why each is there', async () => {
+    window.location.hash = '#/queue'
+    respond({
+      '/api/me': { user: 'kim', role: 'reviewer' },
+      '/api/workload': [{ reviewer: 'kim', open: 1, overdue: 1, physician: 0 }],
+      '/api/queue': [
+        { id: 'c9', created: '2026-10-01T10:00:00Z', updated: '', status: 'reviewed', policy: 'lumbar_mri', policyTitle: 'Lumbar MRI',
+          item: '1', service: 'cpt|72148', claim: 'C', patient: 'P', decision: 'pend', reason: 'missing', due: '2026-10-08T10:00:00Z',
+          workDue: '2026-10-08T10:00:00Z', assigned: 'kim', overdue: true, physician: true, mayTake: true,
+          appeal: { by: 'x', time: '', from: 'member', received: '', reason: 'r', due: '', denier: 'lee', expedited: true },
+          rank: { score: 13000, why: ['past its deadline', 'expedited'] } },
+      ],
+    })
+    renderApp()
+    expect(await screen.findByText('past its deadline · expedited', undefined, { timeout: 3000 })).toBeTruthy()
+    expect(screen.getByText('An appeal, expedited')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Take the next case' })).toBeTruthy()
+    expect(screen.getByText('1 late', { exact: false })).toBeTruthy()
+  })
+})
+
 describe('documents and routes', () => {
   afterEach(() => {
     cleanup()

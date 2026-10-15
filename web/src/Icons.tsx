@@ -205,3 +205,14 @@ export const IconInbox = (p: Props) => (
     <path d="M3 13v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5h-5l-1.5 2.5h-5L8 13H3z" />
   </Icon>
 )
+export const IconQueue = (p: Props) => (
+  <Icon {...p}>
+    <path d="M4 6h11M4 12h11M4 18h7" />
+    <path d="M18 14v6M15 17l3 3 3-3" />
+  </Icon>
+)
+export const IconPhone = (p: Props) => (
+  <Icon {...p}>
+    <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" />
+  </Icon>
+)

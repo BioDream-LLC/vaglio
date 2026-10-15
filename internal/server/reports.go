@@ -202,6 +202,16 @@ func (cfg Config) appealCase(w http.ResponseWriter, r *http.Request, s auth.Sess
 	if !decodeJSON(w, r, &body) {
 		return
 	}
+	if pc, ok := cfg.Cases.Get(r.PathValue("id")); ok && pc.AppealTaken != nil && pc.Appeal == nil && body.Outcome == "upheld" {
+		// An appeal taken in here is decided here, and a denial for medical necessity is upheld only by a physician
+		// (42 CFR 422.590(h)(2)). An outcome reached elsewhere comes by the appeals feed.
+		if acct, ok := cfg.account(w, s); !ok {
+			return
+		} else if !acct.Clinician() {
+			writeError(w, http.StatusForbidden, "a denial is upheld on appeal by a physician: a clinician records it")
+			return
+		}
+	}
 	c, err := cfg.Cases.Appealed(r.PathValue("id"), s.User, cases.Appeal{Outcome: body.Outcome, Reason: body.Reason,
 		Decided: body.Decided})
 	switch {
