@@ -13,6 +13,11 @@ licensed under the Apache License, Version 2.0. Perfuse's licence and notice
 are in licenses/perfuse-LICENSE and licenses/perfuse-NOTICE. Perfuse itself
 stays under the Apache License 2.0; Vaglio's licence does not apply to it.
 
+Vaglio's ACME client (internal/acme) comes from BitVoice
+(https://github.com/BioDream-LLC/bitvoice), Copyright 2026 BioDream LLC,
+licensed under the Apache License, Version 2.0 (the same text as
+licenses/perfuse-LICENSE).
+
 The console is built with open-source front-end packages (React, Redux Toolkit
 and others, under the MIT, ISC, BSD and Apache-2.0 licences), listed with their
 licences in web/package-lock.json.

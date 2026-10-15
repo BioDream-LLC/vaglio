@@ -33,10 +33,12 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/biodream-llc/vaglio/internal/acme"
 	"github.com/biodream-llc/vaglio/internal/audit"
 	"github.com/biodream-llc/vaglio/internal/auth"
 	"github.com/biodream-llc/vaglio/internal/cases"
@@ -166,6 +168,15 @@ func serve(args []string) error {
 	tlsCert := fs.String("tls-cert", "", "the server's certificate (PEM, with its chain): the plan's own or a public one; "+
 		"reread when it changes. Without it, Vaglio's own authority in DATA/tls issues one")
 	tlsKey := fs.String("tls-key", "", "the private key of -tls-cert (PEM)")
+	var ac acmeOptions
+	fs.BoolVar(&ac.On, "acme", false, "get a public certificate for -hostname from Let's Encrypt (or -acme-directory), kept "+
+		"in DATA/tls/acme and renewed 30 days before it runs out; Vaglio's own authority serves until it arrives")
+	fs.StringVar(&ac.Email, "acme-email", "", "the address the authority writes to about the certificate (optional)")
+	fs.StringVar(&ac.Directory, "acme-directory", "", "another ACME authority's directory URL (default Let's Encrypt; "+
+		acme.LetsEncryptStaging+" to test)")
+	fs.StringVar(&ac.CA, "acme-ca", "", "a PEM file of authorities to trust for -acme-directory, beside the system's (a test authority)")
+	fs.IntVar(&ac.HTTPPort, "acme-http-port", 80, "where the authority's http-01 check is answered (it asks on port 80; the "+
+		"rest of that port redirects to https). 0 with Vaglio on 443: tls-alpn-01 only")
 	hostname := fs.String("hostname", "", "the name browsers reach this server by, required off loopback (Host headers "+
 		"naming anything else are refused)")
 	goldCardFile := fs.String("goldcard", "", "gold card programs (JSON): providers whose record qualifies are approved "+
@@ -216,6 +227,9 @@ func serve(args []string) error {
 	}
 	if (*tlsCert == "") != (*tlsKey == "") {
 		return errors.New("-tls-cert and -tls-key go together")
+	}
+	if err := ac.check(*hostname, *tlsCert); err != nil {
+		return err
 	}
 	host, port, err := net.SplitHostPort(*addr)
 	if err != nil {
@@ -399,12 +413,29 @@ func serve(args []string) error {
 	if *hostname != "" {
 		shown = net.JoinHostPort(*hostname, port)
 	}
-	ln, err := tlsserve.Listen(*addr, tlsserve.Config(certs), allowed)
+	tlsCfg := tlsserve.Config(certs)
+	var acmeMgr *acme.Manager
+	if ac.On {
+		p, _ := strconv.Atoi(port)
+		if acmeMgr, err = startACME(ac, *data, *hostname, p, certs); err != nil {
+			return err
+		}
+		tlsCfg.GetConfigForClient = acmeMgr.ConfigForClient(tlsCfg)
+	}
+	ln, err := tlsserve.Listen(*addr, tlsCfg, allowed)
 	if err != nil {
 		return err
 	}
+	if acmeMgr != nil {
+		p, _ := strconv.Atoi(port)
+		go runACME(ctx, acmeMgr, ac, *hostname, p, certs.Local())
+	}
 	log.Printf("vaglio %s: %d policies, https://%s/", version, len(policies), shown)
 	switch {
+	case ac.On && !certs.Local():
+		log.Printf("tls: certificate from %s, expires %s", certs.Leaf().Issuer.CommonName, certs.Leaf().NotAfter.Format(time.DateOnly))
+	case ac.On:
+		// Nobody needs to trust Vaglio's own authority: it only covers the minutes until the public certificate arrives.
 	case authority != nil && authority.Created:
 		describeAuthority(os.Stdout, authority, *data)
 	case authority != nil:

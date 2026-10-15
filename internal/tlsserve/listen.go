@@ -77,6 +77,28 @@ func (s *Source) load() error {
 	return nil
 }
 
+// Use switches to the certificate and key in these files (one from an ACME authority, say), from the next handshake.
+// Vaglio's own authority stops renewing: the files' owner keeps them current, and a change to them is picked up as
+// with -tls-cert. When the files do not load, nothing changes.
+func (s *Source) Use(certFile, keyFile string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := &Source{certFile: certFile, keyFile: keyFile}
+	if err := n.load(); err != nil {
+		return err
+	}
+	s.certFile, s.keyFile, s.renew = certFile, keyFile, nil
+	s.cert, s.leaf, s.modTime, s.checked = n.cert, n.leaf, n.modTime, time.Now()
+	return nil
+}
+
+// Local says whether the certificate in service is Vaglio's own authority's.
+func (s *Source) Local() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.renew != nil
+}
+
 // Leaf is the certificate being served now.
 func (s *Source) Leaf() *x509.Certificate {
 	s.mu.Lock()

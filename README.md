@@ -256,7 +256,7 @@ software a plan runs, not an outcome a vendor sells.
 
 ## Status
 
-**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (135 Go test functions, the
+**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (140 Go test functions, the
 console's tests, and every policy checked on every combination of evidence), and the whole path has been run end to end
 through a real Perfuse. The policies in `policies/` are **illustrative only**: not any payer's policy and not clinical
 guidance.
@@ -274,6 +274,8 @@ How the code is laid out:
 - `internal/editor`: drafts, sign-off and putting a policy in force. `internal/oidc`: single sign-on.
 - `internal/dtr`, `internal/goldcard`, `internal/report`, `internal/replay`: questionnaires, exemptions, metrics, pend
   causes and reversals, replays. `internal/reader`: documents read by a model behind the quote gate.
+- `internal/tlsserve`, `internal/acme`: https only, Vaglio's own authority, and Let's Encrypt (RFC 8555, http-01 and
+  tls-alpn-01), tested against Pebble, Let's Encrypt's own test authority.
 - `internal/receipt`, `internal/letter`, `internal/versions`, `internal/readings`: receipts checked against the log,
   plain-language letters, the kept policy versions, and two readings of one document compared.
 - `deploy/demo/`: how the public demonstration at vaglio.perfuse.health:8443 is run.
@@ -284,7 +286,8 @@ How the code is laid out:
   `testdata/drafts/`: a policy the drafting loop produced from `testdata/documents/`, pinned the same way.
 
 Not yet: notices to the enrollee are the plan's (Vaglio records an extension's reason; it does not mail it); single
-sign-on is tested against a test provider only, not a real one; reading scanned images needs `tesseract` installed;
+sign-on is tested against a test provider only, not a real one; Let's Encrypt is tested against Pebble, its test
+authority, not yet against Let's Encrypt itself; reading scanned images needs `tesseract` installed;
 there is no release build yet; the letters' appeal paragraph is generic, not a plan's own deadlines and addresses;
 advice before submitting shows in Perfuse only from its `crd-advisor` branch, not yet merged.
 
@@ -370,6 +373,14 @@ Two ways, and the first is what production should use:
 - **The plan's own certificate.** IT issues one from the plan's internal certificate authority (which its computers
   already trust) or a public one, and Vaglio serves it: `-tls-cert server.crt -tls-key server.key -hostname
   vaglio.plan.internal`. A renewed file is picked up without a restart.
+- **Let's Encrypt, built in.** For a server the internet can reach by name: `-acme -hostname vaglio.plan.example
+  -acme-email it@plan.example`. Vaglio gets the certificate itself, keeps it in `data/tls/acme`, and renews it 30 days
+  before it runs out, with no restart and nothing else installed. Let's Encrypt checks the name on port 80 (http-01;
+  the rest of port 80 redirects to https, for that name only) or, when Vaglio itself is on 443, on 443 (tls-alpn-01,
+  with `-acme-http-port 0` to leave port 80 closed). Until the first certificate arrives, and if Let's Encrypt cannot be
+  reached at renewal, Vaglio's own authority's certificate serves, so the console is never without https.
+  `-acme-directory` names another ACME authority (the plan's own, or Let's Encrypt's staging directory to try it), and
+  `-acme-ca` the authority to trust for it.
 - **Vaglio's own authority, the default.** With no `-tls-cert`, the first start makes a small certificate authority in
   `data/tls` and issues the server's certificate from it, renewing it before it runs out. Browsers warn until a computer
   trusts `data/tls/ca.crt` once (or IT pushes it to every computer); after that, never again, renewals included.
@@ -380,8 +391,7 @@ Two ways, and the first is what production should use:
   the old file.
 
 A load balancer or proxy in front (an AWS load balancer, nginx) can show browsers a public certificate and speak https
-to Vaglio behind it, trusting `data/tls/ca.crt`. Automatic Let's Encrypt certificates are not built in. TLS 1.2 is the
-minimum, and HSTS is sent.
+to Vaglio behind it, trusting `data/tls/ca.crt`. TLS 1.2 is the minimum, and HSTS is sent.
 
 Clients that call Vaglio name its authority when it is Vaglio's own: `vaglio appeals import -ca data/tls/ca.crt`,
 Perfuse's `-pas-decider-ca`. Vaglio trusts a private authority for Perfuse with `-pas-ca FILE`.
