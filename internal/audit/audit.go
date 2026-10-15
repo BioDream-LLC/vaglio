@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/biodream-llc/vaglio/internal/seal"
 	"io"
 	"os"
 	"sync"
@@ -155,6 +156,10 @@ func read(r io.Reader, first int64, prev string) ([]Record, error) {
 		if len(bytes.TrimSpace(line)) == 0 {
 			return nil, fmt.Errorf("%w: line %d is blank", ErrBroken, n)
 		}
+		line, err := seal.Unline(line)
+		if err != nil {
+			return nil, fmt.Errorf("line %d: %w", n, err)
+		}
 		var rec Record
 		if err := json.Unmarshal(line, &rec); err != nil {
 			return nil, fmt.Errorf("%w: line %d is not a record: %v", ErrBroken, n, err)
@@ -214,6 +219,7 @@ func (l *Log) Append(actor, action, caseID string, data any) (Record, error) {
 	if err != nil {
 		return Record{}, err
 	}
+	line = seal.Line(line)
 	if len(line) >= maxLine {
 		return Record{}, fmt.Errorf("audit: a record of %d bytes is too large", len(line))
 	}

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/biodream-llc/vaglio/internal/seal"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -85,7 +86,7 @@ func (b *Inbox) AddNew(raw []byte, contentType, from string, pages int, text str
 	}
 	f := Fax{ID: id, Received: now.UTC().Format(time.RFC3339), From: from, Pages: pages, ContentType: contentType,
 		Size: len(raw), SHA256: h, Text: text}
-	if err := os.WriteFile(b.path(id, ext(contentType)), raw, 0o600); err != nil {
+	if err := seal.WriteFile(b.path(id, ext(contentType)), "fax", raw, 0o600); err != nil {
 		return Fax{}, false, err
 	}
 	return f, true, b.save(f)
@@ -94,7 +95,7 @@ func (b *Inbox) AddNew(raw []byte, contentType, from string, pages int, text str
 func (b *Inbox) save(f Fax) error {
 	raw, _ := json.MarshalIndent(f, "", "  ")
 	tmp := b.path(f.ID, ".json.new")
-	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
+	if err := seal.WriteFile(tmp, "fax", raw, 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, b.path(f.ID, ".json"))
@@ -104,7 +105,7 @@ func (b *Inbox) get(id string) (Fax, error) {
 	if !faxIDRe.MatchString(id) {
 		return Fax{}, os.ErrNotExist
 	}
-	raw, err := os.ReadFile(b.path(id, ".json"))
+	raw, err := seal.ReadFile(b.path(id, ".json"), "fax")
 	if err != nil {
 		return Fax{}, err
 	}
@@ -122,7 +123,7 @@ func (b *Inbox) Get(id string) (Fax, bool) {
 
 // Content is a fax's bytes, refused when they no longer match the hash it was received with.
 func (b *Inbox) Content(f Fax) ([]byte, error) {
-	raw, err := os.ReadFile(b.path(f.ID, ext(f.ContentType)))
+	raw, err := seal.ReadFile(b.path(f.ID, ext(f.ContentType)), "fax")
 	if err != nil {
 		return nil, err
 	}

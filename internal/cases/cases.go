@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/biodream-llc/vaglio/internal/seal"
 	"os"
 	"path/filepath"
 	"sort"
@@ -457,7 +458,7 @@ func (s *Store) Open(o Opening, bundle []byte) (*Case, error) {
 	o.Bundle = hex.EncodeToString(sum[:])
 	path := filepath.Join(s.bundles, o.Bundle+".json")
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		if err := os.WriteFile(path, bundle, 0o600); err != nil {
+		if err := seal.WriteFile(path, "bundle", bundle, 0o600); err != nil {
 			return nil, err
 		}
 	}
@@ -715,7 +716,7 @@ func (s *Store) Receive(id string, entries []map[string]any) (*Case, error) {
 	}
 	sum := sha256.Sum256(b)
 	name := hex.EncodeToString(sum[:])
-	if err := os.WriteFile(filepath.Join(s.bundles, name+".json"), b, 0o600); err != nil {
+	if err := seal.WriteFile(filepath.Join(s.bundles, name+".json"), "bundle", b, 0o600); err != nil {
 		return nil, err
 	}
 	s.mu.Lock()
@@ -749,7 +750,7 @@ func (s *Store) Entries(c *Case) (map[string]any, error) {
 		return nil, err
 	}
 	for _, r := range c.Received {
-		more, err := os.ReadFile(filepath.Join(s.bundles, r.Bundle+".json"))
+		more, err := seal.ReadFile(filepath.Join(s.bundles, r.Bundle+".json"), "bundle")
 		if err != nil {
 			return nil, err
 		}
@@ -857,7 +858,7 @@ var ErrBundleChanged = errors.New("the stored request does not match the one the
 
 // Bundle returns the request a case was decided on, refusing one that has changed since.
 func (s *Store) Bundle(c *Case) ([]byte, error) {
-	raw, err := os.ReadFile(filepath.Join(s.bundles, c.Bundle+".json"))
+	raw, err := seal.ReadFile(filepath.Join(s.bundles, c.Bundle+".json"), "bundle")
 	if err != nil {
 		return nil, err
 	}

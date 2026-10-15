@@ -256,6 +256,14 @@ software a plan runs, not an outcome a vendor sells.
    "srfax": {"accessId": "12345", "passwordEnv": "SRFAX_PASSWORD", "every": "1m"},
    "folder": {"dir": "/srv/scans"}}
   ```
+- **Encryption at rest** (`VAGLIO_DATA_KEY`, 32 bytes as base64 or hex, held outside the data directory): every
+  command seals what it writes about patients with AES-256-GCM: each audit record, each request Bundle and its
+  documents, each fax and its text. Reading takes sealed and plain data alike, so it is switched on for a server that
+  has data already, and `vaglio data seal -data DIR` (server stopped) seals what was written before, checking the
+  rewritten log record for record and hash for hash before it replaces the old one. The chain is over the plain
+  records, so sealing changes no hash and no receipt. Data met without the key is refused with a message saying so.
+  `vaglio data status` counts what is sealed. Not sealed, as they hold no patient data: accounts, policies and their
+  versions, drafts, cursors; the TLS keys are protected by file mode. Losing the key loses the data: keep a copy offline.
 - **Says what would change it**: every pend and denial carries each smallest set of evidence whose documentation would
   approve it, and says when a route needs the record to be wrong rather than more documentation. The provider is told
   the routes that need only more documentation.

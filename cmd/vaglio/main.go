@@ -49,6 +49,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/precedence"
 	"github.com/biodream-llc/vaglio/internal/reader"
+	"github.com/biodream-llc/vaglio/internal/seal"
 	"github.com/biodream-llc/vaglio/internal/server"
 	"github.com/biodream-llc/vaglio/internal/tlsserve"
 )
@@ -60,8 +61,15 @@ func main() {
 		usage(os.Stderr)
 		os.Exit(2)
 	}
+	// The data key, when the deployment sets one, seals every command's writes and opens its reads.
+	if _, err := seal.FromEnv(); err != nil {
+		fmt.Fprintln(os.Stderr, "vaglio:", err)
+		os.Exit(1)
+	}
 	var err error
 	switch os.Args[1] {
+	case "data":
+		err = dataCmd(os.Args[2:], os.Stdout)
 	case "serve":
 		err = serve(os.Args[2:])
 	case "decide":
@@ -129,7 +137,10 @@ func usage(w io.Writer) {
                 [-fax-token-env VAR] [-acme [-acme-email ADDR] [-acme-directory URL]] [-plans FILE]
                 [-read-documents [-approve-from-documents [-approve-sample PCT]] [-read-workers N]]
                 [-criteria NAME=URL [-criteria-token-env NAME=VAR]] [-network FILE] [-npi-registry nppes|FILE] [-members FILE]
-  vaglio user   add|reset|remove|list -data DIR [-role viewer|reviewer|admin] [NAME]
+                [-webhook URL -webhook-secret-env VAR] [-fax-connectors FILE]
+                (with VAGLIO_DATA_KEY set, every command seals patient data on disk; see vaglio data)
+  vaglio user   add|reset|remove|list|provider -data DIR [-role viewer|reviewer|admin|provider] [-npi NPIs] [NAME]
+  vaglio data   seal|status -data DIR
   vaglio user   sso -data DIR -role ROLE NAME          an account that signs in only through single sign-on
   vaglio user   scopes -data DIR -scopes author,audit,appeals,intake,policy:ID NAME   (empty to clear)
   vaglio user   clinician -data DIR -npi NPI -credential "MD, specialty" NAME   (-clear to remove)

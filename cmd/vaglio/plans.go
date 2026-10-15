@@ -28,6 +28,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/outside"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/reader"
+	"github.com/biodream-llc/vaglio/internal/seal"
 	"github.com/biodream-llc/vaglio/internal/server"
 	"github.com/biodream-llc/vaglio/internal/tlsserve"
 	"github.com/biodream-llc/vaglio/internal/versions"
@@ -451,6 +452,9 @@ func (op *openedPlan) report(origin string) {
 		who = op.spec.Name + " (" + op.spec.ID + "): "
 	}
 	log.Printf("%s%d policies, %s/", who, len(op.cfg.Policies), origin)
+	if seal.On() {
+		log.Printf("%spatient data on disk is sealed (AES-256-GCM, the key from %s)", who, seal.EnvKey)
+	}
 	for _, p := range op.moved {
 		log.Printf("%spolicies: %s v%s in force from %s, its effective date", who, p.ID, p.Version, p.Effective)
 		op.st.log.Append("system", server.ActInForce, "", map[string]string{"policy": p.ID, "version": p.Version,
