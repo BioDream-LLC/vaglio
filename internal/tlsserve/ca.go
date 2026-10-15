@@ -78,6 +78,17 @@ func NamesFor(addr, hostname string) (Names, error) {
 	return n, nil
 }
 
+// With is n with one more name, a DNS name or an address.
+func (n Names) With(name string) Names {
+	out := Names{DNS: slices.Clone(n.DNS), IPs: slices.Clone(n.IPs)}
+	if ip := net.ParseIP(name); ip != nil {
+		out.addIP(ip)
+	} else if name != "" {
+		out.addDNS(name)
+	}
+	return out
+}
+
 func (n *Names) addDNS(d string) {
 	d = strings.ToLower(strings.TrimSuffix(d, "."))
 	if !slices.Contains(n.DNS, d) {

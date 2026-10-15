@@ -32,6 +32,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -43,19 +44,14 @@ import (
 	"github.com/biodream-llc/vaglio/internal/auth"
 	"github.com/biodream-llc/vaglio/internal/cases"
 	"github.com/biodream-llc/vaglio/internal/decide"
-	"github.com/biodream-llc/vaglio/internal/deliver"
 	"github.com/biodream-llc/vaglio/internal/draft"
 	"github.com/biodream-llc/vaglio/internal/editor"
-	"github.com/biodream-llc/vaglio/internal/goldcard"
-	"github.com/biodream-llc/vaglio/internal/intake"
 	"github.com/biodream-llc/vaglio/internal/oidc"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/precedence"
 	"github.com/biodream-llc/vaglio/internal/reader"
 	"github.com/biodream-llc/vaglio/internal/server"
 	"github.com/biodream-llc/vaglio/internal/tlsserve"
-	"github.com/biodream-llc/vaglio/internal/versions"
-	"github.com/biodream-llc/vaglio/internal/web"
 )
 
 var version = "dev"
@@ -131,9 +127,10 @@ func usage(w io.Writer) {
                  -oidc-redirect-url URL [-oidc-name-claim C] [-oidc-group G] [-oidc-label TEXT]]
                 [-extension-days N] [-appeals-token-env VAR] [-extract pdftotext,tesseract]
                 [-draft-model-url URL [-draft-model M] [-draft-key-env VAR]] [-demo-account NAME:PASSWORD]
+                [-fax-token-env VAR] [-acme [-acme-email ADDR] [-acme-directory URL]] [-plans FILE]
   vaglio user   add|reset|remove|list -data DIR [-role viewer|reviewer|admin] [NAME]
   vaglio user   sso -data DIR -role ROLE NAME          an account that signs in only through single sign-on
-  vaglio user   scopes -data DIR -scopes author,audit,appeals,policy:ID NAME   (empty to clear)
+  vaglio user   scopes -data DIR -scopes author,audit,appeals,intake,policy:ID NAME   (empty to clear)
   vaglio user   clinician -data DIR -npi NPI -credential "MD, specialty" NAME   (-clear to remove)
   vaglio audit  verify -data DIR
   vaglio receipt [-data DIR | -log FILE] [-json] VG-XXXX-XXXX-XXXX-XXXX   check a decision's receipt against the log
@@ -216,23 +213,38 @@ func serve(args []string) error {
 		"fax service sends with each fax it posts to /api/feeds/fax; set, the console's fax inbox is on (faxes kept in DATA/faxes)")
 	appealsTokenEnv := fs.String("appeals-token-env", "", "name of an environment variable holding the bearer token the "+
 		"appeals system sends to /api/feeds/appeals; unset, the feed is off")
+	plansFile := fs.String("plans", "", "serve several health plans from one server: a JSON file listing each plan's id, "+
+		"name, hostname, policies and data directories, and its tokens and PAS server; each plan is its own console, accounts, "+
+		"cases and audit log at its own hostname. The per-plan flags (-policies, -hostname, -token-env, -pas-*, -goldcard, "+
+		"-fax-token-env, -appeals-token-env) are then the file's")
 	fs.Parse(args)
 
-	token, err := secretFrom(*tokenEnv)
-	if err != nil {
-		return fmt.Errorf("-token-env: %w", err)
-	}
-	pasToken, err := secretFrom(*pasTokenEnv)
-	if err != nil {
-		return fmt.Errorf("-pas-token-env: %w", err)
-	}
-	if *pasTokenEnv != "" && *pasURL == "" {
-		return errors.New("-pas-token-env needs -pas-url")
+	set := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+	if *plansFile != "" {
+		for _, f := range []string{"policies", "hostname", "token-env", "pas-url", "pas-token-env", "pas-ca", "pas-api-url",
+			"goldcard", "fax-token-env", "appeals-token-env", "demo-account", "oidc-issuer"} {
+			if set[f] {
+				return fmt.Errorf("-%s is set per plan in the -plans file (single sign-on and the demonstration are for one plan)", f)
+			}
+		}
 	}
 	if (*tlsCert == "") != (*tlsKey == "") {
 		return errors.New("-tls-cert and -tls-key go together")
 	}
-	if err := ac.check(*hostname, *tlsCert); err != nil {
+	var plans []planSpec
+	if *plansFile != "" {
+		var err error
+		if plans, err = readPlans(*plansFile, *data); err != nil {
+			return err
+		}
+	} else {
+		plans = []planSpec{{Hostname: strings.ToLower(*hostname), Policies: *dir, Data: *data, TokenEnv: *tokenEnv,
+			PASURL: *pasURL, PASAPI: *pasAPI, PASTokenEnv: *pasTokenEnv, PASCA: *pasCA, GoldCard: *goldCardFile,
+			FaxTokenEnv: *faxTokenEnv, AppealsTokenEnv: *appealsTokenEnv}}
+	}
+	names := planNames(plans)
+	if err := ac.check(names, *tlsCert); err != nil {
 		return err
 	}
 	host, port, err := net.SplitHostPort(*addr)
@@ -245,15 +257,22 @@ func serve(args []string) error {
 	}
 	allowed := []string{}
 	switch {
-	case loopback:
+	case loopback && len(plans) == 1:
 		allowed = append(allowed, *addr, "localhost:"+port)
-	case *hostname == "":
+	case len(names) == 0:
 		return errors.New("-hostname is required off loopback: it is the only Host header the server will accept")
 	}
-	if *hostname != "" {
-		h := strings.ToLower(*hostname)
-		allowed = append(allowed, h, net.JoinHostPort(h, port))
+	for i := range plans {
+		if h := plans[i].Hostname; h != "" {
+			plans[i].allowed = append(plans[i].allowed, h, net.JoinHostPort(h, port))
+		}
+		if len(plans) == 1 {
+			plans[i].allowed = append(plans[i].allowed, allowed...)
+		}
+		allowed = append(allowed, plans[i].allowed...)
 	}
+	slices.Sort(allowed)
+	allowed = slices.Compact(allowed)
 	// The console carries patient data and passwords: it is served over https only, on every address, loopback too.
 	var certs *tlsserve.Source
 	var authority *tlsserve.Authority
@@ -262,115 +281,39 @@ func serve(args []string) error {
 			return fmt.Errorf("-tls-cert: %w", err)
 		}
 	} else {
-		names, err := tlsserve.NamesFor(*addr, *hostname)
+		tn, err := tlsserve.NamesFor(*addr, "")
 		if err != nil {
 			return err
 		}
-		if authority, err = tlsserve.Open(filepath.Join(*data, "tls"), names); err != nil {
+		for _, n := range names {
+			tn = tn.With(n)
+		}
+		if authority, err = tlsserve.Open(filepath.Join(*data, "tls"), tn); err != nil {
 			return fmt.Errorf("vaglio's certificate authority: %w", err)
 		}
-		if certs, err = tlsserve.LocalSource(authority, names); err != nil {
+		if certs, err = tlsserve.LocalSource(authority, tn); err != nil {
 			return fmt.Errorf("vaglio's certificate authority: %w", err)
 		}
-	}
-	if *pasURL != "" {
-		if err := checkPASURL(*pasURL); err != nil {
-			return err
-		}
-	}
-
-	// A policy signed for a date that has come since the last start goes into force now, before anything decides.
-	moved, err := (editor.Dir{Path: *dir}).Activate(time.Now().Format(time.DateOnly))
-	if err != nil {
-		return fmt.Errorf("putting scheduled policies in force: %w", err)
-	}
-	policies, scheduled, err := loadPolicies(*dir)
-	if err != nil {
-		return err
 	}
 	var docs *server.DocumentModel
+	var err2 error
 	if *docURL != "" {
-		if docs, err = documentModel(*docURL, *docModel, *docKeyEnv, *docRemote); err != nil {
-			return err
+		if docs, err2 = documentModel(*docURL, *docModel, *docKeyEnv, *docRemote); err2 != nil {
+			return err2
 		}
 	}
-	var gold *goldcard.Config
-	if *goldCardFile != "" {
-		if gold, err = goldcard.Load(*goldCardFile, policies); err != nil {
-			return err
-		}
-	}
-	st, err := openData(*data)
-	if err != nil {
-		return err
-	}
-	defer st.log.Close()
-	if n, err := st.users.Count(); err != nil {
-		return err
-	} else if n == 0 {
-		// Nobody can sign in to make the first account, so the first start makes it, and shows its password once.
-		pw, err := st.users.Set("admin", auth.Admin)
-		if err != nil {
-			return err
-		}
-		st.log.Append("system", "user.created", "", map[string]string{"name": "admin", "role": "admin", "by": "first start"})
-		fmt.Printf("  No users existed, so an administrator has been created.\n    username:  admin\n    password:  %s\n"+
-			"  It is shown only now. Add reviewers with: vaglio user add -data %s -role reviewer <name>\n", pw, *data)
-	}
-
-	cfg := server.Config{
-		Policies:     policies,
-		Assets:       web.Assets(),
-		AllowedHosts: allowed,
-		Token:        token,
-		Sessions:     auth.NewSessions(st.users),
-		Audit:        st.log,
-		AuditPath:    st.auditPath,
-		Cases:        st.cases,
-		Secure:       true,
-		GoldCard:     gold,
-		// Set on the command line, never in the console: who may deny care is the deployment's to decide.
-		ClinicianDenials: *clinicianDenials,
-		Reader:           docs,
-		Scheduled:        scheduled,
-		PolicyRoot:       *dir,
-	}
-	if *faxTokenEnv != "" {
-		if cfg.FaxToken, err = secretFrom(*faxTokenEnv); err != nil {
-			return fmt.Errorf("-fax-token-env: %w", err)
-		}
-		if len(cfg.FaxToken) < 16 {
-			return errors.New("-fax-token-env: the fax service's token is at least 16 characters")
-		}
-		cfg.Faxes = &intake.Inbox{Dir: filepath.Join(*data, "faxes")}
-	}
+	sh := shared{docs: docs, clinicianDenials: *clinicianDenials, editPolicies: *editPolicies, demo: *demo}
 	if *draftURL != "" {
-		if !*editPolicies {
+		if !*editPolicies && !slices.ContainsFunc(plans, func(p planSpec) bool { return p.EditPolicies }) {
 			return errors.New("-draft-model-url drafts into the policy editor: it needs -edit-policies")
 		}
 		key := ""
 		if *draftKeyEnv != "" {
-			if key, err = secretFrom(*draftKeyEnv); err != nil {
-				return fmt.Errorf("-draft-key-env: %w", err)
+			if key, err2 = secretFrom(*draftKeyEnv); err2 != nil {
+				return fmt.Errorf("-draft-key-env: %w", err2)
 			}
 		}
-		cfg.Drafter = &server.Drafter{Model: &draft.OpenAI{Base: *draftURL, Key: key, Model: *draftModel}, Name: *draftModel}
-	}
-	if *demo != "" {
-		name, pw, ok := strings.Cut(*demo, ":")
-		if !ok {
-			return errors.New("-demo-account is NAME:PASSWORD")
-		}
-		if err := st.users.SetPassword(name, pw); err != nil {
-			return fmt.Errorf("-demo-account: %w", err)
-		}
-		cfg.Demo, cfg.DemoName, cfg.DemoPassword = true, name, pw
-	}
-	if cfg.Versions, err = versions.Open(filepath.Join(*data, "versions")); err != nil {
-		return err
-	}
-	if *editPolicies {
-		cfg.PolicyDir = *dir
+		sh.drafter = &server.Drafter{Model: &draft.OpenAI{Base: *draftURL, Key: key, Model: *draftModel}, Name: *draftModel}
 	}
 	if *extract != "" {
 		if docs == nil && *draftURL == "" {
@@ -381,23 +324,28 @@ func serve(args []string) error {
 			if err != nil {
 				return fmt.Errorf("-extract: %w", err)
 			}
-			cfg.Extractors = append(cfg.Extractors, x)
+			sh.extractors = append(sh.extractors, x)
 		}
 	}
 	if *extensionDays < 1 || *extensionDays > cases.MaxExtensionDays {
 		return fmt.Errorf("-extension-days is 1 to %d", cases.MaxExtensionDays)
 	}
-	cfg.ExtensionDays = *extensionDays
-	if *appealsTokenEnv != "" {
-		if cfg.AppealsToken, err = secretFrom(*appealsTokenEnv); err != nil {
-			return fmt.Errorf("-appeals-token-env: %w", err)
-		}
-		if cfg.AppealsToken == "" {
-			return fmt.Errorf("-appeals-token-env: %s is empty", *appealsTokenEnv)
-		}
-	}
+	sh.extensionDays = *extensionDays
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	var opened []*openedPlan
+	defer func() {
+		for _, op := range opened {
+			op.st.log.Close()
+		}
+	}()
+	for _, sp := range plans {
+		op, err := openPlan(ctx, sp, sh)
+		if err != nil {
+			return err
+		}
+		opened = append(opened, op)
+	}
 	if *oidcIssuer != "" {
 		secret, err := secretFrom(*oidcSecretEnv)
 		if err != nil {
@@ -410,19 +358,19 @@ func serve(args []string) error {
 		if err != nil {
 			return fmt.Errorf("single sign-on: %w", err)
 		}
-		cfg.SSO = server.NewSSO(prov, *oidcLabel)
+		opened[0].cfg.SSO = server.NewSSO(prov, *oidcLabel)
 	}
-	if *pasURL != "" {
-		hc, err := tlsserve.Client(*pasCA, 20*time.Second)
-		if err != nil {
-			return fmt.Errorf("-pas-ca: %w", err)
+	var handler http.Handler
+	if len(opened) == 1 {
+		handler = server.New(opened[0].cfg)
+	} else {
+		hosts := map[string]http.Handler{}
+		for _, op := range opened {
+			hosts[op.spec.Hostname] = server.New(op.cfg)
 		}
-		client := &deliver.Client{Base: *pasURL, API: *pasAPI, Token: pasToken, HTTP: hc}
-		cfg.Deliver = func(c cases.Case) { go client.Deliver(ctx, st.cases, c) }
-		cfg.FetchDocuments = client.Documents
-		go client.Run(ctx, st.cases, 30*time.Second)
+		handler = byHost(hosts)
 	}
-	srv := &http.Server{Addr: *addr, Handler: server.New(cfg), ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
 		shut, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -430,14 +378,14 @@ func serve(args []string) error {
 		srv.Shutdown(shut)
 	}()
 	shown := *addr
-	if *hostname != "" {
-		shown = net.JoinHostPort(*hostname, port)
+	if len(names) == 1 {
+		shown = net.JoinHostPort(names[0], port)
 	}
 	tlsCfg := tlsserve.Config(certs)
 	var acmeMgr *acme.Manager
 	if ac.On {
 		p, _ := strconv.Atoi(port)
-		if acmeMgr, err = startACME(ac, *data, *hostname, p, certs); err != nil {
+		if acmeMgr, err = startACME(ac, *data, names, p, certs); err != nil {
 			return err
 		}
 		tlsCfg.GetConfigForClient = acmeMgr.ConfigForClient(tlsCfg)
@@ -448,9 +396,13 @@ func serve(args []string) error {
 	}
 	if acmeMgr != nil {
 		p, _ := strconv.Atoi(port)
-		go runACME(ctx, acmeMgr, ac, *hostname, p, certs.Local())
+		go runACME(ctx, acmeMgr, ac, names, p, certs.Local())
 	}
-	log.Printf("vaglio %s: %d policies, https://%s/", version, len(policies), shown)
+	if len(opened) == 1 {
+		log.Printf("vaglio %s: https://%s/", version, shown)
+	} else {
+		log.Printf("vaglio %s: %d plans on %s", version, len(opened), *addr)
+	}
 	switch {
 	case ac.On && !certs.Local():
 		log.Printf("tls: certificate from %s, expires %s", certs.Leaf().Issuer.CommonName, certs.Leaf().NotAfter.Format(time.DateOnly))
@@ -464,34 +416,21 @@ func serve(args []string) error {
 	default:
 		log.Printf("tls: certificate from %s, expires %s", *tlsCert, certs.Leaf().NotAfter.Format(time.DateOnly))
 	}
-	for _, p := range moved {
-		log.Printf("policies: %s v%s in force from %s, its effective date", p.ID, p.Version, p.Effective)
-		st.log.Append("system", server.ActInForce, "", map[string]string{"policy": p.ID, "version": p.Version,
-			"effective": p.Effective})
-	}
-	for _, p := range scheduled {
-		log.Printf("policies: %s v%s is signed and scheduled: in force from %s", p.ID, p.Version, p.Effective)
-	}
-	if gold != nil {
-		log.Printf("gold card: %d program(s) from %s", len(gold.Programs), *goldCardFile)
+	for _, op := range opened {
+		origin := "https://" + shown
+		if op.spec.Hostname != "" {
+			origin = "https://" + net.JoinHostPort(op.spec.Hostname, port)
+		}
+		op.report(origin)
 	}
 	if docs != nil {
 		log.Printf("document model: %s at %s reads attachments for reviewers", docs.Name, *docURL)
 	}
-	for _, x := range cfg.Extractors {
+	for _, x := range sh.extractors {
 		log.Printf("document text: %s (%s) for %s", x.Name, x.Path, strings.Join(x.Types, ", "))
 	}
-	if cfg.PolicyDir != "" {
-		log.Printf("policy editor: drafts in %s", filepath.Join(cfg.PolicyDir, "drafts"))
-	}
-	if cfg.SSO.Provider != nil {
+	if *oidcIssuer != "" {
 		log.Printf("single sign-on: %s", *oidcIssuer)
-	}
-	if cfg.Faxes != nil {
-		log.Printf("fax inbox: the fax service posts to https://%s/api/feeds/fax; kept in %s", shown, cfg.Faxes.Dir)
-	}
-	if *clinicianDenials {
-		log.Printf("clinician denials: the engine proposes denials; only clinicians make them")
 	}
 	err = srv.Serve(ln)
 	if errors.Is(err, http.ErrServerClosed) {

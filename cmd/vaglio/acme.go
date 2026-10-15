@@ -36,7 +36,7 @@ const (
 	acmeKeyFile  = "key.pem"
 )
 
-func (o acmeOptions) check(hostname, tlsCert string) error {
+func (o acmeOptions) check(hostnames []string, tlsCert string) error {
 	if !o.On {
 		if o.Email != "" || o.Directory != "" || o.CA != "" {
 			return errors.New("-acme-email, -acme-directory and -acme-ca go with -acme")
@@ -46,11 +46,13 @@ func (o acmeOptions) check(hostname, tlsCert string) error {
 	if tlsCert != "" {
 		return errors.New("-acme and -tls-cert are two ways to get the server's certificate: choose one")
 	}
-	if hostname == "" {
+	if len(hostnames) == 0 {
 		return errors.New("-acme needs -hostname: the public name the certificate is for")
 	}
-	if net.ParseIP(hostname) != nil {
-		return errors.New("-acme needs a name in -hostname, not an address: public authorities issue for names")
+	for _, h := range hostnames {
+		if net.ParseIP(h) != nil {
+			return errors.New("-acme needs a name in -hostname, not an address: public authorities issue for names")
+		}
 	}
 	if o.HTTPPort < 0 || o.HTTPPort > 65535 {
 		return errors.New("-acme-http-port is a port number, or 0 to answer only by tls-alpn-01 on port 443")
@@ -60,13 +62,13 @@ func (o acmeOptions) check(hostname, tlsCert string) error {
 
 // startACME puts a kept ACME certificate in service at once, when there is a current one, and returns
 // the manager that gets and renews it. Its ConfigForClient answers tls-alpn-01 on Vaglio's own port.
-func startACME(o acmeOptions, dataDir, hostname string, httpsPort int, certs *tlsserve.Source) (*acme.Manager, error) {
+func startACME(o acmeOptions, dataDir string, hostnames []string, httpsPort int, certs *tlsserve.Source) (*acme.Manager, error) {
 	dir := filepath.Join(dataDir, "tls", "acme")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
 	certFile, keyFile := filepath.Join(dir, acmeCertFile), filepath.Join(dir, acmeKeyFile)
-	if keptCovers(certFile, keyFile, hostname) {
+	if keptCovers(certFile, keyFile, hostnames) {
 		if err := certs.Use(certFile, keyFile); err != nil {
 			log.Printf("tls: the kept certificate in %s does not load, Vaglio's own stays in service: %v", certFile, err)
 		}
@@ -79,13 +81,16 @@ func startACME(o acmeOptions, dataDir, hostname string, httpsPort int, certs *tl
 		}
 		hc = c
 	}
-	name := strings.ToLower(hostname)
+	var domains []string
+	for _, h := range hostnames {
+		domains = append(domains, strings.ToLower(h))
+	}
 	m := &acme.Manager{
 		Dir:  dir,
 		HTTP: hc,
 		Log:  slog.Default(),
 		Settings: func() acme.Settings {
-			return acme.Settings{Enabled: true, Domains: []string{name}, Email: o.Email, Directory: o.Directory,
+			return acme.Settings{Enabled: true, Domains: domains, Email: o.Email, Directory: o.Directory,
 				HTTPPort: o.HTTPPort, HTTPSPort: httpsPort, Challenge: challengeFor(o.HTTPPort, httpsPort)}
 		},
 		Current: func() acme.Current {
@@ -118,13 +123,18 @@ func challengeFor(httpPort, httpsPort int) string {
 	return "http-01"
 }
 
-// keptCovers says whether a certificate kept from an earlier run names hostname and is still current.
-func keptCovers(certFile, keyFile, hostname string) bool {
+// keptCovers says whether a certificate kept from an earlier run names every hostname and is still current.
+func keptCovers(certFile, keyFile string, hostnames []string) bool {
 	pair, err := tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil || pair.Leaf == nil {
+	if err != nil || pair.Leaf == nil || !time.Now().Before(pair.Leaf.NotAfter) {
 		return false
 	}
-	return pair.Leaf.VerifyHostname(hostname) == nil && time.Now().Before(pair.Leaf.NotAfter)
+	for _, h := range hostnames {
+		if pair.Leaf.VerifyHostname(h) != nil {
+			return false
+		}
+	}
+	return true
 }
 
 func writeAtomic(path string, b []byte) error {
@@ -136,7 +146,7 @@ func writeAtomic(path string, b []byte) error {
 }
 
 // runACME keeps the certificate until ctx ends, and says at start what it is waiting for.
-func runACME(ctx context.Context, m *acme.Manager, o acmeOptions, hostname string, httpsPort int, local bool) {
+func runACME(ctx context.Context, m *acme.Manager, o acmeOptions, hostnames []string, httpsPort int, local bool) {
 	dir := o.Directory
 	if dir == "" {
 		dir = acme.LetsEncrypt
@@ -146,7 +156,7 @@ func runACME(ctx context.Context, m *acme.Manager, o acmeOptions, hostname strin
 		how = "tls-alpn-01 on port 443"
 	}
 	if local {
-		log.Printf("tls: certificate for %s from %s (%s); Vaglio's own serves until it arrives", hostname, dir, how)
+		log.Printf("tls: certificate for %s from %s (%s); Vaglio's own serves until it arrives", strings.Join(hostnames, ", "), dir, how)
 	} else {
 		log.Printf("tls: renewed from %s (%s) 30 days before it runs out", dir, how)
 	}

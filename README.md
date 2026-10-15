@@ -226,6 +226,9 @@ software a plan runs, not an outcome a vendor sells.
   from the records sent, reviewers or appeals. Demographics are read from the stored requests when the report is made,
   never copied into cases; groups under 11 requests are not shown; making the report is in the audit log. Income and
   disability are not in a prior authorization request and are not reported.
+- **Several plans on one server** (`serve -plans FILE`, for a utilization management organization): each plan at its own
+  hostname with its own policies, data, audit chain, accounts, tokens and PAS server; nothing of one is reachable from
+  another. See [Running it](#several-health-plans-on-one-server).
 - **Requests by fax, phone, mail or portal** (the Intake screen; `serve -fax-token-env VAR` for the fax inbox): the plan's
   fax service posts each fax to `/api/feeds/fax` with its bearer token; Vaglio keeps it, makes its text with `-extract`
   when it can, and lists it in the inbox. A person opens it beside a form, keys in the patient, coverage, provider and
@@ -399,6 +402,27 @@ Sessions end after 30 minutes idle or 12 hours, and on a restart. Five wrong pas
 
 `data/` holds the audit log, the request Bundles (patient data) and the accounts. The server refuses to use it unless only
 its owner can read it. Back it up as a whole: the cases are the log.
+
+### Several health plans on one server
+
+A utilization management organization deciding for several plans runs one server with `-plans plans.json`:
+
+```
+{"plans": [
+  {"id": "acme", "name": "Acme Health", "hostname": "acme.pa.example", "policies": "/srv/acme/policies",
+   "tokenEnv": "ACME_PAS_TOKEN", "pasUrl": "https://perfuse.acme.example/fhir", "pasTokenEnv": "ACME_PERFUSE_TOKEN"},
+  {"id": "blue", "name": "Blue Plan", "hostname": "blue.pa.example", "policies": "/srv/blue/policies",
+   "tokenEnv": "BLUE_PAS_TOKEN", "faxTokenEnv": "BLUE_FAX_TOKEN", "clinicianDenials": true}
+]}
+```
+
+Each plan is reached at its own hostname and is wholly its own: its policies, its data directory (`-data/plans/<id>` unless
+`data` says where) with its own audit chain, cases, accounts and sessions, its own PAS token, PAS server, gold card file,
+fax inbox and appeals feed, and whether only clinicians deny. A session or a token of one plan opens nothing at another,
+a Host header no plan has is refused, and the file is refused if two plans share an id, hostname, data or policy
+directory, or token variable. The certificate covers every plan's hostname (Vaglio's own authority, or `-acme` for all
+of them). Reports and `vaglio user`, `report` and `audit` commands take each plan's data directory. Single sign-on and
+the demonstration account are for a one-plan server.
 
 ### Its certificate
 
