@@ -20,7 +20,11 @@ import type {
   Overrides,
   Pends,
   Reading,
+  Fax,
   FairnessReport,
+  IntakeBody,
+  IntakePolicy,
+  KeyedAnswer,
   ListReview,
   PolicySummary,
   ReplayReport,
@@ -53,7 +57,7 @@ const baseQuery: typeof raw = async (args, apiCtx, extra) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery,
-  tagTypes: ['Me', 'Case', 'Audit', 'Draft', 'Policy'],
+  tagTypes: ['Me', 'Case', 'Audit', 'Draft', 'Policy', 'Fax'],
   endpoints: (b) => ({
     me: b.query<Me, void>({ query: () => 'me', providesTags: ['Me'] }),
     login: b.mutation<Me, { name: string; password: string }>({
@@ -165,6 +169,20 @@ export const api = createApi({
       }),
       invalidatesTags: ['Case', 'Audit'],
     }),
+    intakeForm: b.query<IntakePolicy[], { system: string; code: string }>({
+      query: ({ system, code }) => `intake/form?system=${encodeURIComponent(system)}&code=${encodeURIComponent(code)}`,
+      providesTags: ['Policy'],
+    }),
+    faxes: b.query<Fax[], void>({ query: () => 'fax', providesTags: ['Fax'] }),
+    fax: b.query<Fax, string>({ query: (id) => `fax/${encodeURIComponent(id)}`, providesTags: ['Fax'] }),
+    keyIn: b.mutation<KeyedAnswer, IntakeBody>({
+      query: (body) => ({ url: 'intake', method: 'POST', body }),
+      invalidatesTags: ['Case', 'Fax', 'Audit'],
+    }),
+    setAsideFax: b.mutation<Fax, { id: string; reason: string }>({
+      query: ({ id, reason }) => ({ url: `fax/${encodeURIComponent(id)}/set-aside`, method: 'POST', body: { reason } }),
+      invalidatesTags: ['Fax', 'Audit'],
+    }),
     fairness: b.query<FairnessReport, Period>({ query: (p) => `reports/fairness?${period(p)}`, providesTags: ['Case', 'Audit'] }),
     listReview: b.query<ListReview, Period>({ query: (p) => `reports/list?${period(p)}`, providesTags: ['Case'] }),
     overrides: b.query<Overrides, Period & { by: string }>({
@@ -250,6 +268,11 @@ export const {
   useOverridesQuery,
   useListReviewQuery,
   useFairnessQuery,
+  useIntakeFormQuery,
+  useFaxesQuery,
+  useFaxQuery,
+  useKeyInMutation,
+  useSetAsideFaxMutation,
   useDocumentsQuery,
   useReadMutation,
   useConfirmMutation,
@@ -305,7 +328,7 @@ export function toRequest(state: RequestState): DecideRequest | null {
 }
 
 /** Where the console is: one screen, and what it shows. Kept in the URL's hash so a link and a reload land in place. */
-export type Screen = 'cases' | 'case' | 'try' | 'policies' | 'policy' | 'reports' | 'audit' | 'drafts' | 'draft'
+export type Screen = 'cases' | 'case' | 'try' | 'policies' | 'policy' | 'reports' | 'audit' | 'drafts' | 'draft' | 'intake'
 
 export interface ViewState {
   screen: Screen
@@ -322,6 +345,7 @@ export function parseHash(hash: string): ViewState {
       return id ? { screen, id: decodeURIComponent(id) } : { screen: list[screen], id: null }
     }
     case 'drafts':
+    case 'intake':
     case 'try':
     case 'policies':
     case 'reports':

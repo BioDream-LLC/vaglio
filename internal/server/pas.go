@@ -58,29 +58,35 @@ func (cfg Config) decidePAS(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "the request could not be read: "+err.Error())
 		return
 	}
+	a, status, msg := cfg.decideBundle(raw, r.URL.Query().Get("item"), r.Header.Get("X-PAS-Request-Id"), "", "")
+	if status != http.StatusOK {
+		writeError(w, status, msg)
+		return
+	}
+	writeJSON(w, http.StatusOK, a)
+}
+
+// decideBundle decides one item of a PAS request Bundle and records it as a case: the one path every request takes,
+// from a PAS server or keyed in from a fax (channel names it then). It returns the answer, or an HTTP status and why.
+func (cfg Config) decideBundle(raw []byte, seq, requestID, channel, keyedBy string) (PASAnswer, int, string) {
 	var b map[string]any
 	if err := json.Unmarshal(raw, &b); err != nil {
-		writeError(w, http.StatusBadRequest, "malformed request: "+err.Error())
-		return
+		return PASAnswer{}, http.StatusBadRequest, "malformed request: " + err.Error()
 	}
 	req, problems := pas.Read(b, false)
 	if len(problems) > 0 {
-		writeError(w, http.StatusBadRequest, strings.Join(problems, "; "))
-		return
+		return PASAnswer{}, http.StatusBadRequest, strings.Join(problems, "; ")
 	}
-	seq := r.URL.Query().Get("item")
 	if seq == "" {
 		if all := req.Services(); len(all) == 1 {
 			seq = all[0].Sequence
 		} else {
-			writeError(w, http.StatusBadRequest, "the request has several items; say which with ?item=<sequence>")
-			return
+			return PASAnswer{}, http.StatusBadRequest, "the request has several items; say which with ?item=<sequence>"
 		}
 	}
 	svc, ok := req.Service(seq)
 	if !ok {
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("the Claim has no item %q", seq))
-		return
+		return PASAnswer{}, http.StatusBadRequest, fmt.Sprintf("the Claim has no item %q", seq)
 	}
 	choice, service := cfg.policyFor(svc, req)
 	p := choice.Policy
@@ -91,24 +97,22 @@ func (cfg Config) decidePAS(w http.ResponseWriter, r *http.Request) {
 			msg = "no policy decides this service for this request as it stands: " + unsettledWhy(precedence.Choice{
 				Policy: &policy.Policy{Title: "the plan's policy"}, Unsettled: choice.Unsettled})
 		}
-		writeError(w, http.StatusNotFound, msg)
-		return
+		return PASAnswer{}, http.StatusNotFound, msg
 	}
 	x := evidence.Extract(p, req)
 	res, err := decide.Decide(p, x.Request(p.ID))
 	if err != nil {
 		// The extraction produced a request the engine refuses, which is Vaglio's defect, not the provider's.
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+		return PASAnswer{}, http.StatusInternalServerError, err.Error()
 	}
 	a := answerFor(p, res, x)
 	a.Item, a.Result, a.Evidence = seq, res, x
 	o := cases.Opening{
 		Policy: p.ID, PolicyVersion: p.Version, PolicyTitle: p.Title, Item: seq, Service: service,
 		Claim: claimKey(req), Patient: pas.Str(pas.Map(req.Claim["patient"])["reference"]),
-		Provider: pas.Str(pas.Map(req.Claim["provider"])["reference"]), Request: r.Header.Get("X-PAS-Request-Id"),
+		Provider: pas.Str(pas.Map(req.Claim["provider"])["reference"]), Request: requestID,
 		Priority: priority(req), ProviderNPI: providerNPI(req), PatientState: patientState(req), Drug: p.Drug,
-		Result: res, Evidence: x,
+		Result: res, Evidence: x, Channel: channel, KeyedBy: keyedBy,
 	}
 	if res.Outcome != decide.Approved && cfg.GoldCard != nil {
 		// The record is the log as it stands when the request arrives. Two requests arriving together are each judged on
@@ -139,14 +143,13 @@ func (cfg Config) decidePAS(w http.ResponseWriter, r *http.Request) {
 		Attachments: a.Attachments}
 	c, err := cfg.Cases.Open(o, raw)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "the decision could not be recorded, so it is not given: "+err.Error())
-		return
+		return PASAnswer{}, http.StatusInternalServerError, "the decision could not be recorded, so it is not given: " + err.Error()
 	}
 	a.Case = c.ID
 	if rs := receiptsFor(cfg.Audit.ForCase(c.ID)); len(rs) > 0 {
 		a.Receipt = rs[0].Receipt
 	}
-	writeJSON(w, http.StatusOK, a)
+	return a, http.StatusOK, ""
 }
 
 // claimKey identifies the request across resubmissions: the Claim's first identifier, or its fullUrl.

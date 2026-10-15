@@ -80,6 +80,11 @@ type Opening struct {
 	// Proposed is set when the engine would have denied, but only a clinician may deny: the denial it proposes, which
 	// the case waits on a clinician to make or not.
 	Proposed *Proposal `json:"proposed,omitempty"`
+	// Channel is how a request that did not come from a PAS server arrived: fax, phone, mail or portal, keyed in by a
+	// person. Its decisions go to the provider by letter, since no PAS server waits for them.
+	Channel string `json:"channel,omitempty"`
+	// KeyedBy is the account that keyed such a request in.
+	KeyedBy string `json:"keyedBy,omitempty"`
 	// Precedence is why this policy decided when other policies are for the same service.
 	Precedence *precedence.Choice `json:"precedence,omitempty"`
 }
@@ -413,7 +418,11 @@ func (s *Store) Open(o Opening, bundle []byte) (*Case, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := newID()
-	if _, err := s.write("pas", ActOpened, id, o); err != nil {
+	actor := "pas"
+	if o.KeyedBy != "" {
+		actor = "user:" + o.KeyedBy
+	}
+	if _, err := s.write(actor, ActOpened, id, o); err != nil {
 		return nil, err
 	}
 	if o.Claim != "" {

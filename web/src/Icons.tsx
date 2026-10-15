@@ -198,3 +198,10 @@ export function Mark({ size = 36 }: { size?: number }) {
     </svg>
   )
 }
+
+export const IconInbox = (p: Props) => (
+  <Icon {...p}>
+    <path d="M3 13l2.5-7.5A2 2 0 0 1 7.4 4h9.2a2 2 0 0 1 1.9 1.5L21 13" />
+    <path d="M3 13v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5h-5l-1.5 2.5h-5L8 13H3z" />
+  </Icon>
+)

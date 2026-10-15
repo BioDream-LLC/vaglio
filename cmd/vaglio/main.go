@@ -47,6 +47,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/draft"
 	"github.com/biodream-llc/vaglio/internal/editor"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
+	"github.com/biodream-llc/vaglio/internal/intake"
 	"github.com/biodream-llc/vaglio/internal/oidc"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/precedence"
@@ -211,6 +212,8 @@ func serve(args []string) error {
 	extract := fs.String("extract", "", "programs on this machine that make text of documents for the document model: "+
 		"pdftotext (PDFs), tesseract (scanned images), comma-separated")
 	extensionDays := fs.Int("extension-days", 14, "the longest extension of a decision timeframe a reviewer may record (1 to 14)")
+	faxTokenEnv := fs.String("fax-token-env", "", "name of an environment variable holding the bearer token the plan's "+
+		"fax service sends with each fax it posts to /api/feeds/fax; set, the console's fax inbox is on (faxes kept in DATA/faxes)")
 	appealsTokenEnv := fs.String("appeals-token-env", "", "name of an environment variable holding the bearer token the "+
 		"appeals system sends to /api/feeds/appeals; unset, the feed is off")
 	fs.Parse(args)
@@ -331,6 +334,15 @@ func serve(args []string) error {
 		Reader:           docs,
 		Scheduled:        scheduled,
 		PolicyRoot:       *dir,
+	}
+	if *faxTokenEnv != "" {
+		if cfg.FaxToken, err = secretFrom(*faxTokenEnv); err != nil {
+			return fmt.Errorf("-fax-token-env: %w", err)
+		}
+		if len(cfg.FaxToken) < 16 {
+			return errors.New("-fax-token-env: the fax service's token is at least 16 characters")
+		}
+		cfg.Faxes = &intake.Inbox{Dir: filepath.Join(*data, "faxes")}
 	}
 	if *draftURL != "" {
 		if !*editPolicies {
@@ -474,6 +486,9 @@ func serve(args []string) error {
 	}
 	if cfg.SSO.Provider != nil {
 		log.Printf("single sign-on: %s", *oidcIssuer)
+	}
+	if cfg.Faxes != nil {
+		log.Printf("fax inbox: the fax service posts to https://%s/api/feeds/fax; kept in %s", shown, cfg.Faxes.Dir)
 	}
 	if *clinicianDenials {
 		log.Printf("clinician denials: the engine proposes denials; only clinicians make them")
@@ -794,7 +809,7 @@ func userCmd(args []string, w io.Writer) error {
 	npi := fs.String("npi", "", "clinician: the person's NPI")
 	credential := fs.String("credential", "", `clinician: the licence and specialty, such as "MD, orthopaedic surgery"`)
 	clear := fs.Bool("clear", false, "clinician: remove the NPI and credential")
-	scopes := fs.String("scopes", "", "scopes: a comma-separated list (author, audit, appeals, policy:ID); empty clears them")
+	scopes := fs.String("scopes", "", "scopes: a comma-separated list (author, audit, appeals, intake, policy:ID); empty clears them")
 	fs.Parse(args[1:])
 	users, err := auth.OpenUsers(filepath.Join(*dir, "users.json"))
 	if err != nil {

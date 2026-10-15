@@ -292,7 +292,13 @@ function CaseBody({ c, me }: { c: CaseDetail; me: Me }) {
         </p>
       )}
 
-      <h3>What the provider was told</h3>
+      {c.channel && (
+        <p className="meta">
+          Received by {c.channel} and keyed in by {c.keyedBy}: its answers are their reading of what arrived, which is kept
+          with the request below. The provider is told by letter.
+        </p>
+      )}
+      <h3>{c.channel ? 'The answer, for the letter' : 'What the provider was told'}</h3>
       <p>
         <span className={`badge ${c.answer.decision}`}>{decisionText[c.answer.decision]}</span> {c.answer.why}
       </p>
@@ -381,6 +387,8 @@ function CaseBody({ c, me }: { c: CaseDetail; me: Me }) {
 }
 
 function Delivery({ c }: { c: CaseDetail }) {
+  if (c.channel)
+    return <p className="meta">Received by {c.channel}: no PAS server waits for this review. Send the provider its letter.</p>
   if (!c.request) return <p className="meta">The PAS server gave no request id, so this review stays here.</p>
   if (!c.delivery) return <p className="meta">Sending to the PAS server…</p>
   if (c.delivery.ok) return <p className="meta">Delivered to the PAS server {when(c.delivery.time)}.</p>

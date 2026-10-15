@@ -70,11 +70,13 @@ type User struct {
 //	author      writes and saves policy drafts (signing one off still takes a clinician)
 //	audit       reads and verifies the audit log, without the rest of an administrator's power
 //	appeals     records the outcome of appeals, without deciding cases
+//	intake      keys in requests that arrived by fax, phone, mail or a portal, and works the fax inbox
 //	policy:ID   sees and decides only the cases of policy ID (repeatable); with none, every policy's
 const (
 	ScopeAuthor  = "author"
 	ScopeAudit   = "audit"
 	ScopeAppeals = "appeals"
+	ScopeIntake  = "intake"
 	ScopePolicy  = "policy:"
 )
 
@@ -83,7 +85,7 @@ var policyScopeRe = regexp.MustCompile(`^policy:[a-z][a-z0-9_]{1,63}$`)
 // ValidScope is whether s is a scope this version knows.
 func ValidScope(s string) bool {
 	switch s {
-	case ScopeAuthor, ScopeAudit, ScopeAppeals:
+	case ScopeAuthor, ScopeAudit, ScopeAppeals, ScopeIntake:
 		return true
 	}
 	return policyScopeRe.MatchString(s)
@@ -321,7 +323,7 @@ func (u *Users) SetScopes(name string, scopes []string) error {
 			continue
 		}
 		if !ValidScope(sc) {
-			return fmt.Errorf("%q is not a scope: author, audit, appeals, or policy:ID", sc)
+			return fmt.Errorf("%q is not a scope: author, audit, appeals, intake, or policy:ID", sc)
 		}
 		seen[sc] = true
 		clean = append(clean, sc)

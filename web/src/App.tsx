@@ -18,9 +18,11 @@ import {
   IconSearch,
   IconTheme,
   Mark,
+  IconInbox,
 } from './Icons'
 import { ReceiptPage, receiptFromHash } from './Receipt'
 import { Reports } from './Reports'
+import { Intake } from './Intake'
 import { Audit, Policies, PolicyView, Try } from './Screens'
 import {
   api,
@@ -172,6 +174,7 @@ const tabs: Tab[] = [
     tone: 'text-fuchsia-400',
     shown: (me) => me.editing && (can(me, 'admin', 'author') || !!me.npi),
   },
+  { screen: 'intake', label: 'Intake', icon: IconInbox, tone: 'text-sky-400', shown: (me) => can(me, 'reviewer', 'intake') },
   { screen: 'try', label: 'Try a policy', icon: IconFlask, tone: 'text-sky-400' },
   { screen: 'reports', label: 'Reports', icon: IconChart, tone: 'text-emerald-400' },
   { screen: 'audit', label: 'Audit log', icon: IconLedger, tone: 'text-rose-400', shown: (me) => can(me, 'admin', 'audit') },
@@ -322,6 +325,7 @@ function Console({ me }: { me: Me }) {
           {view.screen === 'policy' && view.id && <PolicyView id={view.id} me={me} />}
           {view.screen === 'reports' && <Reports />}
           {view.screen === 'try' && <Try />}
+          {view.screen === 'intake' && <Intake />}
           {view.screen === 'drafts' && (me.editing ? <Drafts me={me} /> : <p>The policy editor is off on this server.</p>)}
           {view.screen === 'draft' && view.id && <DraftView id={view.id} me={me} />}
           {view.screen === 'audit' &&

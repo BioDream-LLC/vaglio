@@ -238,6 +238,8 @@ export interface CaseDetail {
   exemption?: Exemption
   proposed?: { decision: 'deny'; why: string }
   precedence?: Precedence
+  channel?: 'fax' | 'phone' | 'mail' | 'portal'
+  keyedBy?: string
   patientState?: string
   drug?: boolean
   appeal?: Appeal
@@ -627,4 +629,59 @@ export interface DraftJob {
   error?: string
   saved: boolean
   check?: { combinations: number; outcomes: Record<string, number> }
+}
+
+/** A policy a keyed-in request may fall under, and its questions. */
+export interface IntakePolicy {
+  id: string
+  title: string
+  version: string
+  authority?: string
+  lines?: string[]
+  states?: string[]
+  questionnaire?: string
+  questions: { linkId: string; text: string; type: string; required: boolean }[]
+}
+
+export type Channel = 'fax' | 'phone' | 'mail' | 'portal'
+
+/** A request that arrived by fax, phone, mail or a portal, as a person keys it in. */
+export interface IntakeBody {
+  channel: Channel
+  received?: string
+  reference?: string
+  priority?: '' | 'stat'
+  patient: { family: string; given?: string; birthDate: string; gender?: string; state?: string; memberId: string }
+  coverage: { type?: string }
+  provider: { name: string; npi?: string }
+  service: { system: string; code: string }
+  questionnaire?: string
+  answers?: Record<string, '' | 'yes' | 'no'>
+  documents?: { description: string; contentType: string; data: string }[]
+  faxes?: string[]
+}
+
+/** What deciding a keyed-in request answered. */
+export interface KeyedAnswer {
+  decision: 'approve' | 'deny' | 'pend'
+  why?: string
+  requested?: string[]
+  case: string
+  receipt?: string
+}
+
+/** A fax received, waiting to be keyed in. */
+export interface Fax {
+  id: string
+  received: string
+  from?: string
+  pages?: number
+  contentType: string
+  size: number
+  sha256: string
+  text?: string
+  done?: string
+  case?: string
+  by?: string
+  reason?: string
 }

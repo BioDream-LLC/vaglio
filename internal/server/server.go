@@ -33,6 +33,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/cases"
 	"github.com/biodream-llc/vaglio/internal/decide"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
+	"github.com/biodream-llc/vaglio/internal/intake"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/reader"
 	"github.com/biodream-llc/vaglio/internal/versions"
@@ -94,6 +95,10 @@ type Config struct {
 	Scheduled map[string]*policy.Policy
 	// PolicyRoot is the policy directory, where a scheduled policy's file is moved into force on its day.
 	PolicyRoot string
+	// Faxes, when set, is the inbox of faxes received from the plan's fax service, which posts each to
+	// /api/feeds/fax with FaxToken as a bearer token.
+	Faxes    *intake.Inbox
+	FaxToken string
 	// Today is the day requests are decided on (YYYY-MM-DD); nil, today in the server's time zone.
 	Today func() string
 
@@ -162,6 +167,13 @@ func New(cfg Config) http.Handler {
 	route("GET /api/reports/overrides", auth.Viewer, cfg.overridesReport)
 	route("GET /api/reports/list", auth.Viewer, cfg.listReport)
 	route("GET /api/reports/fairness", auth.Reviewer, cfg.fairnessReport)
+	scoped("GET /api/intake/form", auth.Reviewer, auth.ScopeIntake, cfg.intakeForm)
+	scoped("POST /api/intake", auth.Reviewer, auth.ScopeIntake, cfg.keyIn)
+	scoped("GET /api/fax", auth.Reviewer, auth.ScopeIntake, cfg.listFaxes)
+	scoped("GET /api/fax/{id}", auth.Reviewer, auth.ScopeIntake, cfg.getFax)
+	scoped("GET /api/fax/{id}/content", auth.Reviewer, auth.ScopeIntake, cfg.faxContent)
+	scoped("POST /api/fax/{id}/set-aside", auth.Reviewer, auth.ScopeIntake, cfg.setAsideFax)
+	mux.HandleFunc("POST /api/feeds/fax", cfg.receiveFax)
 	scoped("POST /api/cases/{id}/appeal", auth.Reviewer, auth.ScopeAppeals, cfg.appealCase)
 	route("GET /api/cases/{id}/documents", auth.Viewer, cfg.caseDocuments)
 	route("GET /api/cases/{id}/documents/original", auth.Viewer, cfg.documentOriginal)

@@ -226,6 +226,15 @@ software a plan runs, not an outcome a vendor sells.
   from the records sent, reviewers or appeals. Demographics are read from the stored requests when the report is made,
   never copied into cases; groups under 11 requests are not shown; making the report is in the audit log. Income and
   disability are not in a prior authorization request and are not reported.
+- **Requests by fax, phone, mail or portal** (the Intake screen; `serve -fax-token-env VAR` for the fax inbox): the plan's
+  fax service posts each fax to `/api/feeds/fax` with its bearer token; Vaglio keeps it, makes its text with `-extract`
+  when it can, and lists it in the inbox. A person opens it beside a form, keys in the patient, coverage, provider and
+  service, and answers the policy's own questions as the request shows them: yes, no, or not shown. It is then one more
+  PAS request: the same policy choice, evidence, proof, case, receipt and audit record, with the fax kept in the request
+  as a DocumentReference for the reviewer and the document reader. The case names its channel and who keyed it in, and
+  its answers are cited as their reading. "Not shown" is not addressed, so a request keyed in with gaps pends and asks
+  for them. No PAS server waits for these decisions: the provider is sent the letter. Calls and letters are keyed in the
+  same way. An account needs the reviewer role or the `intake` scope; a fax not to key in is set aside with a reason.
 - **A policy library** (`library/`): policies drafted from published coverage documents, each held by a test to the
   drafting gates against its source, which is kept beside it with where and when it was retrieved. All are drafts until
   a clinician signs them off. The AHIP/BCBSA standard documentation set for 66 services is not public (only its
@@ -265,8 +274,8 @@ software a plan runs, not an outcome a vendor sells.
   goes through the same quote gate. The case marks such documents, and the reviewer confirms against the original,
   served as a sandboxed download.
 - **Narrower roles** (`vaglio user scopes`): `author` (write drafts), `audit` (read the log), `appeals` (record appeal
-  outcomes), `policy:ID` (see and decide only that policy's cases; other cases are not found). Changing an account's
-  scopes ends its sessions.
+  outcomes), `intake` (key in faxed and phoned requests), `policy:ID` (see and decide only that policy's cases; other
+  cases are not found). Changing an account's scopes ends its sessions.
 - **Single sign-on** (OpenID Connect, `serve -oidc-issuer ...`): code flow with PKCE, the ID token verified against the
   provider's keys (RSA or ECDSA; `none` and HMAC refused), with issuer, audience, expiry and nonce checked, and
   optionally a required group. The provider says who someone is; an account made with `vaglio user sso` says what they
