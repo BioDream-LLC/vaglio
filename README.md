@@ -17,6 +17,10 @@ calls its decision hook.
 
 [![License](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-8b5cf6.svg)](LICENSE.md) [![Go](https://img.shields.io/badge/Go-1.27%2B-00ADD8.svg?logo=go&logoColor=white)](https://go.dev) [![Version](https://img.shields.io/badge/version-v0.0.1-orange.svg)](#status) [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS-lightgrey.svg)](#build) [![Works with](https://img.shields.io/badge/works%20with-Perfuse-3b82f6.svg)](https://github.com/BioDream-LLC/perfuse)
 
+<a href="https://vaglio.perfuse.health:8443"><img src="docs/assets/buttons/try.svg" alt="Try Vaglio now: the live demonstration, no install" width="300"></a>
+
+<sub><b>Sign in as</b> <code>demo</code> <b>with password</b> <code>try-vaglio-demo</code> · invented requests only · look at everything, change nothing</sub>
+
 <a href="docs/Vaglio-overview.pptx"><img src="docs/assets/buttons/overview.svg" alt="Vaglio in plain words: the slides" width="240"></a>&nbsp;<a href="#build"><img src="docs/assets/buttons/source.svg" alt="Build Vaglio from source" width="240"></a>
 
 <sub>No release yet: build it from source with Go. [What it needs](#build)</sub>
