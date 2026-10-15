@@ -314,7 +314,7 @@ software a plan runs, not an outcome a vendor sells.
 
 ## Status
 
-**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (140 Go test functions, the
+**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (157 Go test functions, the
 console's tests, and every policy checked on every combination of evidence), and the whole path has been run end to end
 through a real Perfuse. The policies in `policies/` are **illustrative only**: not any payer's policy and not clinical
 guidance.
@@ -336,6 +336,10 @@ How the code is laid out:
   tls-alpn-01), tested against Pebble, Let's Encrypt's own test authority.
 - `internal/receipt`, `internal/letter`, `internal/versions`, `internal/readings`: receipts checked against the log,
   plain-language letters, the kept policy versions, and two readings of one document compared.
+- `internal/precedence`: which policy decides when several are for one service (dates, lines, states, authority).
+- `internal/intake`: requests keyed in from a fax, a call, a letter or a portal, and the fax inbox.
+- `internal/outside`: criteria services, the provider network and the NPI registry. `internal/fairness`: error rates
+  by group, with Fisher's exact test.
 - `deploy/demo/`: how the public demonstration at vaglio.perfuse.health:8443 is run.
 - `library/`: drafted policies, their sources and `library.json`; `library/drafts/` keeps the machine's own drafts.
 - `internal/server` + `web/`: the API and the React/Redux console (cases and review, policies and their check, trying a
@@ -347,7 +351,11 @@ Not yet: notices to the enrollee are the plan's (Vaglio records an extension's r
 sign-on is tested against a test provider only, not a real one; Let's Encrypt is tested against Pebble, its test
 authority, not yet against Let's Encrypt itself; reading scanned images needs `tesseract` installed;
 there is no release build yet; the letters' appeal paragraph is generic, not a plan's own deadlines and addresses;
-advice before submitting shows in Perfuse only from its `crd-advisor` branch, not yet merged.
+advice before submitting shows in Perfuse only from its `crd-advisor` branch, not yet merged. The criteria-service
+protocol is Vaglio's own: no licensed criteria vendor is known to speak it yet, so a plan's licence needs a small adapter.
+Automatic approval from documents is tested with a stand-in model only; how often a real model's approvals survive the
+checks is what the sampled checks will show. Faxes arrive by a fax service's webhook; there is no fax line or modem
+support. Several plans on one server cannot use single sign-on yet.
 
 
 ## Try it
