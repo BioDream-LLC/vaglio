@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -99,7 +100,9 @@ func (cfg Config) decideBundle(raw []byte, seq, requestID, channel, keyedBy stri
 		}
 		return PASAnswer{}, http.StatusNotFound, msg
 	}
-	x := evidence.Extract(p, req)
+	of, notes := cfg.Outside.Findings(context.Background(), p, req, raw, service)
+	x := evidence.ExtractWith(p, req, of)
+	x.Ignored = append(x.Ignored, notes...)
 	res, err := decide.Decide(p, x.Request(p.ID))
 	if err != nil {
 		// The extraction produced a request the engine refuses, which is Vaglio's defect, not the provider's.

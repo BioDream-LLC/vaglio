@@ -183,7 +183,7 @@ func (cfg Config) approvesOnDocuments(c *cases.Case) (string, bool, error) {
 	if err != nil {
 		return "", false, err
 	}
-	x := evidence.Extract(p, req)
+	x := evidence.ExtractWith(p, req, c.Evidence.FromOutside()) // what outside sources said then
 	r := x.Request(p.ID)
 	var used []reader.Proposal
 	for _, rd := range c.Readings {

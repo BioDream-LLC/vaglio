@@ -129,6 +129,7 @@ func usage(w io.Writer) {
                 [-draft-model-url URL [-draft-model M] [-draft-key-env VAR]] [-demo-account NAME:PASSWORD]
                 [-fax-token-env VAR] [-acme [-acme-email ADDR] [-acme-directory URL]] [-plans FILE]
                 [-read-documents [-approve-from-documents [-approve-sample PCT]] [-read-workers N]]
+                [-criteria NAME=URL [-criteria-token-env NAME=VAR]] [-network FILE] [-npi-registry nppes|FILE]
   vaglio user   add|reset|remove|list -data DIR [-role viewer|reviewer|admin] [NAME]
   vaglio user   sso -data DIR -role ROLE NAME          an account that signs in only through single sign-on
   vaglio user   scopes -data DIR -scopes author,audit,appeals,intake,policy:ID NAME   (empty to clear)
@@ -221,6 +222,13 @@ func serve(args []string) error {
 	approveSample := fs.Int("approve-sample", 10, "the percent of automatic approvals set aside for a reviewer to check "+
 		"after the fact (0 to 100)")
 	readWorkers := fs.Int("read-workers", 2, "documents -read-documents reads at once")
+	var criteria, criteriaTokens multiFlag
+	fs.Var(&criteria, "criteria", "NAME=URL: a criteria service the plan runs or licenses, named by its policies' "+
+		"\"find criteria NAME ...\" (repeatable). It is sent the request: https, or http on this machine")
+	fs.Var(&criteriaTokens, "criteria-token-env", "NAME=VAR: the environment variable holding criteria service NAME's bearer token")
+	network := fs.String("network", "", "the plan's provider network: a file of NPIs (one per line, or a CSV's first column)")
+	npiRegistry := fs.String("npi-registry", "", `where providers' specialties are read: "nppes" (the public NPI Registry API; `+
+		`it is sent the provider's NPI only), or a CSV of npi,taxonomy... extracted from the NPPES download`)
 	plansFile := fs.String("plans", "", "serve several health plans from one server: a JSON file listing each plan's id, "+
 		"name, hostname, policies and data directories, and its tokens and PAS server; each plan is its own console, accounts, "+
 		"cases and audit log at its own hostname. The per-plan flags (-policies, -hostname, -token-env, -pas-*, -goldcard, "+
@@ -231,7 +239,8 @@ func serve(args []string) error {
 	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
 	if *plansFile != "" {
 		for _, f := range []string{"policies", "hostname", "token-env", "pas-url", "pas-token-env", "pas-ca", "pas-api-url",
-			"goldcard", "fax-token-env", "appeals-token-env", "demo-account", "oidc-issuer"} {
+			"goldcard", "fax-token-env", "appeals-token-env", "demo-account", "oidc-issuer", "criteria", "criteria-token-env",
+			"network", "npi-registry"} {
 			if set[f] {
 				return fmt.Errorf("-%s is set per plan in the -plans file (single sign-on and the demonstration are for one plan)", f)
 			}
@@ -247,9 +256,30 @@ func serve(args []string) error {
 			return err
 		}
 	} else {
+		crit := map[string]criteriaSpec{}
+		for _, c := range criteria {
+			name, u, ok := strings.Cut(c, "=")
+			if !ok || name == "" || u == "" {
+				return fmt.Errorf("-criteria %q is NAME=URL", c)
+			}
+			if _, dup := crit[name]; dup {
+				return fmt.Errorf("-criteria %s is given twice", name)
+			}
+			crit[name] = criteriaSpec{URL: u}
+		}
+		for _, c := range criteriaTokens {
+			name, v, ok := strings.Cut(c, "=")
+			cs, known := crit[name]
+			if !ok || !known {
+				return fmt.Errorf("-criteria-token-env %q is NAME=VAR, for a NAME given with -criteria", c)
+			}
+			cs.TokenEnv = v
+			crit[name] = cs
+		}
 		plans = []planSpec{{Hostname: strings.ToLower(*hostname), Policies: *dir, Data: *data, TokenEnv: *tokenEnv,
 			PASURL: *pasURL, PASAPI: *pasAPI, PASTokenEnv: *pasTokenEnv, PASCA: *pasCA, GoldCard: *goldCardFile,
-			FaxTokenEnv: *faxTokenEnv, AppealsTokenEnv: *appealsTokenEnv}}
+			FaxTokenEnv: *faxTokenEnv, AppealsTokenEnv: *appealsTokenEnv, Criteria: crit, Network: *network,
+			NPIRegistry: *npiRegistry}}
 	}
 	names := planNames(plans)
 	if err := ac.check(names, *tlsCert); err != nil {
@@ -980,3 +1010,9 @@ func draftCmd(args []string, w, errw io.Writer) error {
 	fmt.Fprintf(w, "wrote %s (status draft). Read every rule against the document before signing it off.\n", *out)
 	return nil
 }
+
+// multiFlag is a flag that may be given more than once.
+type multiFlag []string
+
+func (m *multiFlag) String() string     { return strings.Join(*m, ",") }
+func (m *multiFlag) Set(v string) error { *m = append(*m, v); return nil }

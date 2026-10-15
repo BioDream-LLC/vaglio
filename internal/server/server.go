@@ -34,6 +34,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/decide"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/intake"
+	"github.com/biodream-llc/vaglio/internal/outside"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/reader"
 	"github.com/biodream-llc/vaglio/internal/versions"
@@ -95,6 +96,8 @@ type Config struct {
 	Scheduled map[string]*policy.Policy
 	// PolicyRoot is the policy directory, where a scheduled policy's file is moved into force on its day.
 	PolicyRoot string
+	// Outside are the sources of evidence a request does not carry: criteria services, the network, the NPI registry.
+	Outside *outside.Sources
 	// AutoRead, when set (with Reader), reads a pended request's documents at once, and may approve on them.
 	AutoRead *AutoRead
 	// Faxes, when set, is the inbox of faxes received from the plan's fax service, which posts each to

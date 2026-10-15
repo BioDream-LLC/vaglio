@@ -116,7 +116,7 @@ func Decide(store *cases.Store, p *policy.Policy, c *cases.Case) (*decide.Result
 	if err != nil {
 		return nil, err
 	}
-	return decide.Decide(p, evidence.Extract(p, req).Request(p.ID))
+	return decide.Decide(p, evidence.ExtractWith(p, req, c.Evidence.FromOutside()).Request(p.ID))
 }
 
 func request(store *cases.Store, c *cases.Case) (*pas.Request, error) {
@@ -151,7 +151,7 @@ func redecide(store *cases.Store, p *policy.Policy, c *cases.Case) (string, stri
 	if system, code, _ := strings.Cut(c.Service, "|"); !p.Decides(system, code) {
 		return "pend", notDecided, nil // no longer this policy's: the PAS server would keep its own answer
 	}
-	res, err := decide.Decide(p, evidence.Extract(p, req).Request(p.ID))
+	res, err := decide.Decide(p, evidence.ExtractWith(p, req, c.Evidence.FromOutside()).Request(p.ID))
 	if err != nil {
 		return "", "", err
 	}

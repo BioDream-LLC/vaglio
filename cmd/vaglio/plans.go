@@ -21,6 +21,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/editor"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/intake"
+	"github.com/biodream-llc/vaglio/internal/outside"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/reader"
 	"github.com/biodream-llc/vaglio/internal/server"
@@ -52,8 +53,75 @@ type planSpec struct {
 	ClinicianDenials bool `json:"clinicianDenials,omitempty"`
 	// EditPolicies: this plan's console has the policy editor (serve -edit-policies turns it on for every plan).
 	EditPolicies bool `json:"editPolicies,omitempty"`
+	// Criteria are the plan's criteria services, by the name its policies give them: {"url": ..., "tokenEnv": ...}.
+	Criteria map[string]criteriaSpec `json:"criteria,omitempty"`
+	// Network is the plan's provider network file (NPIs); NPIRegistry is "nppes" for the public registry, or a file.
+	Network     string `json:"network,omitempty"`
+	NPIRegistry string `json:"npiRegistry,omitempty"`
 
 	allowed []string // Host header values it answers to
+}
+
+// criteriaSpec is one criteria service.
+type criteriaSpec struct {
+	URL      string `json:"url"`
+	TokenEnv string `json:"tokenEnv,omitempty"`
+	CA       string `json:"ca,omitempty"`
+}
+
+// openOutside makes a plan's outside sources, and refuses a policy reading one the plan lacks: its evidence would
+// never be addressed, so every request would pend.
+func openOutside(sp planSpec, policies map[string]*policy.Policy) (*outside.Sources, error) {
+	src := &outside.Sources{Criteria: map[string]*outside.CriteriaService{}}
+	for name, c := range sp.Criteria {
+		token, err := secretFrom(c.TokenEnv)
+		if err != nil {
+			return nil, fmt.Errorf("criteria %s: %w", name, err)
+		}
+		hc, err := tlsserve.Client(c.CA, 5*time.Second)
+		if err != nil {
+			return nil, fmt.Errorf("criteria %s: %w", name, err)
+		}
+		svc, err := outside.NewCriteriaService(name, c.URL, token, hc)
+		if err != nil {
+			return nil, err
+		}
+		src.Criteria[name] = svc
+	}
+	if sp.Network != "" {
+		n, err := outside.LoadNetwork(sp.Network)
+		if err != nil {
+			return nil, err
+		}
+		src.Network = n
+	}
+	switch sp.NPIRegistry {
+	case "":
+	case "nppes":
+		src.Registry = &outside.NPPES{}
+	default:
+		r, err := outside.LoadFileRegistry(sp.NPIRegistry)
+		if err != nil {
+			return nil, err
+		}
+		src.Registry = r
+	}
+	for _, p := range policies {
+		for _, a := range p.Arguments {
+			for _, s := range a.Find {
+				switch {
+				case s.Criteria != nil && src.Criteria[s.Criteria.Service] == nil:
+					return nil, fmt.Errorf("policy %s reads criteria service %q, which is not configured (-criteria %s=URL)",
+						p.ID, s.Criteria.Service, s.Criteria.Service)
+				case s.Provider != nil && s.Provider.InNetwork && src.Network == nil:
+					return nil, fmt.Errorf("policy %s asks whether the provider is in network: give the network file (-network)", p.ID)
+				case s.Provider != nil && !s.Provider.InNetwork && src.Registry == nil:
+					return nil, fmt.Errorf("policy %s reads the provider's specialty: give -npi-registry nppes, or a file", p.ID)
+				}
+			}
+		}
+	}
+	return src, nil
 }
 
 // shared are the settings every plan of a server takes from serve's flags.
@@ -178,6 +246,15 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 	if err != nil {
 		return fail(err)
 	}
+	src, err := openOutside(sp, policies)
+	if err != nil {
+		return fail(err)
+	}
+	for _, p := range scheduled {
+		if _, err := openOutside(sp, map[string]*policy.Policy{p.ID: p}); err != nil {
+			return fail(fmt.Errorf("scheduled: %w", err))
+		}
+	}
 	var gold *goldcard.Config
 	if sp.GoldCard != "" {
 		if gold, err = goldcard.Load(sp.GoldCard, policies); err != nil {
@@ -225,6 +302,7 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 		ExtensionDays:    sh.extensionDays,
 		Scheduled:        scheduled,
 		PolicyRoot:       sp.Policies,
+		Outside:          src,
 	}
 	if sp.FaxTokenEnv != "" {
 		if cfg.FaxToken, err = secretFrom(sp.FaxTokenEnv); err != nil {
@@ -301,6 +379,17 @@ func (op *openedPlan) report(origin string) {
 	}
 	if op.cfg.Faxes != nil {
 		log.Printf("%sfax inbox: the fax service posts to %s/api/feeds/fax; kept in %s", who, origin, op.cfg.Faxes.Dir)
+	}
+	if o := op.cfg.Outside; o != nil {
+		for name, c := range o.Criteria {
+			log.Printf("%scriteria service %s: %s", who, name, c.URL)
+		}
+		if o.Network != nil {
+			log.Printf("%sprovider network: %s", who, o.Network.Source)
+		}
+		if o.Registry != nil {
+			log.Printf("%sNPI registry: %s", who, op.spec.NPIRegistry)
+		}
 	}
 	if op.cfg.ClinicianDenials {
 		log.Printf("%sclinician denials: the engine proposes denials; only clinicians make them", who)

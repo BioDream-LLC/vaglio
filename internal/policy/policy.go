@@ -71,6 +71,13 @@ type Source struct {
 	// Observation is a final Observation coded with one of these codes, whose value the source's test reads as present
 	// or absent.
 	Observation *Observation `json:"observation,omitempty"`
+	// Criteria is a criterion answered by a criteria service the plan runs or licenses (serve -criteria NAME=URL): the
+	// service is sent the request and answers met, not met, or unknown. Unknown, an error or no answer in time is not
+	// addressed. Vaglio ships no licensed criteria; this is how a plan's own are cited in its proofs.
+	Criteria *CriteriaRef `json:"criteria,omitempty"`
+	// Provider is a fact about the requesting provider: in the plan's network (serve -network FILE), or of one of these
+	// specialties (NUCC taxonomy codes, from the federal NPI registry, serve -npi-registry).
+	Provider *ProviderTest `json:"provider,omitempty"`
 	// Medication is a medication the patient was given: completed MedicationDispenses and MedicationStatements coded with
 	// one of these codes. A prescription alone (a MedicationRequest) is not read: it says a drug was ordered, not taken.
 	Medication *Medication `json:"medication,omitempty"`
@@ -89,6 +96,21 @@ type Medication struct {
 	// NotTakenIsAbsent: a MedicationStatement with status not-taken documents the evidence absent. Only where "not
 	// taken" answers the clause: a statement that a drug was never taken says nothing of a contraindication to it.
 	NotTakenIsAbsent bool `json:"notTakenIsAbsent,omitempty"`
+}
+
+// CriteriaRef names a criterion of a criteria service.
+type CriteriaRef struct {
+	Service   string `json:"service"`   // the name serve -criteria gives it
+	Criterion string `json:"criterion"` // the service's id for the criterion
+}
+
+// ProviderTest is a fact about the requesting provider, known by their NPI.
+type ProviderTest struct {
+	// InNetwork: the provider is in the plan's network file (present), or not (absent).
+	InNetwork bool `json:"inNetwork,omitempty"`
+	// Taxonomy: the provider's specialties in the NPI registry include one of these NUCC codes (present), or the
+	// registry lists the provider with none of them (absent).
+	Taxonomy []string `json:"taxonomy,omitempty"`
 }
 
 // SignOff is the clinician who approved a policy for use, and when.
@@ -230,6 +252,8 @@ var (
 	nameRe  = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 	dateRe  = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 	loincRe = regexp.MustCompile(`^\d{1,7}-\d$`)
+	// taxonomyRe is a NUCC Health Care Provider Taxonomy code.
+	taxonomyRe = regexp.MustCompile(`^[0-9]{3}[0-9A-Z]{6}X$`)
 )
 
 // Load reads a policy and validates it. Unknown fields are refused: a misspelt field is a rule silently not applied.
@@ -367,17 +391,32 @@ func (p *Policy) Validate() error {
 
 func (s Source) validate() error {
 	set := 0
-	for _, b := range []bool{s.Question != "", s.Condition != nil, s.Procedure != nil, s.Observation != nil, s.Medication != nil} {
+	for _, b := range []bool{s.Question != "", s.Condition != nil, s.Procedure != nil, s.Observation != nil, s.Medication != nil,
+		s.Criteria != nil, s.Provider != nil} {
 		if b {
 			set++
 		}
 	}
 	if set != 1 {
-		return fmt.Errorf("a source is exactly one of a question, a condition, a procedure, an observation or a medication")
+		return fmt.Errorf("a source is exactly one of a question, a condition, a procedure, an observation, a medication, " +
+			"criteria or a provider test")
 	}
 	switch {
 	case s.Question != "":
 		return nil
+	case s.Criteria != nil:
+		if !nameRe.MatchString(s.Criteria.Service) || strings.TrimSpace(s.Criteria.Criterion) == "" {
+			return fmt.Errorf("a criteria source names its service (lower case) and the criterion")
+		}
+	case s.Provider != nil:
+		if s.Provider.InNetwork == (len(s.Provider.Taxonomy) > 0) {
+			return fmt.Errorf("a provider source tests one thing: in-network, or a specialty")
+		}
+		for _, t := range s.Provider.Taxonomy {
+			if !taxonomyRe.MatchString(t) {
+				return fmt.Errorf("%q is not a NUCC taxonomy code (ten characters, such as 207X00000X)", t)
+			}
+		}
 	case s.Condition != nil:
 		if err := codes(s.Condition.System, s.Condition.Codes); err != nil {
 			return fmt.Errorf("a condition source %w", err)

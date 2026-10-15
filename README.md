@@ -100,7 +100,7 @@ itself checks, built from the plan's quoted policy and the cited record, by code
 | **Why an answer is what it is** | An explanation or rationale, in the vendor's form | A proof per decision: each step cites the clause and the record |
 | **Missing evidence** | Handled by each product's own rules | Never supports a denial; asked for by name |
 | **Before a policy goes live** | The vendor's validation | Tested on every combination of evidence, signed off by a clinician, replayed over past cases |
-| **Medical-necessity criteria** | Often licensed InterQual or MCG | The plan's own policies, or public Medicare and Medicaid ones |
+| **Medical-necessity criteria** | Often licensed InterQual or MCG | The plan's own policies, public Medicare and Medicaid ones, or the plan's licensed criteria through its own criteria service |
 | **Source code** | Closed | Published (PolyForm Shield 1.0.0) |
 | **Track record** | Large production deployments | None yet (v0.0.1) |
 
@@ -109,7 +109,8 @@ Around it:
 - **Clinical criteria.** [InterQual](https://business.optum.com/en/operations-technology/clinical-decision-support/interqual.html)
   (Optum) and [MCG](https://www.mcg.com/) sell the proprietary criteria most plans decide against. Vaglio does not
   include them and cannot redistribute them. Its library is drafted from public sources, Medicare LCDs and NCDs and
-  Medicaid criteria, and a plan can write its own policies in the editor.
+  Medicaid criteria, and a plan can write its own policies in the editor. A plan that licenses criteria can run them as
+  a service and cite them in its policies (`find criteria`), so the proof names the licensed criterion and what it found.
 - **Provider-side tools** such as Rhyme, Myndshft and Infinitus help providers submit requests. They are on the other
   side of the exchange: Vaglio's answers reach them through the PAS server.
 - **Open source.** The HL7 Da Vinci reference implementations
@@ -118,7 +119,8 @@ Around it:
   decision engines. We know of no other open or source-available one.
 - **Perfuse** is the free, Apache-2.0 standards layer (PAS, X12 278, CDex, subscriptions) that Vaglio sits behind.
 
-What Vaglio does not have yet, plainly: licensed criteria content, production sites, and a managed service. It is
+What Vaglio does not have yet, plainly: licensed criteria content of its own (a plan brings its licence through a
+criteria service), a provider network of its own (it reads the plan's), production sites, and a managed service. It is
 software a plan runs, not an outcome a vendor sells.
 
 <sub>Vendor details are from their public pages as of October 2026. Product names are their owners' trademarks.</sub>
@@ -273,6 +275,17 @@ software a plan runs, not an outcome a vendor sells.
 - **Richer date rules**: `find condition ... onset at least N days` (how long a condition has lasted), and
   `find procedure ... within N days times N apart N days` (two blocks at least 14 days apart; two RFA sessions in a
   year). Fewer procedures, or ones that cannot be dated apart, document nothing either way.
+- **Evidence from outside the request**: a criteria service the plan runs or licenses (`find criteria NAME CRITERION`,
+  `serve -criteria NAME=URL [-criteria-token-env NAME=VAR]`), the plan's provider network (`find provider in-network`,
+  `serve -network npis.csv`), and providers' specialties from the federal NPI registry (`find provider specialty
+  207X00000X`, `serve -npi-registry nppes` for the public API, which is sent only the provider's NPI and kept for a day,
+  or a CSV extract of its download). Each finding is cited in the proof like the record's own: the criterion and the
+  service's reason, the network file and its date, the registry's listing. Every source fails safe: no answer in five
+  seconds, an error, "unknown", or an NPI the registry does not know is not addressed, which never denies; a "not met"
+  without its reason is not used. A policy naming a source the server lacks is refused at start. A stored case is
+  decided again (replays, confirmed readings) on what the sources said then, not asked again. The criteria service is
+  sent `{"criterion", "policy", "policyVersion", "service", "bundle"}` and answers `{"result": "met" | "not-met" |
+  "unknown", "reason", "reference"}`.
 - **Reading documents at scale** (`serve -read-documents`, with `-document-model-url`): a pended request's documents,
   and those received later, are read as soon as it pends, by a pool of workers (`-read-workers`, 2 by default), so a
   reviewer opens the case with the proposals waiting. With `-approve-from-documents`, a request the policy approves on

@@ -65,7 +65,7 @@ func (cfg Config) redecide(c *cases.Case) (*Redecision, error) {
 	if err != nil {
 		return nil, err
 	}
-	x := evidence.Extract(p, req)
+	x := evidence.ExtractWith(p, req, c.Evidence.FromOutside()) // what outside sources said then
 	r := x.Request(p.ID)
 	for _, cf := range c.Confirmations {
 		if !cf.Confirmed {

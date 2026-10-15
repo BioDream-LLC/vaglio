@@ -77,7 +77,10 @@ func (cfg Config) crdAdvise(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, Advice{Decides: false})
 		return
 	}
-	x := evidence.Extract(p, req)
+	bundle, _ := json.Marshal(b)
+	of, notes := cfg.Outside.Findings(r.Context(), p, req, bundle, in.Service.System+"|"+in.Service.Code)
+	x := evidence.ExtractWith(p, req, of)
+	x.Ignored = append(x.Ignored, notes...)
 	res, err := decide.Decide(p, x.Request(p.ID))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

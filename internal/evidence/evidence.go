@@ -92,8 +92,31 @@ func (x Extraction) Request(policyID string) decide.Request {
 	return req
 }
 
+// Outside prefixes the citations of findings from outside the request: a criteria service, the plan's network, the NPI
+// registry.
+var Outside = []string{"criteria:", "network:", "npi-registry:"}
+
+// FromOutside is the extraction's findings from outside the request, to decide a stored case again on what those
+// sources said then, without asking them again.
+func (x Extraction) FromOutside() []Finding {
+	var out []Finding
+	for _, f := range x.Findings {
+		for _, pre := range Outside {
+			if strings.HasPrefix(f.Reference, pre) {
+				out = append(out, f)
+				break
+			}
+		}
+	}
+	return out
+}
+
 // Extract reads every QuestionnaireResponse and Condition in the request against the policy's sources.
-func Extract(p *policy.Policy, req *pas.Request) Extraction {
+func Extract(p *policy.Policy, req *pas.Request) Extraction { return ExtractWith(p, req, nil) }
+
+// ExtractWith is Extract with findings from outside the request (a criteria service, the provider registry) beside the
+// request's own, so a contradiction between them is found like any other.
+func ExtractWith(p *policy.Policy, req *pas.Request, outside []Finding) Extraction {
 	x := Extraction{Findings: []Finding{}, Contradictions: []Contradiction{}, Ignored: []string{}, Unread: []Unread{}}
 	on, dated := day(pas.Str(req.Claim["created"]))
 	asOf := &on
@@ -166,6 +189,7 @@ func Extract(p *policy.Policy, req *pas.Request) Extraction {
 
 	x.Findings = append(x.Findings, medications(p, meds, asOf, &x.Ignored)...)
 	x.Findings = append(x.Findings, counts(p, counted)...)
+	x.Findings = append(x.Findings, outside...)
 
 	byArg := map[string]*Contradiction{}
 	var order []string

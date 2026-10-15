@@ -35,6 +35,9 @@ package policy
 //	  find observation loinc 72166-2 coded snomed present 77176002 absent 266919005
 //	  find observation loinc 11111-1 yes-no
 //	  find medication rxnorm 105585 within 365 days lasting 90 days not-taken means absent
+//	  find criteria interqual "KNEE-TKA-3.2"        # a criterion of the plan's own criteria service (serve -criteria)
+//	  find provider specialty 207X00000X            # the provider's specialty, from the NPI registry
+//	  find provider in-network                      # in the plan's network file (serve -network)
 //	  request document loinc 11506-3                # documents to ask for, by LOINC attachment code (CDex)
 //
 //	criterion indication_unestablished
@@ -459,7 +462,7 @@ func (ps *parser) days(at token, args []token, i int) (int, int, error) {
 
 func (ps *parser) source(kw token, args []token) (Source, error) {
 	if len(args) == 0 {
-		return Source{}, ps.errAt(kw, "write: find question|condition|procedure|observation|medication ...")
+		return Source{}, ps.errAt(kw, "write: find question|condition|procedure|observation|medication|criteria|provider ...")
 	}
 	what := args[0]
 	if what.text == "question" {
@@ -467,6 +470,25 @@ func (ps *parser) source(kw token, args []token) (Source, error) {
 			return Source{}, ps.errAt(what, "write: find question <linkId>")
 		}
 		return Source{Question: args[1].text}, nil
+	}
+	if what.text == "criteria" {
+		if len(args) != 3 || args[2].quoted && strings.TrimSpace(args[2].text) == "" {
+			return Source{}, ps.errAt(what, "write: find criteria <service> <criterion>")
+		}
+		return Source{Criteria: &CriteriaRef{Service: args[1].text, Criterion: args[2].text}}, nil
+	}
+	if what.text == "provider" {
+		switch {
+		case len(args) == 2 && args[1].text == "in-network":
+			return Source{Provider: &ProviderTest{InNetwork: true}}, nil
+		case len(args) >= 3 && args[1].text == "specialty":
+			var codes []string
+			for _, a := range args[2:] {
+				codes = append(codes, a.text)
+			}
+			return Source{Provider: &ProviderTest{Taxonomy: codes}}, nil
+		}
+		return Source{}, ps.errAt(what, "write: find provider in-network, or find provider specialty <NUCC code>...")
 	}
 	if what.text != "condition" && what.text != "procedure" && what.text != "observation" && what.text != "medication" {
 		return Source{}, ps.errAt(what, "a source is a question, condition, procedure, observation or medication, not %q", what.text)
@@ -701,6 +723,13 @@ func formatSource(s Source) string {
 	switch {
 	case s.Question != "":
 		return "question " + s.Question
+	case s.Criteria != nil:
+		return "criteria " + s.Criteria.Service + " " + word(s.Criteria.Criterion)
+	case s.Provider != nil:
+		if s.Provider.InNetwork {
+			return "provider in-network"
+		}
+		return "provider specialty " + strings.Join(s.Provider.Taxonomy, " ")
 	case s.Condition != nil:
 		out := "condition " + systemName(s.Condition.System) + " " + strings.Join(s.Condition.Codes, " ")
 		if len(s.Condition.Present) > 0 {
