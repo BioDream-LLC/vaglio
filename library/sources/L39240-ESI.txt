@@ -1,0 +1,182 @@
+Source: Local Coverage Determination L39240, Epidural Steroid Injections for Pain Management (Noridian), Medicare (https://www.cms.gov/medicare-coverage-database/view/lcd.aspx?lcdid=39240), version 15, revision effective 04/16/2026, retrieved 2026-10-15 through the CMS
+Coverage API. Copied as published, markup removed. A Medicare coverage document, used here to draft a library
+policy; check it against the current version before relying on it.
+
+COVERAGE INDICATIONS, LIMITATIONS, AND/OR MEDICAL NECESSITY
+Compliance with the provisions in this LCD may be monitored and addressed through post payment data analysis and subsequent medical review audits.
+
+History/Background and/or General Information
+
+Low back pain is highly prevalent, with reports of 50-84% of adults experiencing back pain at some point, with a high prevalence in adults 65 and older and the highest cause of disability globally. Low back and neck pain can influence the quality of life and function, and is associated with depression and anxiety.1,2 In a 2018 National Health Interview Survey, the CDC reported 28% of men and 31.6% of women age ≥ 18 had lower back pain in the past three months.3 There is debate and a lack of consensus on which modalities are best to treat chronic low back pain (CLBP).4
+
+The epidural space lies outside the dural membrane inside the spinal canal. It runs the length of the spine and, in addition to the exiting nerve roots, contains fatty tissue and blood vessels. The spinal nerve roots can be affected by a number of processes as they travel through the epidural space, including but not limited to compression from herniation of the nucleus pulposus of the intervertebral discs, degenerative changes involving combinations of the spinal ligaments, discs, zygapophyseal (facet) joints, intraspinal synovial cysts, osteophytes, and mechanical derangements of the spine such as spondylolisthesis. As a result of mechanical irritation, inflammation, injury to a spinal nerve root or other processes, the spinal nerve roots can become a significant and disabling source of radicular pain1 epidural steroid injections (ESIs) have been used as a non-surgical modality to treat low back and neck pain. These procedures typically involve the injection of a solution containing corticosteroids and/or anesthetic into the epidural space, although saline may be included at times.
+
+The ESI can be performed in three ways. Interlaminar (IESI) approaches the epidural space from the posterior spine between the two vertebral laminae near the midline. In the transforaminal approach (TFESI), the injectant is delivered through the neuroforamen adjacent to the nerve root within the intervertebral foramen. The caudal approach (CESI) enters through the sacral hiatus at the sacral canal to access the epidural space.1,4
+
+The treatment of individuals with spinal disorders, including pain, can be complex, and it is recommended that all individuals being considered for interventional spinal procedures undergo a thorough evaluation and be treated following development of a comprehensive care plan.
+
+Covered Indications
+
+1. Epidural steroid injection (ESI) will be considered medically reasonable and necessary when the following three (3) requirements are met:
+
+History, physical examination, and concordant radiological image-based diagnostic testing supporting one of the following5:
+
+Lumbar, cervical or thoracic radiculopathy, radicular pain and/or neurogenic claudication due to disc herniation, osteophyte or osteophyte complexes, severe degenerative disc disease, producing foraminal or central spinal stenosis5; OR
+
+Post-laminectomy syndrome6-8; OR
+
+Acute herpes zoster associated pain6
+
+AND
+
+Radiculopathy, radicular pain and/or neurogenic claudication is severe enough to greatly impact quality of life or function. An objective pain scale or functional assessment must be performed at baseline (prior to interventions). The same scale* must be repeated at each follow-up for assessment of response.
+
+AND
+
+Pain duration of at least four (4) weeks, and the inability to tolerate noninvasive conservative care or medical documentation of failure to respond to four (4) weeks of noninvasive conservative care or acute herpes zoster refractory to conservative management where a four (4) week wait is not required.9
+
+2. The ESIs must be performed under CT or fluoroscopy image guidance with contrast,10 unless the patient has a documented allergy to low molecular weight nonionic contrast. If the patient has such an allergy, ultrasound guidance without contrast may be considered. If the patient is pregnant, ultrasound guidance without contrast may also be considered.
+
+3. Transforaminal epidural steroid injections (TFESIs) involving a maximum of two (2) levels in one spinal region are considered medically reasonable and necessary. It is important to recognize that most conditions would not ordinarily require ESI at two (2) levels in one spinal region.11
+
+4. Caudal epidural steroid injections (CESIs) and interlaminar epidural steroid injections (ILESIs) involving a maximum of one level are considered medically reasonable and necessary.11
+
+5. It is medically reasonable and necessary to perform TFESIs bilaterally only when clinically indicated.
+
+6. Repeat ESI when the first injection directly and significantly provided improvement of the condition being treated may be considered medically reasonable and necessary when the medical record documents a minimum of consistent 50% improvement in pain for at least three (3) months or at least 50% consistent improvement in the ability to perform previously painful movements and ADLs as compared to baseline measurement using the same scale.7,8 If a patient fails to respond well to the initial ESI, a repeat ESI after 14 days can be performed, using a different approach, level and/or medication if appropriate, with the rationale and medical necessity for the second ESI documented in the medical record.
+
+7. An initial injection of contrast is required to confirm epidural placement, unless the patient has a contraindication to contrast. The subsequent epidural steroid injections should include corticosteroids and may be combined with anesthetics or saline.1
+
+8. The ESIs should be performed in conjunction with conservative treatments.9
+
+9. Patient’s should be part of an active rehabilitation program, home exercise program or functional restoration program.10,12
+
+*Note: The scales used to measure of pain and/or disability must be documented in the medical record. Acceptable scales include but are not limited to: verbal rating scales, Numerical Rating Scale (NRS) and Visual Analog Scale (VAS) for pain assessment, and Pain Disability Assessment Scale (PDAS), Oswestry Disability Index (ODI), Oswestry Low Back Pain Disability Questionnaire (OSW), Quebec Back Pain Disability Scale (QUE), Roland Morris Pain Scale, Back Pain Functional Scale (BPFS), and the PROMIS profile domains to assess function.
+
+Limitations
+
+1. Injections performed without image guidance or by ultrasound are not considered reasonable and necessary except in cases of documented contraindication to contrast media (e.g., allergy, pregnancy).13-15
+
+2. ESIs performed with biologicals or other substances not FDA designated for this use is considered investigational and not medically reasonable and necessary.
+
+3. It is not considered medically reasonable and necessary to perform multiple blocks (ESI, sympathetic blocks, facet blocks, trigger point injections etc.) during the same session as ESIs, with the exception of a facet synovial cyst and ESI performed in the same session.
+
+4. Use of Moderate or Deep Sedation, General Anesthesia, and Monitored Anesthesia Care (MAC) is usually unnecessary or rarely indicated for these procedures and therefore not considered medically reasonable and necessary.16 Even in patients with a needle phobia and anxiety, typically oral anxiolytics suffice. In exceptional and unique cases, documentation must clearly establish the need for such sedation in the specific patient.
+
+5. ESIs to treat non-specific low back pain (LBP), axial spine pain, complex regional pain syndrome, widespread diffuse pain, pain from neuropathy from other causes, cervicogenic headaches are considered investigational and therefore are not considered medically reasonable and necessary.6,17,18
+
+6. ESIs are limited to a maximum of four (4) sessions per spinal region in a rolling twelve (12) month period.7
+
+7. It is not considered medically reasonable and necessary for more than one spinal region to be injected in the same session.11
+
+8. It is not considered medically reasonable and necessary to perform TFESIs at more than two (2) nerve root levels during the same session.11
+
+9. It is not considered medically reasonable and necessary to perform CESIs or ILESIs at more than one (1) level during the same session.11
+
+10. It is not medically reasonable and necessary to perform CESIs or ILESIs bilaterally.14
+
+11. It is not medically reasonable and necessary to prescribe a predetermined series of ESIs.8
+
+12. Steroid dosing should be the lowest effective amount, it is recommended not to exceed 80 mg of triamcinolone, 12 mg of betamethasone, 15 mg of dexamethasone per session.16
+
+13. It generally would not be considered medically reasonable and necessary for treatment with ESI to extend beyond 12 months.19,20 Frequent continuation of epidural steroid injections over 12 months may trigger a focused medical review. Use beyond twelve months requires the following:
+
+Pain is severe enough to cause a significant degree of functional disability or vocational disability.
+
+ESI provides at least 50% sustained improvement of pain and/or 50% objective improvement in function (using same scale as baseline).
+
+Rationale for the continuation of ESIs including but not limited to patient is high-risk surgical candidates, the patient does not desire surgery, recurrence of pain in the same location relieved with ESIs for at least three months
+
+The primary care provider must be notified regarding continuation of procedures and prolonged repeat steroid use.
+
+14. ESIs should not be performed when contraindicated including but not limited to: suspected or active localized spinal infection, significant systemic infection, compressive lesions of the spinal cord, conus medullaris or cauda equina, suspicion or major risk factors for cancer.11
+
+Provider Qualifications
+
+Medicare Program Integrity Manual states services will be considered medically reasonable and necessary only if performed by appropriately trained providers.
+
+Procedures listed and included in this LCD do not constitute anesthesia services. Evaluation, methods and techniques specified are not considered routine for surgical or perioperative anesthesia.
+
+Patient safety and quality of care mandate that healthcare professionals who perform epidural injections/procedures for chronic pain (not surgical anesthesia) are appropriately trained and/ or credentialed by a formal residency/fellowship program and/or are certified by either an accredited and nationally recognized organization or by a post-graduate training course accredited by an established national accrediting body or accredited professional training program whose core curriculum includes the performance and management of the procedures addressed in this policy. Credentialing or privileges are required for procedures performed in inpatient and outpatient settings.21,22
+
+All aspects of care must be within the provider’s medical licensure and scope of practice. Reimbursement for procedures utilizing imaging techniques may be made to providers who meet training requirements for the procedures in this policy only if their respective state allows such in their practice act and formally licenses or certifies the practitioner to use and interpret these imaging modalities (ionizing radiation and associated contrast material, magnetic resonance imaging, ultrasound). At a minimum, training must cover and develop an understanding of anatomy and drug pharmacodynamics and kinetics as well as proficiency in diagnosis and management of disease, the technical performance of the procedure, and utilization of the required associated imaging modalities.
+
+Notice: Services performed for any given diagnosis must meet all of the indications and limitations stated in this LCD, the general requirements for medical necessity as stated in CMS payment policy manuals, any and all existing CMS national coverage determinations, and all Medicare payment rules.
+
+Definitions
+
+Acute Low Back Pain – Low back pain, which is present for up to six weeks.
+
+Caudal epidural steroid injection (CESI) – The administration via injection of contrast (absent allergy to contrast), followed by the introduction of corticosteroids and possibly a local anesthetic into the epidural space of the spine by inserting a needle through the sacral hiatus under fluoroscopic guidance into the epidural space at the sacral canal.
+
+Cervicobrachialgia- Pain in the neck radiating to the arm, caused by compression of nerve roots of the cervical spine.
+
+Conservative Therapy – Consists of an appropriate combination of medication (for example, non-steroidal anti-inflammatory [NSAIDs], analgesics, etc.) in addition to physical therapy, spinal manipulation therapy, cognitive behavioral therapy (CBT), home exercise program, or other interventions based on the individual’s specific presentation, physical findings, and imaging results.
+
+Disability – Activity limitations and/or participation restrictions in an individual with a health condition, disorder or disease.23
+
+Discogenic pain – Pain originating from damaged vertebral disc, particularly, but not always, due to degenerative disc disease.
+
+Epidural steroid injection – The administration via injection of contrast (absent allergy to contrast), followed by the introduction of a corticosteroid and possibly a local anesthetic into the epidural space of the spine.
+
+GRADE – A system developed by the GRADE Working Group to address the shortcomings of present grading systems in healthcare. The GRADE system uses a common, sensible, and transparent approach to grading the quality of evidence. The results of applying the GRADE system to clinical trial data are displayed in a table known as a GRADE profile.
+
+Impairment – A significant deviation, loss, or loss of use of any body structure or body function in an individual with a health condition, disorder, or disease.23
+
+Interlaminar epidural steroid injection (ILESI) – An injection of contrast (absent allergy to contrast), followed by the introduction of a corticosteroid and possibly a local anesthetic into the epidural space of the spine either through a paramedian or midline interlaminar approach under fluoroscopic guidance.
+
+Level – The spinal roots that enter and exit the spinal column between each of the vertebral segments cervical (C1-C8), thoracic (T1-T2), lumbar levels (L1-L5), and Sacral (S1-S5).
+
+Multidisciplinary biopsychosocial rehabilitation (MBR) – Targets physical as well as psychological and social aspects of LBP and involves a team of healthcare providers with different professional backgrounds and training.10
+
+Non-Radicular Back Pain – The radiating non-neuropathic pain which is not causally related to a spinal nerve root irritation and does not produce reproducible neuropathic symptoms in an objective dermatomal pattern.
+
+Neural foramina – (also called intervertebral foramen) The openings between each pair of vertebra where a number of structures pass through.
+
+Neurogenic claudication – (also known as pseudoclaudication) The physical manifestation of leg pain, leg weakness, or leg heaviness exacerbated by walking and relieved with leaning forward or sitting down.
+
+Nonspecific low back pain – Back pain that cannot be attributed to a specific disease or spinal pathology.
+
+Osteophyte – An exostosis or benign osteoma of the facet joints or vertebral endplates.
+
+Osteophyte Complex – The protrusion of disc material, buckling of the ligamentum flavum, joint hypertrophy, and osteophytes.
+
+Peripheral neuropathic pain – Pain is causally related to a lesion or disease of the peripheral somatosensory nerves.
+
+Post-laminectomy syndrome – A group of symptoms following a lumbar laminectomy which include diffuse low back pain with associated dull and aching pain involving the legs.
+
+Radicular Back Pain – Radicular pain is nerve root pain radiating from the affected spinal segment in a distribution concordant with the known distribution of the nerve root.
+
+Radiculopathy – Radiating neuropathic pain causally related to the spinal nerve root irritation, which extends distally, producing neuropathic pain in a myotomal or dermatomal pattern.
+
+Radiculitis – Inflammation of the nerve roots which produces radicular pain without objective neurological findings on physical examination.
+
+Session – A time period, which includes all procedures (i.e., medial branch blocks (MBB), intraarticular injections (IA), facet cyst ruptures, and RFA ablations) performed during one day.
+
+Transforaminal epidural steroid injection (TFESI) – An epidural injection performed via a paramedian approach to enter the epidural space by placing the needle in the intervertebral foramen (neuroforamen) to inject near the dorsal root ganglion and exiting spinal nerve root (previously known as a selective nerve root block).
+
+Selective Nerve Root Block (SNRB) – A diagnostic injection of contrast (absent allergy to contrast) of a single nerve root to assist with surgical planning, followed by the introduction of a local anesthetic by inserting a needle into the neuroforamen under fluoroscopic or computed tomography (CT) guidance. SNRB’s are erroneously referred to as a Transforaminal Epidural Steroid Injection (TFESI), although technically, SNRB’s involve the introduction of anesthetic only used for diagnostic purposes.
+
+Spinal stenosis – The narrowing of the central spinal canal or foraminal openings, usually due to spinal degeneration that occurs with aging. It may also be the result of spinal disc herniation, osteoarthritis, or a tumor. Lumbar spinal stenosis results in low back pain and pain or abnormal sensations in the legs, thighs, feet, or buttocks, or loss of bladder and bowel control. Neurogenic claudication is often a clinical condition that results from spinal stenosis.
+
+Spondylolisthesis- A disorder of the spinal cord in which one vertebra slips onto the vertebra below it resulting in pain in lower back or legs.
+
+Subacute Pain – The temporal definition of pain occurring during the six to twelve-week time period.
+
+Chronic pain – The temporal definition of pain occurring 12 weeks after the onset of the pain.
+
+Contractor Advisory Committee Meeting 2/11/2021
+
+A Multi-jurisdictional contract advisory committee meeting of subject matter experts (SMEs) was convened on 02/11/2021 regarding epidural injections and procedures. The transcript, voting results, and audio are available on each MACs website. The panel consisted of experts in pain management including anesthesiology and physical medicine and rehabilitation, as well as neuroradiology, internal medicine, and a certified nurse anesthetist with representation throughout the country and including academic and clinical experts. The panel will be referred to as SMEs, and their input incorporated through the review to correlate the evidence with expert input.
+
+CPT/HCPCS CODES
+From the LCD's Billing and Coding article A58993 (version 16), retrieved the same day through the CMS Coverage API: the
+procedure codes it lists for this LCD (their descriptions are not copied).
+62320
+62321
+62322
+62323
+64479
+64480
+64483
+64484

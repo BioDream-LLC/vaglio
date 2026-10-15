@@ -1,0 +1,109 @@
+Source: National Coverage Determination 20.29, Hyperbaric Oxygen Therapy, Medicare (https://www.cms.gov/medicare-coverage-database/view/ncd.aspx?ncdid=12), version 4,
+effective 04/03/2017, retrieved 2026-10-15 through the CMS Coverage API. Copied as published, markup removed. A Medicare
+coverage document, used here to draft a library policy; and Medicare Claims Processing Manual chapter 32, section 30.1
+(https://www.cms.gov/regulations-and-guidance/guidance/manuals/downloads/clm104c32.pdf), for its codes. Check both against
+the current versions before relying on them.
+
+INDICATIONS AND LIMITATIONS OF COVERAGE
+A. Covered Conditions
+
+Program reimbursement for HBO therapy will be limited to that which is administered in a chamber (including the one man unit) and is limited to the following conditions:
+
+Acute carbon monoxide intoxication,
+
+Decompression illness,
+
+Gas embolism,
+
+Gas gangrene,
+
+Acute traumatic peripheral ischemia. HBO therapy is a valuable adjunctive treatment to be used in combination with accepted standard therapeutic measures when loss of function, limb, or life is threatened.
+
+Crush injuries and suturing of severed limbs. As in the previous conditions, HBO therapy would be an adjunctive treatment when loss of function, limb, or life is threatened.
+
+Progressive necrotizing infections (necrotizing fasciitis),
+
+Acute peripheral arterial insufficiency,
+
+Preparation and preservation of compromised skin grafts (not for primary management of wounds),
+
+Chronic refractory osteomyelitis, unresponsive to conventional medical and surgical management,
+
+Osteoradionecrosis as an adjunct to conventional treatment,
+
+Soft tissue radionecrosis as an adjunct to conventional treatment,
+
+Cyanide poisoning,
+
+Actinomycosis, only as an adjunct to conventional therapy when the disease process is refractory to antibiotics and surgical treatment,
+
+Diabetic wounds of the lower extremities in patients who meet the following three criteria:
+
+Patient has type I or type II diabetes and has a lower extremity wound that is due to diabetes;
+
+Patient has a wound classified as Wagner grade III or higher; and
+
+Patient has failed an adequate course of standard wound therapy.
+
+The use of HBO therapy is covered as adjunctive therapy only after there are no measurable signs of healing for at least 30 –days of treatment with standard wound therapy and must be used in addition to standard wound care. Standard wound care in patients with diabetic wounds includes: assessment of a patient’s vascular status and correction of any vascular problems in the affected limb if possible, optimization of nutritional status, optimization of glucose control, debridement by any means to remove devitalized tissue, maintenance of a clean, moist bed of granulation tissue with appropriate moist dressings, appropriate off-loading, and necessary treatment to resolve any infection that might be present. Failure to respond to standard wound care occurs when there are no measurable signs of healing for at least 30 consecutive days. Wounds must be evaluated at least every 30 days during administration of HBO therapy. Continued treatment with HBO therapy is not covered if measurable signs of healing have not been demonstrated within any 30-day period of treatment.
+
+B. Noncovered Conditions
+
+All other indications not specified under §270.4(A) are not covered under the Medicare program. No program payment may be made for any conditions other than those listed in §270.4(A).
+
+No program payment may be made for HBO in the treatment of the following conditions:
+
+Cutaneous, decubitus, and stasis ulcers.
+
+Chronic peripheral vascular insufficiency.
+
+Anaerobic septicemia and infection other than clostridial.
+
+Skin burns (thermal).
+
+Senility.
+
+Myocardial infarction.
+
+Cardiogenic shock.
+
+Sickle cell anemia.
+
+Acute thermal and chemical pulmonary damage, i.e., smoke inhalation with pulmonary insufficiency.
+
+Acute or chronic cerebral vascular insufficiency.
+
+Hepatic necrosis.
+
+Aerobic septicemia.
+
+Nonvascular causes of chronic brain syndrome (Pick’s disease, Alzheimer’s disease, Korsakoff’s disease).
+
+Tetanus.
+
+Systemic aerobic infection.
+
+Organ transplantation.
+
+Organ storage.
+
+Pulmonary emphysema.
+
+Exceptional blood loss anemia.
+
+Multiple Sclerosis.
+
+Arthritic Diseases.
+
+Acute cerebral edema.
+
+C. Topical Application of Oxygen
+
+Section C-Topical Application of Oxygen has been removed from NCD 20.29. Effective for dates of service on and after (04/03/17), Medicare Administrative Contractors (MACs) acting within their respective jurisdictions may determine coverage of topical application of oxygen for chronic non-healing wounds.
+Cross reference: §270.5 of this manual.
+
+(This NCD was last reviewed April 2017)
+
+CODES (Medicare Claims Processing Manual chapter 32, section 30.1)
+99183 – Physician attendance and supervision of hyperbaric oxygen therapy, per session.
+G0277 – Hyperbaric oxygen under pressure, full body chamber, per 30-minute interval.

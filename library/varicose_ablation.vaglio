@@ -1,0 +1,105 @@
+# Endovenous radiofrequency or laser ablation of varicose veins (36475, 36476, 36478, 36479), from Medicare LCD L34536
+# (WPS). Status draft: awaiting clinical sign-off (vaglio signoff). Every clause is quoted from
+# library/sources/L34536-varicose.txt; the codes are those of its billing and coding article A56914.
+#
+# Drafted by hand. The LCD's indications for any treatment, a failed three-month trial of conservative therapy and
+# symptoms (one or more of the six it lists), then those for ablation: the target is the greater or lesser saphenous
+# vein or its tributaries, the vein's diameter is within the limit (20 mm for radiofrequency, 30 mm for laser), and none
+# of an aneurysm in the target segment, thrombosis or tortuosity that would impair the catheter, or significant
+# peripheral arterial disease. Asymptomatic veins, or symptomatic ones without the trial, are cosmetic under the LCD:
+# here that is the symptoms or the trial documented absent, which denies. Questions only: the LCD names no codes for
+# any of these. Not decided here: sclerotherapy, surgery, mechanochemical (36473, 36474) and adhesive (36482, 36483)
+# closure, spider veins, and the duplex scans the LCD allows. States: WPS's jurisdictions 5 and 8; check the
+# contractor's current list.
+policy varicose_ablation
+  title "Endovenous radiofrequency or laser ablation of varicose veins (36475-36479)"
+  version 0.1.0
+  source "Medicare LCD L34536, Treatment of Varicose Veins of the Lower Extremities (WPS): indications and limitations for ERFA and laser ablation"
+  status draft
+  authority lcd
+  lines medicare-advantage medicare
+  states IA KS MO NE IN MI
+  questionnaire https://vaglio.example/Questionnaire/varicose-ablation
+  service cpt 36475 36476 36478 36479
+
+evidence conservative_failed
+  text "A 3-month trial of conservative therapy (exercise, leg elevation, weight loss, graduated compression) has failed"
+  clause "A 3-month trial of conservative therapy such as exercise, periodic leg elevation, weight loss, graduated compressive therapy, and avoidance of prolonged immobility where appropriate, has failed, AND"
+  find question conservative-failed
+  request document loinc 11506-3
+
+evidence symptomatic
+  text "Symptoms: pain, aching, cramping, burning, itching or swelling impairing mobility; recurrent superficial phlebitis; a non-healing ulcer; bleeding; stasis dermatitis; or refractory dependent edema"
+  clause "The patient is symptomatic and has 1, or more, of the following:"
+  find question symptomatic
+
+evidence saphenous_target
+  text "The target is the greater or lesser saphenous vein or its tributaries"
+  clause "ERFA and laser ablation are covered only for the treatment of symptomatic varicosities of the lesser or greater saphenous veins and their tributaries which have failed 3 months of conservative therapy."
+  find question saphenous-target
+
+evidence diameter_within_limit
+  text "The vein's maximum diameter is within 20 mm (radiofrequency) or 30 mm (laser)"
+  clause "Maximum vein diameter of 20 mm for ERFA or 30 mm for laser ablation."
+  find question diameter-within-limit
+  request document loinc 18748-4
+
+evidence aneurysm
+  text "An aneurysm in the target segment"
+  clause "Absence of aneurysm in the target segment."
+  find question aneurysm
+
+evidence thrombosis_tortuosity
+  text "Thrombosis or vein tortuosity that would impair catheter advancement"
+  clause "Absence of thrombosis or vein tortuosity, which would impair catheter advancement."
+  find question thrombosis-tortuosity
+
+evidence arterial_disease
+  text "Significant peripheral arterial disease"
+  clause "The absence of significant peripheral arterial diseases."
+  find question arterial-disease
+
+criterion no_trial
+  text "A failed 3-month trial of conservative therapy is not documented."
+  clause "A 3-month trial of conservative therapy such as exercise, periodic leg elevation, weight loss, graduated compressive therapy, and avoidance of prolonged immobility where appropriate, has failed, AND"
+  defeated by conservative_failed
+
+criterion no_symptoms
+  text "Symptoms of the kinds the LCD lists are not documented."
+  clause "The patient is symptomatic and has 1, or more, of the following:"
+  defeated by symptomatic
+
+criterion not_saphenous
+  text "A saphenous target is not documented."
+  clause "ERFA and laser ablation are covered only for the treatment of symptomatic varicosities of the lesser or greater saphenous veins and their tributaries which have failed 3 months of conservative therapy."
+  defeated by saphenous_target
+
+criterion diameter_unshown
+  text "A vein diameter within the limit is not documented."
+  clause "Maximum vein diameter of 20 mm for ERFA or 30 mm for laser ablation."
+  defeated by diameter_within_limit
+
+criterion criteria_met
+  text "The trial, symptom, target and diameter requirements are met."
+  clause "In addition to the above (see A), the patient's anatomy and clinical condition are amenable to the proposed treatment including ALL of the following:"
+  defeated by no_trial no_symptoms not_saphenous diameter_unshown
+
+criterion no_exclusion_shown
+  text "No aneurysm, no thrombosis or tortuosity, and no significant arterial disease."
+  clause "In addition to the above (see A), the patient's anatomy and clinical condition are amenable to the proposed treatment including ALL of the following:"
+  defeated by aneurysm thrombosis_tortuosity arterial_disease
+
+decision approve approves
+  text "Approve the ablation."
+  clause "ERFA and laser ablation are covered only for the treatment of symptomatic varicosities of the lesser or greater saphenous veins and their tributaries which have failed 3 months of conservative therapy."
+  defeated by no_trial no_symptoms not_saphenous diameter_unshown aneurysm thrombosis_tortuosity arterial_disease
+
+decision deny_criteria denies
+  text "Deny: the conservative trial, symptoms, saphenous target or diameter requirement is not met."
+  clause "The treatment of asymptomatic varicose veins, or symptomatic varicose veins without a 3-month trial of conservative measures, by any technique, will be considered cosmetic and therefore not covered."
+  defeated by criteria_met
+
+decision deny_anatomy denies
+  text "Deny: an aneurysm, thrombosis or tortuosity, or significant arterial disease makes the anatomy unsuitable."
+  clause "In addition to the above (see A), the patient's anatomy and clinical condition are amenable to the proposed treatment including ALL of the following:"
+  defeated by no_exclusion_shown

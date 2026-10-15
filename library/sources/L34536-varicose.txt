@@ -1,0 +1,74 @@
+Source: Local Coverage Determination L34536, Treatment of Varicose Veins of the Lower Extremities (WPS), Medicare (https://www.cms.gov/medicare-coverage-database/view/lcd.aspx?lcdid=34536), version 36, revision effective 08/28/2025, retrieved 2026-10-15 through the CMS
+Coverage API. Copied as published, markup removed. A Medicare coverage document, used here to draft a library
+policy; check it against the current version before relying on it.
+
+COVERAGE INDICATIONS, LIMITATIONS, AND/OR MEDICAL NECESSITY
+Historically, varicose veins have been treated by conservative measures such as exercise, periodic leg elevation, weight loss, compressive therapy, and avoidance of prolonged immobility. When conservative measures are unsuccessful, and symptoms persist, the next step has been sclerotherapy or surgical ligation with or without stripping. Sclerotherapy involves the injection of a sclerosing solution into the varicose vein(s).
+
+More recently, endoluminal radiofrequency ablation (ERFA) and endoluminal laser ablation have been developed as alternatives to sclerotherapy and surgical intervention. These procedures are designed to damage the intimal wall of the vein resulting in fibrosis and subsequent ablation of the lumen of a segment of the vessel. Both procedures utilize specially designed catheters inserted through a small incision in the distal thigh and advanced, often under ultrasound guidance, nearly to the saphenofemoral junction. The catheter is then slowly withdrawn while controlled radiofrequency or laser energy is applied. This is followed by external compression of the treated segment.
+
+Doppler ultrasound or duplex studies are often used to map the anatomy of the venous system prior to the procedure. There is adequate evidence that pre-procedural ultrasound is helpful, and Medicare will cover 1 ultrasound or duplex scan prior to the procedure to determine the extent and configuration of the varicosities when it is medically necessary.
+
+Evidence and clinical experience support the use of ultrasound guidance during the procedure and show that the outcomes may be improved and complication rates may be minimized when ultrasound guidance is used. The CPT codes for radiofrequency and laser include the intra-operative ultrasound service in the evaluation, and ultrasound may not be billed separately with these procedures.
+
+A duplex ultrasound examination is considered medically necessary and will be allowed when performed within 1 week (preferably within 72 hours) of EFRA to check for any evidence of thrombus extension from the saphenofemoral junction into the deep system.
+
+Indications for surgical treatment and sclerotherapy:
+
+A 3-month trial of conservative therapy such as exercise, periodic leg elevation, weight loss, graduated compressive therapy, and avoidance of prolonged immobility where appropriate, has failed, AND
+
+The patient is symptomatic and has 1, or more, of the following:
+
+Pain, aching, cramping, burning, itching and/or swelling during activity or after prolonged standing severe enough to impair mobility
+
+Recurrent episodes of superficial phlebitis
+
+Non-healing skin ulceration
+
+Bleeding from a varicosity
+
+Stasis dermatitis
+
+Refractory dependent edema
+
+The treatment of spider veins/telangiectasis will be considered medically necessary only if there is associated hemorrhage.
+
+Indications for ERFA or laser ablation:
+
+In addition to the above (see A), the patient's anatomy and clinical condition are amenable to the proposed treatment including ALL of the following:
+
+Absence of aneurysm in the target segment.
+
+Maximum vein diameter of 20 mm for ERFA or 30 mm for laser ablation.
+
+Absence of thrombosis or vein tortuosity, which would impair catheter advancement.
+
+The absence of significant peripheral arterial diseases.
+
+Limitations for ERFA and laser ablation:
+
+ERFA and laser ablation are covered only for the treatment of symptomatic varicosities of the lesser or greater saphenous veins and their tributaries which have failed 3 months of conservative therapy.
+
+Intra-operative ultrasound guidance is not separately payable with ERFA, laser ablation.
+
+The treatment of asymptomatic varicose veins, or symptomatic varicose veins without a 3-month trial of conservative measures, by any technique, will be considered cosmetic and therefore not covered.
+
+The treatment of spider veins or superficial telangiectasis by any technique is also considered cosmetic, and therefore not covered unless there is associated bleeding.
+
+Coverage is only for devices specifically FDA-approved for these procedures.
+
+One pre-operative Doppler ultrasound study or duplex scan will be covered.
+
+Post –procedure Doppler ultrasound studies will be allowed if medically necessary.
+
+The stab phlebectomy of the same vein performed on the same day as endovenous radiofrequency or laser ablation may be covered if the criteria for reasonable and necessary as described in this LCD are met.
+
+If sclerotherapy is used with endovenous ablation, it may be covered if the criteria for reasonable and necessary as described in this LCD are met.
+
+The treatment of asymptomatic veins with endoluminal ablation or sclerotherapy is not considered medically reasonable and necessary. If it is determined on review that the varicose veins were asymptomatic, the claim will be denied as a noncovered (cosmetic) procedure.
+
+CPT/HCPCS CODES
+From the LCD's Billing and Coding article A56914 (version 19), retrieved the same day through the CMS Coverage API: the
+procedure codes it lists for this LCD (their descriptions are not copied).
+36465 36466 36468 36470 36471 36473 36474 36475 36476 36478 36479 36482 36483 37700 37718 37722 37735 37760 37761 37765
+37766 37780 37785 37799 93970 93971

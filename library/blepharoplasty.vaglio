@@ -1,0 +1,82 @@
+# Functional upper blepharoplasty and blepharoptosis repair (15822, 15823, 67901-67908), from Medicare LCD L34411
+# (Palmetto GBA). Status draft: awaiting clinical sign-off (vaglio signoff). Every clause is quoted from
+# library/sources/L34411-blepharoplasty.txt; the codes are those of its billing and coding article A56503.
+#
+# Drafted by hand. Functional, and so covered, when the upper lid or overhanging skin produces a functional deficit of
+# the visual field or brow fatigue, or for one of the other functional indications the LCD lists. Denied when it is
+# done solely for cosmetic reasons, or when every indication is documented absent. The LCD lists dermatochalasis
+# itself among the functional indications; it is kept as written, for the clinician to read with the rest. The LCD
+# text read here gives no visual-field threshold or photograph requirement for these procedures; a plan's own rule for
+# them belongs in its version. Not decided here: brow lift (67900), lower lid and other eyelid surgery. States: Palmetto's
+# jurisdictions J and M; check the contractor's current list.
+policy blepharoplasty
+  title "Functional upper blepharoplasty or blepharoptosis repair (15822, 15823, 67901-67908)"
+  version 0.1.0
+  source "Medicare LCD L34411, Blepharoplasty, Eyelid Surgery, and Brow Lift (Palmetto GBA)"
+  status draft
+  authority lcd
+  lines medicare-advantage medicare
+  states AL GA TN NC SC VA WV
+  questionnaire https://vaglio.example/Questionnaire/blepharoplasty
+  service cpt 15822 15823 67901 67902 67903 67904 67906 67908
+
+evidence visual_field_deficit
+  text "The upper lid position or overhanging skin produces a functional deficit of the visual field, or brow fatigue"
+  clause "Upper blepharoplasty (removal of upper eyelid skin) and/or repair of blepharoptosis (drooping of the upper eyelid, which relates to the position of the eyelid margin with respect to the eyeball and visual axis) is considered functional in nature when the upper lid position or overhanging skin (see “pseudoptosis” below) is sufficiently low to produce a functional deficit related to visual field impairment or brow fatigue."
+  find question visual-field-deficit
+  request document loinc 28570-0
+
+evidence dermatochalasis
+  text "Dermatochalasis: excess eyelid skin with loss of elasticity"
+  clause "Dermatochalasis: excess skin with loss of elasticity that is usually the result of the aging process"
+  find question dermatochalasis
+
+evidence chronic_dermatitis
+  text "Chronic dermatitis from blepharochalasis due to severe allergy or thyroid eye disease"
+  clause "Chronic dermatitis due to blepharochalasis (excess skin associated with chronic recurrent eyelid edema that physically stretches the skin) due to severe allergy or thyroid eye disease"
+  find question chronic-dermatitis
+
+evidence spectacle_fitting
+  text "Significant difficulty fitting spectacles because of excess eyelid tissue"
+  clause "Significant/extreme difficulty fitting spectacles due to excessive eyelid tissue"
+  find question spectacle-fitting
+
+evidence blepharospasm
+  text "Debilitating essential blepharospasm for which all other treatments failed or are contraindicated"
+  clause "Primary essential idiopathic blepharospasm (uncontrollable spasms of the periorbital muscles) that is debilitating for which all other treatments have failed or are contraindicated"
+  find question blepharospasm
+
+evidence prosthesis_fitting
+  text "An anophthalmic socket with ptosis making a prosthesis hard to fit"
+  clause "Anophthalmic socket with ptosis contributing to difficulty fitting a prosthesis"
+  find question prosthesis-fitting
+
+evidence cosmetic_only
+  text "Done solely for cosmetic reasons"
+  clause "Surgeries performed solely for cosmetic reasons are not considered reasonable and necessary and therefore, not covered by Medicare."
+  find question cosmetic-only
+
+criterion no_indication
+  text "No functional indication is documented."
+  clause "Medicare considers surgeries performed to improve function as reasonable and necessary."
+  defeated by visual_field_deficit dermatochalasis chronic_dermatitis spectacle_fitting blepharospasm prosthesis_fitting
+
+criterion not_cosmetic_only
+  text "It is not shown to be done solely for cosmetic reasons."
+  clause "Surgeries performed solely for cosmetic reasons are not considered reasonable and necessary and therefore, not covered by Medicare."
+  defeated by cosmetic_only
+
+decision approve approves
+  text "Approve the surgery as functional."
+  clause "Medicare considers surgeries performed to improve function as reasonable and necessary."
+  defeated by no_indication cosmetic_only
+
+decision deny_no_indication denies
+  text "Deny: no functional indication; the surgery is not shown to improve function."
+  clause "Medicare considers surgeries performed to improve function as reasonable and necessary."
+  defeated by visual_field_deficit dermatochalasis chronic_dermatitis spectacle_fitting blepharospasm prosthesis_fitting
+
+decision deny_cosmetic denies
+  text "Deny: done solely for cosmetic reasons."
+  clause "Surgeries performed solely for cosmetic reasons are not considered reasonable and necessary and therefore, not covered by Medicare."
+  defeated by not_cosmetic_only

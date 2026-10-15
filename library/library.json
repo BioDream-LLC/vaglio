@@ -42,6 +42,36 @@
       "source": "sources/WA-LNI-lumbar-MRI.txt",
       "basis": "Washington State L&I Imaging Guidelines: Lumbar Spine MRI (2010), with Medicare article A57207 for codes",
       "category": "Advanced imaging (spine)"
+    },
+    {
+      "file": "esi.vaglio",
+      "source": "sources/L39240-ESI.txt",
+      "basis": "Medicare LCD L39240 (Noridian), epidural steroid injections",
+      "category": "Musculoskeletal and orthopedics: spine and pain"
+    },
+    {
+      "file": "varicose_ablation.vaglio",
+      "source": "sources/L34536-varicose.txt",
+      "basis": "Medicare LCD L34536 (WPS), endovenous radiofrequency and laser ablation",
+      "category": "Vascular"
+    },
+    {
+      "file": "blepharoplasty.vaglio",
+      "source": "sources/L34411-blepharoplasty.txt",
+      "basis": "Medicare LCD L34411 (Palmetto GBA), functional upper blepharoplasty and blepharoptosis repair",
+      "category": "Potentially cosmetic procedures"
+    },
+    {
+      "file": "pov.vaglio",
+      "source": "sources/L33789-power-mobility.txt",
+      "basis": "Medicare LCD L33789 (DME MACs), Group 1 power operated vehicles",
+      "category": "Durable medical equipment: mobility"
+    },
+    {
+      "file": "hbo.vaglio",
+      "source": "sources/NCD20.29-HBO.txt",
+      "basis": "Medicare NCD 20.29, hyperbaric oxygen therapy",
+      "category": "Wound care"
     }
   ]
 }

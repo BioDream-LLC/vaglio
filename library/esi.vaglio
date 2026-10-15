@@ -1,0 +1,124 @@
+# Epidural steroid injections (62320-62323, 64479-64484), from Medicare LCD L39240 (Noridian). Status draft: awaiting
+# clinical sign-off (vaglio signoff). Every clause is quoted from library/sources/L39240-ESI.txt; the codes are those of
+# its billing and coding article A58993.
+#
+# Drafted by hand. The LCD's three requirements, all needed: a supported diagnosis (radiculopathy, radicular pain or
+# neurogenic claudication from the causes it names, post-laminectomy syndrome, or acute herpes zoster pain), pain severe
+# enough to greatly impact quality of life or function, measured on a scale, and four weeks of pain with conservative
+# care failed or not tolerated (not needed for refractory acute zoster: the question asks it as the LCD words it). Also
+# required: image guidance with contrast (or ultrasound with a documented contrast allergy or pregnancy), and an active
+# rehabilitation or home exercise program, which the LCD says the patient "should" be in: read here as required, for
+# the clinician to keep or drop. Denied: the conditions the LCD calls investigational, a contraindication it lists, a
+# repeat injection whose first one did not give the 50% improvement for three months the LCD asks, and a fifth session
+# in a rolling 12 months (four injection procedures in the last 365 days, found in the record or answered; the record
+# cannot tell spinal regions apart, so the clinician should check one in another region). Not decided here: the number
+# of levels and sides in one session, sedation, steroid dose and use beyond 12 months; the claim's codes and the
+# reviewer read those. States: Noridian's jurisdictions E and F; check the contractor's current list.
+policy esi
+  title "Epidural steroid injection (62320-62323, 64479-64484)"
+  version 0.1.0
+  source "Medicare LCD L39240, Epidural Steroid Injections for Pain Management (Noridian), covered indications and limitations"
+  status draft
+  authority lcd
+  lines medicare-advantage medicare
+  states AK AZ CA HI ID MT ND NV OR SD UT WA WY
+  questionnaire https://vaglio.example/Questionnaire/esi
+  service cpt 62320 62321 62322 62323 64479 64480 64483 64484
+
+evidence supported_diagnosis
+  text "History, examination and concordant imaging support radiculopathy, radicular pain or neurogenic claudication from disc herniation, osteophytes or severe degenerative disc disease with stenosis; post-laminectomy syndrome; or acute herpes zoster pain"
+  clause "History, physical examination, and concordant radiological image-based diagnostic testing supporting one of the following5:"
+  find question supported-diagnosis
+  request document loinc 18748-4
+
+evidence severe_impact
+  text "Pain severe enough to greatly impact quality of life or function, measured on an objective scale at baseline"
+  clause "Radiculopathy, radicular pain and/or neurogenic claudication is severe enough to greatly impact quality of life or function."
+  find question severe-impact
+
+evidence conservative_care
+  text "Four weeks of pain, with four weeks of noninvasive conservative care failed or not tolerated (or acute herpes zoster refractory to conservative management)"
+  clause "Pain duration of at least four (4) weeks, and the inability to tolerate noninvasive conservative care or medical documentation of failure to respond to four (4) weeks of noninvasive conservative care or acute herpes zoster refractory to conservative management where a four (4) week wait is not required"
+  find question conservative-care
+  request document loinc 11506-3
+
+evidence image_guidance
+  text "To be performed under CT or fluoroscopy guidance with contrast (or ultrasound with a documented contrast allergy or pregnancy)"
+  clause "The ESIs must be performed under CT or fluoroscopy image guidance with contrast,"
+  find question image-guidance
+
+evidence rehabilitation
+  text "In an active rehabilitation, home exercise or functional restoration program"
+  clause "Patient’s should be part of an active rehabilitation program, home exercise program or functional restoration program."
+  find question rehabilitation
+
+evidence investigational_condition
+  text "For non-specific low back pain, axial spine pain, complex regional pain syndrome, widespread diffuse pain, neuropathy from other causes or cervicogenic headache"
+  clause "ESIs to treat non-specific low back pain (LBP), axial spine pain, complex regional pain syndrome, widespread diffuse pain, pain from neuropathy from other causes, cervicogenic headaches are considered investigational and therefore are not considered medically reasonable and necessary."
+  find question investigational-condition
+
+evidence contraindicated
+  text "A contraindication: spinal or significant systemic infection, a compressive lesion of the cord, conus or cauda equina, or suspicion or major risk factors for cancer"
+  clause "ESIs should not be performed when contraindicated including but not limited to: suspected or active localized spinal infection, significant systemic infection, compressive lesions of the spinal cord, conus medullaris or cauda equina, suspicion or major risk factors for cancer."
+  find question esi-contraindicated
+
+evidence repeat_without_benefit
+  text "A repeat injection after an earlier one that did not give 50% improvement for at least three months"
+  clause "Repeat ESI when the first injection directly and significantly provided improvement of the condition being treated may be considered medically reasonable and necessary when the medical record documents a minimum of consistent 50% improvement in pain for at least three (3) months"
+  find question repeat-without-benefit
+
+evidence four_sessions_this_year
+  text "Four epidural steroid injection sessions already in the last 12 months"
+  clause "ESIs are limited to a maximum of four (4) sessions per spinal region in a rolling twelve (12) month period."
+  find question four-sessions-this-year
+  find procedure cpt 62320 62321 62322 62323 64479 64480 64483 64484 within 365 days times 4
+
+criterion no_diagnosis
+  text "A supported qualifying diagnosis is not documented."
+  clause "History, physical examination, and concordant radiological image-based diagnostic testing supporting one of the following5:"
+  defeated by supported_diagnosis
+
+criterion no_impact
+  text "Pain greatly impacting quality of life or function, on a measured scale, is not documented."
+  clause "Radiculopathy, radicular pain and/or neurogenic claudication is severe enough to greatly impact quality of life or function."
+  defeated by severe_impact
+
+criterion no_conservative_care
+  text "Four weeks of pain with conservative care failed or not tolerated is not documented."
+  clause "Pain duration of at least four (4) weeks, and the inability to tolerate noninvasive conservative care or medical documentation of failure to respond to four (4) weeks of noninvasive conservative care or acute herpes zoster refractory to conservative management where a four (4) week wait is not required"
+  defeated by conservative_care
+
+criterion no_guidance
+  text "Image guidance with contrast, or ultrasound with a documented reason, is not documented."
+  clause "The ESIs must be performed under CT or fluoroscopy image guidance with contrast,"
+  defeated by image_guidance
+
+criterion no_rehabilitation
+  text "An active rehabilitation or home exercise program is not documented."
+  clause "Patient’s should be part of an active rehabilitation program, home exercise program or functional restoration program."
+  defeated by rehabilitation
+
+criterion criteria_met
+  text "The diagnosis, impact, conservative care, guidance and rehabilitation requirements are met."
+  clause "Epidural steroid injection (ESI) will be considered medically reasonable and necessary when the following three (3) requirements are met:"
+  defeated by no_diagnosis no_impact no_conservative_care no_guidance no_rehabilitation
+
+criterion no_exclusion_shown
+  text "No investigational use, no contraindication, no repeat without benefit, and fewer than four sessions in 12 months."
+  clause "ESIs are limited to a maximum of four (4) sessions per spinal region in a rolling twelve (12) month period."
+  defeated by investigational_condition contraindicated repeat_without_benefit four_sessions_this_year
+
+decision approve approves
+  text "Approve the epidural steroid injection."
+  clause "Epidural steroid injection (ESI) will be considered medically reasonable and necessary when the following three (3) requirements are met:"
+  defeated by no_diagnosis no_impact no_conservative_care no_guidance no_rehabilitation investigational_condition contraindicated repeat_without_benefit four_sessions_this_year
+
+decision deny_criteria denies
+  text "Deny: the diagnosis, impact, conservative care, guidance or rehabilitation requirements are not met."
+  clause "Epidural steroid injection (ESI) will be considered medically reasonable and necessary when the following three (3) requirements are met:"
+  defeated by criteria_met
+
+decision deny_excluded denies
+  text "Deny: an investigational use, a contraindication, a repeat without benefit, or a fifth session in 12 months."
+  clause "ESIs are limited to a maximum of four (4) sessions per spinal region in a rolling twelve (12) month period."
+  defeated by no_exclusion_shown

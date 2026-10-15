@@ -323,8 +323,14 @@ software a plan runs, not an outcome a vendor sells.
   | `lumbar_mri_wa` | Washington L&I lumbar spine MRI guideline (72148, 72149, 72158) | Advanced imaging: spine |
   | `bariatric_ncd` | Medicare NCD 100.1 and Claims Processing Manual ch. 32 | Surgery: bariatric |
   | `adalimumab_ra_ut` | Utah Medicaid adalimumab criteria, RA (J0135, step therapy) | Drugs: specialty |
+  | `esi` | Medicare LCD L39240, epidural steroid injections (62320-62323, 64479-64484) | Musculoskeletal: spine and pain |
+  | `varicose_ablation` | Medicare LCD L34536, radiofrequency and laser vein ablation (36475-36479) | Vascular |
+  | `blepharoplasty` | Medicare LCD L34411, functional upper blepharoplasty and ptosis repair | Potentially cosmetic |
+  | `pov` | Medicare LCD L33789, Group 1 power operated vehicles (K0800-K0802) | DME: mobility |
+  | `hbo` | Medicare NCD 20.29 and Claims Processing Manual ch. 32, hyperbaric oxygen (G0277, 99183) | Wound care |
 
-  The last three are the sourced counterparts of the illustrative policies in `policies/`. Each policy's header says
+  `lumbar_mri_wa`, `bariatric_ncd` and `adalimumab_ra_ut` are the sourced counterparts of the illustrative policies in
+  `policies/`. Each policy's header says
   which readings of its source a clinician should confirm.
 - **A policy editor in the console** (`serve -edit-policies`): drafts are written and checked as they are typed (parse
   errors jump to the line; the exhaustive check and lint run beside it), saved to `-policies/drafts/`, and signed off by
@@ -384,7 +390,7 @@ software a plan runs, not an outcome a vendor sells.
 
 ## Status
 
-**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (157 Go test functions, the
+**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (185 Go test functions, the
 console's tests, and every policy checked on every combination of evidence), and the whole path has been run end to end
 through a real Perfuse. The policies in `policies/` are **illustrative only**: not any payer's policy and not clinical
 guidance.
@@ -410,6 +416,10 @@ How the code is laid out:
 - `internal/intake`: requests keyed in from a fax, a call, a letter or a portal, and the fax inbox.
 - `internal/outside`: criteria services, the provider network and the NPI registry. `internal/fairness`: error rates
   by group, with Fisher's exact test.
+- `internal/cases/work.go` and `internal/server/work.go`: the work queue, assignment, physicians, peer-to-peer calls,
+  appeals. `internal/eligibility`: the member file. `internal/ncpdp`: NCPDP SCRIPT ePA messages. `internal/feed`: the
+  signed webhook and export. `internal/faxsvc`: fax service connectors and the scan folder. `internal/seal`: encryption
+  at rest. `cmd/vaglio/standby.go`: the standby.
 - `deploy/demo/`: how the public demonstration at vaglio.perfuse.health:8443 is run.
 - `library/`: drafted policies, their sources and `library.json`; `library/drafts/` keeps the machine's own drafts.
 - `internal/server` + `web/`: the API and the React/Redux console (cases and review, policies and their check, trying a

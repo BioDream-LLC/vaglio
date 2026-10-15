@@ -1,0 +1,81 @@
+# Hyperbaric oxygen therapy (G0277, 99183), from Medicare NCD 20.29, with the codes of the Medicare Claims Processing
+# Manual chapter 32 section 30.1. Status draft: awaiting clinical sign-off (vaglio signoff). Every clause is quoted from
+# library/sources/NCD20.29-HBO.txt.
+#
+# Drafted by hand. Covered for the NCD's listed conditions (one question for the fourteen besides diabetic wounds), or
+# for a diabetic lower extremity wound meeting all three of its criteria: type 1 or 2 diabetes with a wound due to it,
+# Wagner grade III or higher, and an adequate course of standard wound therapy failed (no measurable healing in 30
+# days). Every other indication is not covered, so a request with neither is denied. Initial treatment only: the
+# NCD's 30-day re-evaluations of continued treatment, and the conditions it excludes by name (each simply not on the
+# covered list), are for the reviewer. Questions only: the NCD names no codes for the conditions or the wound grade.
+policy hbo
+  title "Hyperbaric oxygen therapy (G0277, 99183)"
+  version 0.1.0
+  source "Medicare NCD 20.29, Hyperbaric Oxygen Therapy: covered conditions; Claims Processing Manual ch. 32, 30.1 for codes"
+  status draft
+  authority ncd
+  lines medicare-advantage medicare
+  questionnaire https://vaglio.example/Questionnaire/hbo
+  service hcpcs G0277
+  service cpt 99183
+
+evidence covered_condition
+  text "One of the NCD's covered conditions: carbon monoxide poisoning, decompression illness, gas embolism, gas gangrene, acute traumatic peripheral ischemia, crush injury or reattached limb, necrotizing fasciitis, acute peripheral arterial insufficiency, compromised skin graft, refractory chronic osteomyelitis, osteoradionecrosis, soft tissue radionecrosis, cyanide poisoning, or refractory actinomycosis"
+  clause "Program reimbursement for HBO therapy will be limited to that which is administered in a chamber (including the one man unit) and is limited to the following conditions:"
+  find question covered-condition
+
+evidence diabetic_wound
+  text "Type 1 or type 2 diabetes with a lower extremity wound due to diabetes"
+  clause "Patient has type I or type II diabetes and has a lower extremity wound that is due to diabetes;"
+  find question diabetic-wound
+
+evidence wagner_3
+  text "The wound is Wagner grade III or higher"
+  clause "Patient has a wound classified as Wagner grade III or higher; and"
+  find question wagner-3
+
+evidence standard_care_failed
+  text "An adequate course of standard wound therapy has failed: no measurable signs of healing in 30 days"
+  clause "Patient has failed an adequate course of standard wound therapy."
+  find question standard-care-failed
+  request document loinc 11506-3
+
+criterion no_diabetic_wound
+  text "A diabetic lower extremity wound is not documented."
+  clause "Patient has type I or type II diabetes and has a lower extremity wound that is due to diabetes;"
+  defeated by diabetic_wound
+
+criterion not_wagner_3
+  text "A Wagner grade III or higher wound is not documented."
+  clause "Patient has a wound classified as Wagner grade III or higher; and"
+  defeated by wagner_3
+
+criterion standard_care_unshown
+  text "Failed standard wound therapy is not documented."
+  clause "Patient has failed an adequate course of standard wound therapy."
+  defeated by standard_care_failed
+
+criterion diabetic_criteria_met
+  text "All three diabetic wound criteria are met."
+  clause "Diabetic wounds of the lower extremities in patients who meet the following three criteria:"
+  defeated by no_diabetic_wound not_wagner_3 standard_care_unshown
+
+criterion no_indication
+  text "Neither a covered condition nor a qualifying diabetic wound is documented."
+  clause "All other indications not specified under §270.4(A) are not covered under the Medicare program."
+  defeated by covered_condition diabetic_criteria_met
+
+criterion indication_shown
+  text "A covered condition or a qualifying diabetic wound is documented."
+  clause "Program reimbursement for HBO therapy will be limited to that which is administered in a chamber (including the one man unit) and is limited to the following conditions:"
+  defeated by no_indication
+
+decision approve approves
+  text "Approve hyperbaric oxygen therapy."
+  clause "Program reimbursement for HBO therapy will be limited to that which is administered in a chamber (including the one man unit) and is limited to the following conditions:"
+  defeated by no_indication
+
+decision deny_not_covered denies
+  text "Deny: not a covered condition, and not a diabetic wound meeting all three criteria."
+  clause "All other indications not specified under §270.4(A) are not covered under the Medicare program."
+  defeated by indication_shown

@@ -1,0 +1,48 @@
+Source: Local Coverage Determination L34411, Blepharoplasty, Eyelid Surgery, and Brow Lift (Palmetto GBA), Medicare (https://www.cms.gov/medicare-coverage-database/view/lcd.aspx?lcdid=34411), version 46, revision effective 05/20/2021, retrieved 2026-10-15 through the CMS
+Coverage API. Copied as published, markup removed. A Medicare coverage document, used here to draft a library
+policy; check it against the current version before relying on it.
+
+COVERAGE INDICATIONS, LIMITATIONS, AND/OR MEDICAL NECESSITY
+Blepharoplasty, blepharoptosis repair, and brow lift are surgeries that may be performed to improve function or provided strictly for cosmetic reasons. Medicare considers surgeries performed to improve function as reasonable and necessary. Surgeries performed solely for cosmetic reasons are not considered reasonable and necessary and therefore, not covered by Medicare.
+
+When eyelid surgery is done to repair defects caused by trauma or tumor-ablative surgery (ectropion/entropion/corneal exposure), treat periorbital sequelae of thyroid disease and nerve palsy, or relieve refractory symptoms of blepharospasm, the procedure should be considered "reconstructive". This may involve rearrangement or excision of the structures with the eyelids and/or tissues of the cheek, forehead, and nasal areas. Occasionally, a graft of skin or other tissues is transplanted to replace deficient eyelid components.
+
+Blepharoptosis Repair, Blepharoplasty, and Browplasty
+
+Upper blepharoplasty (removal of upper eyelid skin) and/or repair of blepharoptosis (drooping of the upper eyelid, which relates to the position of the eyelid margin with respect to the eyeball and visual axis) is considered functional in nature when the upper lid position or overhanging skin (see “pseudoptosis” below) is sufficiently low to produce a functional deficit related to visual field impairment or brow fatigue.
+
+Other functional indications for upper blepharoplasty include:
+
+Dermatochalasis: excess skin with loss of elasticity that is usually the result of the aging process
+
+Chronic dermatitis due to blepharochalasis (excess skin associated with chronic recurrent eyelid edema that physically stretches the skin) due to severe allergy or thyroid eye disease
+
+Significant/extreme difficulty fitting spectacles due to excessive eyelid tissue
+
+Primary essential idiopathic blepharospasm (uncontrollable spasms of the periorbital muscles) that is debilitating for which all other treatments have failed or are contraindicated
+
+Anophthalmic socket with ptosis contributing to difficulty fitting a prosthesis
+
+Pseudoptosis, “false ptosis", for the purposes of this policy, describes the specific circumstance where the eyelid margin is usually in an appropriate anatomic position with respect to the eyeball and visual axis, but the amount of excessive skin from dermatochalasis or blepharochalasis is so great as to overhang the eyelid margin. Other causes of pseudoptosis, such as hypotropia and globe malposition, are managed differently and do not apply to this policy. Pseudoptosis resulting from insufficient posterior support of the eyelid, as in phthisis bulbi, microphthalmos, congenital or acquired anophthalmos, or enophthalmos is often correctable by prosthesis modification when a prosthesis is present. Persistent ptosis may require surgical ptosis repair.
+
+Brow ptosis (drooping of the eyebrows to such an extent that excess tissue is pushed into the upper eyelid) may also produce or contribute to functional visual field impairment. Brow ptosis repair may be required in some situations in place of, or in addition to, upper lid blepharoplasty to achieve a satisfactory functional repair.
+
+Other Eyelid Surgeries
+
+Other eyelid surgeries may be considered reconstructive in nature for the following indications where there is functional impairment as documented by preoperative frontal and lateral photographs:
+
+Ectropion, entropion, or epiblepharon repair for corneal and/or conjunctival injury
+
+Disease due to ectropion, entropion, trichiasis, or epiblepharon
+
+Poor eyelid tone (with or without entropion) that causes lid retraction and exposure keratoconjunctivitis and often, epiphora
+
+Lower eyelid edema due to a metabolic or inflammatory disorder when the edema is causing a persistent visual impairment (e.g., secondary to systemic corticosteroid therapy, myxedema, Grave's disease, nephrotic syndrome) and is unresponsive to documented conservative medical management.
+
+When a noncovered cosmetic procedure is performed in the same operative session as a covered surgical procedure, benefits will be provided for the covered procedure only. For example, if blepharochalasis could be resolved sufficiently by brow ptosis repair alone, an upper blepharoplasty in addition would be considered cosmetic. Similarly, if a visual field deficit could be resolved sufficiently by upper blepharoplasty alone (for tissue hanging over the lid margin), a blepharoptosis repair in addition would be considered cosmetic.
+
+CPT/HCPCS CODES
+From the LCD's Billing and Coding article A56503 (version 12), retrieved the same day through the CMS Coverage API: the
+procedure codes it lists for this LCD (their descriptions are not copied).
+15820 15821 15822 15823 67900 67901 67902 67903 67904 67906 67908 67909 67911 67912 67914 67915 67916 67917 67921 67922
+67923 67924

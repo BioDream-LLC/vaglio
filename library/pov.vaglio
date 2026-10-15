@@ -1,0 +1,133 @@
+# Power operated vehicle, Group 1 (K0800, K0801, K0802), from Medicare LCD L33789 (the DME MACs). Status draft:
+# awaiting clinical sign-off (vaglio signoff). Every clause is quoted from library/sources/L33789-power-mobility.txt,
+# which lists the codes itself.
+#
+# Drafted by hand. The LCD's basic criteria A to C (a mobility limitation that significantly impairs mobility-related
+# activities of daily living in the home; a cane or walker cannot resolve it; not enough upper extremity function to
+# self-propel an optimally configured manual wheelchair), then the POV criteria D to I: able to transfer, steer with the
+# tiller and stay stable; the mental and physical capability for safe use; a home that allows it; the beneficiary's
+# weight within the device's class; it will significantly improve MRADLs and be used in the home; and no unwillingness
+# to use it. All are required. Questions only: the LCD names no codes for any of them. Group 2 POVs (K0806-K0808) the
+# LCD denies outright, power wheelchairs have their own criteria: neither is decided here. The order, the face-to-face
+# examination and the home assessment are the documentation the policy article and the standard documentation article
+# require; the reviewer reads those. The DME MACs' LCD is the same in every jurisdiction, so no states are named.
+policy pov
+  title "Power operated vehicle, Group 1 (K0800-K0802)"
+  version 0.1.0
+  source "Medicare LCD L33789, Power Mobility Devices (DME MACs): basic coverage criteria and power operated vehicles"
+  status draft
+  authority lcd
+  lines medicare-advantage medicare
+  questionnaire https://vaglio.example/Questionnaire/pov
+  service hcpcs K0800 K0801 K0802
+
+evidence mobility_limitation
+  text "A mobility limitation that significantly impairs mobility-related activities of daily living (toileting, feeding, dressing, grooming, bathing) in the home"
+  clause "The beneficiary has a mobility limitation that significantly impairs his/her ability to participate in one or more mobility-related activities of daily living (MRADLs) such as toileting, feeding, dressing, grooming, and bathing in customary locations in the home."
+  find question mobility-limitation
+  request document loinc 11488-4
+
+evidence cane_walker_insufficient
+  text "A fitted cane or walker cannot sufficiently and safely resolve the limitation"
+  clause "The beneficiary’s mobility limitation cannot be sufficiently and safely resolved by the use of an appropriately fitted cane or walker."
+  find question cane-walker-insufficient
+
+evidence manual_chair_insufficient
+  text "Not enough upper extremity function to self-propel an optimally configured manual wheelchair in the home"
+  clause "The beneficiary does not have sufficient upper extremity function to self-propel an optimally-configured manual wheelchair in the home to perform MRADLs during a typical day."
+  find question manual-chair-insufficient
+
+evidence can_operate
+  text "Able to transfer safely, operate the tiller and stay posturally stable on a POV in the home"
+  clause "Maintain postural stability and position while operating the POV in the home."
+  find question can-operate-pov
+
+evidence capable
+  text "Mental and physical capabilities sufficient for safe use of a POV in the home"
+  clause "The beneficiary’s mental capabilities (e.g., cognition, judgment) and physical capabilities (e.g., vision) are sufficient for safe mobility using a POV in the home."
+  find question capable
+
+evidence home_suitable
+  text "The home allows access between rooms, maneuvering space and surfaces for the POV"
+  clause "The beneficiary’s home provides adequate access between rooms, maneuvering space, and surfaces for the operation of the POV that is provided."
+  find question home-suitable
+
+evidence weight_in_class
+  text "The beneficiary's weight is within the weight class of the POV provided"
+  clause "The beneficiary’s weight is less than or equal to the weight capacity of the POV that is provided and greater than or equal to 95% of the weight capacity of the next lower weight class POV"
+  find question weight-in-class
+
+evidence will_improve
+  text "The POV will significantly improve participation in MRADLs, and will be used in the home"
+  clause "Use of a POV will significantly improve the beneficiary’s ability to participate in MRADLs and the beneficiary will use it in the home."
+  find question will-improve
+
+evidence unwilling
+  text "The beneficiary has expressed unwillingness to use a POV in the home"
+  clause "The beneficiary has not expressed an unwillingness to use a POV in the home."
+  find question unwilling
+
+criterion no_limitation
+  text "A mobility limitation impairing MRADLs in the home is not documented."
+  clause "The beneficiary has a mobility limitation that significantly impairs his/her ability to participate in one or more mobility-related activities of daily living (MRADLs) such as toileting, feeding, dressing, grooming, and bathing in customary locations in the home."
+  defeated by mobility_limitation
+
+criterion cane_walker_unshown
+  text "That a cane or walker cannot resolve it is not documented."
+  clause "The beneficiary’s mobility limitation cannot be sufficiently and safely resolved by the use of an appropriately fitted cane or walker."
+  defeated by cane_walker_insufficient
+
+criterion manual_chair_unshown
+  text "That a manual wheelchair cannot be self-propelled is not documented."
+  clause "The beneficiary does not have sufficient upper extremity function to self-propel an optimally-configured manual wheelchair in the home to perform MRADLs during a typical day."
+  defeated by manual_chair_insufficient
+
+criterion operation_unshown
+  text "Safe transfer, tiller steering and postural stability are not documented."
+  clause "Maintain postural stability and position while operating the POV in the home."
+  defeated by can_operate
+
+criterion capability_unshown
+  text "Sufficient mental and physical capability for safe use is not documented."
+  clause "The beneficiary’s mental capabilities (e.g., cognition, judgment) and physical capabilities (e.g., vision) are sufficient for safe mobility using a POV in the home."
+  defeated by capable
+
+criterion home_unshown
+  text "A home that allows the POV is not documented."
+  clause "The beneficiary’s home provides adequate access between rooms, maneuvering space, and surfaces for the operation of the POV that is provided."
+  defeated by home_suitable
+
+criterion weight_unshown
+  text "A weight within the POV's class is not documented."
+  clause "The beneficiary’s weight is less than or equal to the weight capacity of the POV that is provided and greater than or equal to 95% of the weight capacity of the next lower weight class POV"
+  defeated by weight_in_class
+
+criterion improvement_unshown
+  text "Significant improvement in MRADLs, with use in the home, is not documented."
+  clause "Use of a POV will significantly improve the beneficiary’s ability to participate in MRADLs and the beneficiary will use it in the home."
+  defeated by will_improve
+
+criterion criteria_met
+  text "Basic criteria A to C and POV criteria D to H are met."
+  clause "A POV is covered if all of the basic coverage criteria (A-C) have been met and if criteria D-I are also met."
+  defeated by no_limitation cane_walker_unshown manual_chair_unshown operation_unshown capability_unshown home_unshown weight_unshown improvement_unshown
+
+criterion willing
+  text "No unwillingness to use the POV in the home has been expressed."
+  clause "The beneficiary has not expressed an unwillingness to use a POV in the home."
+  defeated by unwilling
+
+decision approve approves
+  text "Approve the power operated vehicle."
+  clause "A POV is covered if all of the basic coverage criteria (A-C) have been met and if criteria D-I are also met."
+  defeated by no_limitation cane_walker_unshown manual_chair_unshown operation_unshown capability_unshown home_unshown weight_unshown improvement_unshown unwilling
+
+decision deny_criteria denies
+  text "Deny: a basic or POV coverage criterion is not met."
+  clause "If a POV will be used inside the home and coverage criteria A-I are not met, it will be denied as not reasonable and necessary."
+  defeated by criteria_met
+
+decision deny_unwilling denies
+  text "Deny: the beneficiary has expressed unwillingness to use a POV in the home."
+  clause "If a POV will be used inside the home and coverage criteria A-I are not met, it will be denied as not reasonable and necessary."
+  defeated by willing
