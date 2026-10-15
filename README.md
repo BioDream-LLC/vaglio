@@ -272,7 +272,7 @@ How the code is laid out:
   causes and reversals, replays. `internal/reader`: documents read by a model behind the quote gate.
 - `internal/receipt`, `internal/letter`, `internal/versions`, `internal/readings`: receipts checked against the log,
   plain-language letters, the kept policy versions, and two readings of one document compared.
-- `deploy/demo/`: how the public demonstration at vaglio.perfuse.health is run.
+- `deploy/demo/`: how the public demonstration at vaglio.perfuse.health:8443 is run.
 - `library/`: drafted policies, their sources and `library.json`; `library/drafts/` keeps the machine's own drafts.
 - `internal/server` + `web/`: the API and the React/Redux console (cases and review, policies and their check, trying a
   policy by hand, the audit log), embedded in the binary.
@@ -287,7 +287,7 @@ advice before submitting shows in Perfuse only from its `crd-advisor` branch, no
 
 ## Try it
 
-A public demonstration runs at **https://vaglio.perfuse.health**, on invented requests only: sign in as `demo` with
+A public demonstration runs at **https://vaglio.perfuse.health:8443**, on invented requests only: sign in as `demo` with
 `try-vaglio-demo` (a viewer: it can look at everything and change nothing). An invented lumbar spine MRI request
 arrives every 20 minutes, and the log starts again every night. Open a case and try the what-if sandbox, read its
 letter in English or Spanish, check its receipt, and look at the policy map. How it is run is in `deploy/demo/`.

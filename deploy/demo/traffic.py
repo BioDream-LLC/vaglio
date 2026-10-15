@@ -15,7 +15,14 @@ import os
 import uuid
 
 # The instance's own name and files; set apart only to try the script elsewhere.
-URL = os.environ.get("VAGLIO_URL", "https://vaglio.perfuse.health")
+def _url():
+    try:
+        return open("/opt/vaglio/conf/url").read().strip()
+    except OSError:
+        return "https://vaglio.perfuse.health:8443"
+
+
+URL = os.environ.get("VAGLIO_URL") or _url()
 CONF = os.environ.get("VAGLIO_CONF", "/opt/vaglio/conf")
 CA = os.environ.get("VAGLIO_CA")  # a private authority to trust, for a local try
 QUESTIONS = [

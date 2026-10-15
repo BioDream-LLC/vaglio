@@ -4,6 +4,7 @@
 # invented traffic and the nightly reset. Safe to run again.
 set -eu
 host=vaglio.perfuse.health
+port=${1:-8443}
 here=$(cd "$(dirname "$0")" && pwd)
 
 apt-get update -qq
@@ -25,7 +26,7 @@ chown root:vaglio /opt/vaglio/conf/token && chmod 0640 /opt/vaglio/conf/token
 # The traffic goes to this machine by its public name, so the certificate matches.
 grep -q " $host\$" /etc/hosts || echo "127.0.0.1 $host" >> /etc/hosts
 
-# Let's Encrypt on port 80, which Vaglio does not use. Vaglio reloads a changed certificate by itself, so the renewal
+# Let's Encrypt on port 80, which neither Vaglio nor Perfuse uses (Perfuse's own renewals use it the same way, briefly). Vaglio reloads a changed certificate by itself, so the renewal
 # hook only copies it into place.
 if [ ! -d "/etc/letsencrypt/live/$host" ]; then
   certbot certonly --standalone --non-interactive --agree-tos --register-unsafely-without-email -d "$host"
@@ -38,10 +39,12 @@ chmod 0755 /etc/letsencrypt/renewal-hooks/deploy/vaglio.sh
 install -o root -g vaglio -m 0640 "/etc/letsencrypt/live/$host/fullchain.pem" "/etc/letsencrypt/live/$host/privkey.pem" /opt/vaglio/tls/
 
 install -m 0644 "$here"/vaglio-*.service "$here"/vaglio-*.timer /etc/systemd/system/
+sed -i "s/-addr :[0-9]*/-addr :$port/" /etc/systemd/system/vaglio-demo.service
+echo "https://$host:$port" > /opt/vaglio/conf/url && chown root:vaglio /opt/vaglio/conf/url && chmod 0640 /opt/vaglio/conf/url
 systemctl daemon-reload
 systemctl enable --now vaglio-demo
 systemctl restart vaglio-demo
 systemctl enable --now vaglio-traffic.timer vaglio-reset.timer
 sleep 3
 systemctl start vaglio-reset.service
-curl -fsS -o /dev/null -w "%{http_code}" "https://$host/" && echo " - Vaglio is up on https://$host"
+curl -fsS -o /dev/null -w "%{http_code}" "https://$host:$port/" && echo " - Vaglio is up on https://$host:$port"
