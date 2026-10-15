@@ -65,6 +65,10 @@ type shared struct {
 	clinicianDenials bool
 	editPolicies     bool
 	demo             string
+	readDocs         bool
+	approveDocs      bool
+	approveSample    int
+	readWorkers      int
 }
 
 // openedPlan is a plan ready to serve.
@@ -251,6 +255,9 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 	}
 	if cfg.Versions, err = versions.Open(filepath.Join(sp.Data, "versions")); err != nil {
 		return fail(err)
+	}
+	if sh.readDocs {
+		cfg.AutoRead = &server.AutoRead{Approve: sh.approveDocs, SamplePercent: sh.approveSample, Workers: sh.readWorkers}
 	}
 	if sh.editPolicies || sp.EditPolicies {
 		cfg.PolicyDir = sp.Policies

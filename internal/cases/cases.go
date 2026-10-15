@@ -208,6 +208,21 @@ type Review struct {
 	Reason      string `json:"reason"`
 	ReviewerNPI string `json:"reviewerNpi,omitempty"`
 	Credential  string `json:"credential,omitempty"` // the reviewer's, when their account records one
+	// Automatic: no person decided. The policy approved the request on what a document model read in its documents,
+	// every finding quoted word for word from them (serve -approve-from-documents). Only approvals are ever automatic.
+	Automatic bool `json:"automatic,omitempty"`
+	// Sampled: an automatic approval set aside for a reviewer to check after the fact, for quality.
+	Sampled bool `json:"sampled,omitempty"`
+}
+
+// QA is a reviewer's check of an automatic approval, after the fact: whether they agree the documents show what the
+// approval rests on. A disagreement does not undo the approval (the provider was told); it is what decides whether
+// automatic approval stays on.
+type QA struct {
+	By    string `json:"by"`
+	Time  string `json:"time"`
+	Agree bool   `json:"agree"`
+	Note  string `json:"note,omitempty"`
 }
 
 // Delivery is the last attempt to send a review to the PAS server.
@@ -239,6 +254,7 @@ type Case struct {
 	// the resources received, by its SHA-256 like the request.
 	Received     []Received `json:"received,omitempty"`
 	SupersededBy string     `json:"supersededBy,omitempty"`
+	QA           *QA        `json:"qa,omitempty"`
 }
 
 // Audit actions this package writes and replays.
@@ -253,6 +269,7 @@ const (
 	ActConfirmed  = "case.confirmed"
 	ActReceived   = "case.received"
 	ActExtended   = "case.extended"
+	ActQA         = "case.qa"
 )
 
 // ErrAlreadyRecorded is an appeal delivered again by its feed: nothing is recorded, and nothing is wrong.
@@ -374,6 +391,17 @@ func (s *Store) apply(r audit.Record) error {
 		}
 		rc.Time = r.Time
 		c.Received, c.Updated = append(c.Received, rc), r.Time
+	case ActQA:
+		c, ok := s.cases[r.Case]
+		if !ok {
+			return fmt.Errorf("quality check of unknown case %s", r.Case)
+		}
+		var q QA
+		if err := json.Unmarshal(r.Data, &q); err != nil {
+			return err
+		}
+		q.Time = r.Time
+		c.QA, c.Updated = &q, r.Time
 	case ActDelivered:
 		c, ok := s.cases[r.Case]
 		if !ok {
@@ -469,6 +497,58 @@ func (s *Store) Review(id, user string, rv Review) (*Case, error) {
 	return &out, nil
 }
 
+// AutomaticReviewer is the name an automatic approval is recorded under.
+const AutomaticReviewer = "documents"
+
+// AutoApprove records an automatic approval of a pended case: the policy's, on quote-checked findings from its
+// documents. Only an approval: a denial or a pend always waits for a person.
+func (s *Store) AutoApprove(id, reason string, sampled bool) (*Case, error) {
+	rv := Review{Decision: "approve", Reason: strings.TrimSpace(reason), Automatic: true, Sampled: sampled,
+		By: AutomaticReviewer}
+	if rv.Reason == "" {
+		return nil, errors.New("an automatic approval says what it rests on")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.cases[id]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	if c.Status != Pended {
+		return nil, ErrNotPended
+	}
+	if _, err := s.write("system:"+AutomaticReviewer, ActReviewed, id, rv); err != nil {
+		return nil, err
+	}
+	out := *s.cases[id]
+	return &out, nil
+}
+
+// CheckQA records a reviewer's after-the-fact check of an automatic approval. Each is checked once.
+func (s *Store) CheckQA(id, user string, agree bool, note string) (*Case, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.cases[id]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	if c.Review == nil || !c.Review.Automatic {
+		return nil, errors.New("only an automatic approval is checked this way")
+	}
+	if c.QA != nil {
+		return nil, errors.New("this approval has been checked")
+	}
+	note = strings.TrimSpace(note)
+	if !agree && note == "" {
+		return nil, errors.New("a disagreement says what the documents do not show")
+	}
+	if _, err := s.write("user:"+user, ActQA, id, QA{By: user, Agree: agree, Note: note}); err != nil {
+		return nil, err
+	}
+	out := *s.cases[id]
+	return &out, nil
+}
+
 // ErrNotDenied is an appeal of a case that was not denied.
 var ErrNotDenied = errors.New("only a denial is appealed")
 
@@ -555,14 +635,18 @@ func (s *Store) Extend(id, user string, x Extension, maxDays int, now time.Time)
 	return &out, nil
 }
 
-// Read records a model's reading of one of a case's documents.
+// Read records a model's reading of one of a case's documents, asked for by user ("" for the automatic reader).
 func (s *Store) Read(id, user string, rd reader.Reading) (*Case, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.cases[id]; !ok {
 		return nil, os.ErrNotExist
 	}
-	if _, err := s.write("user:"+user, ActRead, id, rd); err != nil {
+	actor := "user:" + user
+	if user == "" {
+		actor = "system:reader"
+	}
+	if _, err := s.write(actor, ActRead, id, rd); err != nil {
 		return nil, err
 	}
 	out := *s.cases[id]

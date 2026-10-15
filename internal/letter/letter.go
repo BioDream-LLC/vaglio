@@ -43,13 +43,14 @@ type Section struct {
 
 // words are the templates of one language.
 type words struct {
-	approved, denied, pended, review, title                                  string
-	asked, outcomeApproved, outcomeDenied, outcomePended, outcomeClinician   string
-	byEngine, byReviewer, byClinician, appealOverturned, appealUpheld        string
-	why, rule, showed, present, absent, need, needIntro, change, changeIntro string
-	changeNone, contradicts, reviewerSaid, rights, rightsDenied, rightsOther string
-	check, checkText, quoted, dateLayout                                     string
-	months                                                                   [12]string
+	approved, denied, pended, review, title                                        string
+	asked, outcomeApproved, outcomeDenied, outcomePended, outcomeClinician         string
+	byEngine, byDocuments, byReviewer, byClinician, appealOverturned, appealUpheld string
+	documentsSaid                                                                  string
+	why, rule, showed, present, absent, need, needIntro, change, changeIntro       string
+	changeNone, contradicts, reviewerSaid, rights, rightsDenied, rightsOther       string
+	check, checkText, quoted, dateLayout                                           string
+	months                                                                         [12]string
 }
 
 var lang = map[string]words{
@@ -66,6 +67,8 @@ var lang = map[string]words{
 		outcomeClinician: "Your health plan has not decided yet: a licensed clinician is reviewing the request.",
 		byEngine:         "This decision was made by applying the plan's written policy to the information your provider sent.",
 		byReviewer:       "This decision was made by a reviewer at your health plan.",
+		byDocuments:      "This decision was made by applying the plan's written policy to the documents your provider sent.",
+		documentsSaid:    "What the documents showed",
 		byClinician:      "This decision was made by a licensed clinician (%s) at your health plan.",
 		appealOverturned: "On appeal, the decision was changed: it is now approved.",
 		appealUpheld:     "On appeal, the decision was kept.",
@@ -103,6 +106,8 @@ var lang = map[string]words{
 		outcomeClinician: "Su plan de salud todavía no ha decidido: un profesional clínico con licencia está revisando la solicitud.",
 		byEngine:         "Esta decisión se tomó aplicando la póliza escrita del plan a la información que envió su proveedor.",
 		byReviewer:       "Esta decisión la tomó un revisor de su plan de salud.",
+		byDocuments:      "Esta decisión se tomó aplicando la póliza escrita del plan a los documentos que envió su proveedor.",
+		documentsSaid:    "Lo que mostraron los documentos",
 		byClinician:      "Esta decisión la tomó un profesional clínico con licencia (%s) de su plan de salud.",
 		appealOverturned: "En la apelación, la decisión cambió: ahora está aprobada.",
 		appealUpheld:     "En la apelación, se mantuvo la decisión.",
@@ -159,7 +164,9 @@ func Write(c cases.Case, l, receipt string, now time.Time) (*Letter, error) {
 	if c.Review != nil {
 		decision, clinicianPend = c.Review.Decision, false
 		by = w.byReviewer
-		if c.Review.ReviewerNPI != "" {
+		if c.Review.Automatic {
+			by = w.byDocuments
+		} else if c.Review.ReviewerNPI != "" {
 			cred := c.Review.Credential
 			if cred == "" {
 				cred = "NPI " + c.Review.ReviewerNPI
@@ -194,7 +201,11 @@ func Write(c cases.Case, l, receipt string, now time.Time) (*Letter, error) {
 
 	// Why: the engine's own reasoning, when it is what decided; a reviewer's reason when a reviewer did.
 	if c.Review != nil {
-		out.Sections = append(out.Sections, Section{Heading: w.reviewerSaid, Paragraphs: []string{c.Review.Reason}})
+		heading := w.reviewerSaid
+		if c.Review.Automatic {
+			heading = w.documentsSaid
+		}
+		out.Sections = append(out.Sections, Section{Heading: heading, Paragraphs: []string{c.Review.Reason}})
 	} else if res.Proof != nil && (decision == "approve" || decision == "deny") {
 		out.Sections = append(out.Sections, Section{Heading: w.why,
 			Paragraphs: []string{plain(res.Proof.Text), fmt.Sprintf(w.rule, c.PolicyTitle)}, Quote: res.Proof.Clause})

@@ -20,6 +20,7 @@ import type {
   Overrides,
   Pends,
   Reading,
+  AutomaticReport,
   Fax,
   FairnessReport,
   IntakeBody,
@@ -183,6 +184,11 @@ export const api = createApi({
       query: ({ id, reason }) => ({ url: `fax/${encodeURIComponent(id)}/set-aside`, method: 'POST', body: { reason } }),
       invalidatesTags: ['Fax', 'Audit'],
     }),
+    automatic: b.query<AutomaticReport, void>({ query: () => 'reports/automatic', providesTags: ['Case'] }),
+    checkAutomatic: b.mutation<CaseDetail, { id: string; agree: boolean; note: string }>({
+      query: ({ id, ...body }) => ({ url: `cases/${encodeURIComponent(id)}/qa`, method: 'POST', body }),
+      invalidatesTags: ['Case', 'Audit'],
+    }),
     fairness: b.query<FairnessReport, Period>({ query: (p) => `reports/fairness?${period(p)}`, providesTags: ['Case', 'Audit'] }),
     listReview: b.query<ListReview, Period>({ query: (p) => `reports/list?${period(p)}`, providesTags: ['Case'] }),
     overrides: b.query<Overrides, Period & { by: string }>({
@@ -268,6 +274,8 @@ export const {
   useOverridesQuery,
   useListReviewQuery,
   useFairnessQuery,
+  useAutomaticQuery,
+  useCheckAutomaticMutation,
   useIntakeFormQuery,
   useFaxesQuery,
   useFaxQuery,

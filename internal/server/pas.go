@@ -149,6 +149,7 @@ func (cfg Config) decideBundle(raw []byte, seq, requestID, channel, keyedBy stri
 	if rs := receiptsFor(cfg.Audit.ForCase(c.ID)); len(rs) > 0 {
 		a.Receipt = rs[0].Receipt
 	}
+	cfg.readSoon(c)
 	return a, http.StatusOK, ""
 }
 

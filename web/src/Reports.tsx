@@ -5,6 +5,7 @@ import {
   useGoldCardQuery,
   useMeQuery,
   useMetricsQuery,
+  useAutomaticQuery,
   useFairnessQuery,
   useListReviewQuery,
   useOverridesQuery,
@@ -64,6 +65,7 @@ export function Reports() {
       <Reversals period={shown} />
       <ListReviewTable period={shown} />
       <Fairness period={shown} />
+      <Automatic />
       <PendCauses period={shown} />
       <GoldCard />
     </section>
@@ -279,6 +281,72 @@ function ListReviewTable({ period }: { period: Period }) {
         </table>
       )}
       <p className="meta">{l.note}</p>
+    </>
+  )
+}
+
+/** Automatic reading and approval: what it did, and how the checks after the fact came out. */
+function Automatic() {
+  const { data: a, error } = useAutomaticQuery(undefined, { refetchOnMountOrArgChange: true })
+  if (error) return <p role="alert">{errorText(error, 'Could not load automatic approvals.')}</p>
+  if (!a || (!a.on && a.approved === 0)) return null
+  return (
+    <>
+      <h3>Approvals on documents</h3>
+      <p className="meta">
+        {a.on
+          ? a.approve
+            ? `Documents are read as requests pend, and a request the policy approves on their quote-checked findings is approved with no person; ${a.samplePercent}% of those are set aside for a check. A denial or a pend always waits for a reviewer.`
+            : 'Documents are read as requests pend; reviewers confirm the proposals.'
+          : 'Automatic reading is off on this server; these approvals were made while it was on.'}
+      </p>
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
+        <dt className="meta">Approved on documents</dt>
+        <dd>{a.approved}</dd>
+        <dt className="meta">Checked</dt>
+        <dd>
+          {a.checked} of {a.sampled} set aside
+        </dd>
+        <dt className="meta">Reviewer disagreed</dt>
+        <dd className={a.disagreePercent != null && a.disagreePercent > 5 ? 'warn' : undefined}>
+          {a.disagree}
+          {a.disagreePercent != null && ` (${a.disagreePercent.toFixed(0)}% of checked)`}
+        </dd>
+        {a.reader && (
+          <>
+            <dt className="meta">Read since start</dt>
+            <dd>
+              {a.reader.read} documents{a.reader.waiting ? `, ${a.reader.waiting} waiting` : ''}
+              {a.reader.failed ? `, ${a.reader.failed} failed` : ''}
+              {a.reader.dropped ? `, ${a.reader.dropped} left to reviewers` : ''}
+            </dd>
+          </>
+        )}
+      </dl>
+      {a.toCheck.length > 0 && (
+        <>
+          <p>To check:</p>
+          <ul className="plain">
+            {a.toCheck.map((c) => (
+              <li key={c.id}>
+                <a href={`#/case/${c.id}`}>{c.id}</a> <span className="meta">{c.policy}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {a.disputed.length > 0 && (
+        <>
+          <p>Disagreed with:</p>
+          <ul className="plain">
+            {a.disputed.map((c) => (
+              <li key={c.id}>
+                <a href={`#/case/${c.id}`}>{c.id}</a> <span className="meta">{c.note}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </>
   )
 }

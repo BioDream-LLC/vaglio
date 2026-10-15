@@ -128,6 +128,7 @@ func usage(w io.Writer) {
                 [-extension-days N] [-appeals-token-env VAR] [-extract pdftotext,tesseract]
                 [-draft-model-url URL [-draft-model M] [-draft-key-env VAR]] [-demo-account NAME:PASSWORD]
                 [-fax-token-env VAR] [-acme [-acme-email ADDR] [-acme-directory URL]] [-plans FILE]
+                [-read-documents [-approve-from-documents [-approve-sample PCT]] [-read-workers N]]
   vaglio user   add|reset|remove|list -data DIR [-role viewer|reviewer|admin] [NAME]
   vaglio user   sso -data DIR -role ROLE NAME          an account that signs in only through single sign-on
   vaglio user   scopes -data DIR -scopes author,audit,appeals,intake,policy:ID NAME   (empty to clear)
@@ -213,6 +214,13 @@ func serve(args []string) error {
 		"fax service sends with each fax it posts to /api/feeds/fax; set, the console's fax inbox is on (faxes kept in DATA/faxes)")
 	appealsTokenEnv := fs.String("appeals-token-env", "", "name of an environment variable holding the bearer token the "+
 		"appeals system sends to /api/feeds/appeals; unset, the feed is off")
+	readDocs := fs.Bool("read-documents", false, "read a pended request's documents with -document-model-url as soon as it "+
+		"is pended (and documents received later), so reviewers find the proposals waiting")
+	approveDocs := fs.Bool("approve-from-documents", false, "with -read-documents: approve, with no person, a request the "+
+		"policy approves on the readings' quote-checked findings. Never denies or pends: those wait for a reviewer")
+	approveSample := fs.Int("approve-sample", 10, "the percent of automatic approvals set aside for a reviewer to check "+
+		"after the fact (0 to 100)")
+	readWorkers := fs.Int("read-workers", 2, "documents -read-documents reads at once")
 	plansFile := fs.String("plans", "", "serve several health plans from one server: a JSON file listing each plan's id, "+
 		"name, hostname, policies and data directories, and its tokens and PAS server; each plan is its own console, accounts, "+
 		"cases and audit log at its own hostname. The per-plan flags (-policies, -hostname, -token-env, -pas-*, -goldcard, "+
@@ -331,6 +339,17 @@ func serve(args []string) error {
 		return fmt.Errorf("-extension-days is 1 to %d", cases.MaxExtensionDays)
 	}
 	sh.extensionDays = *extensionDays
+	switch {
+	case *readDocs && docs == nil:
+		return errors.New("-read-documents reads with the document model: it needs -document-model-url")
+	case *approveDocs && !*readDocs:
+		return errors.New("-approve-from-documents approves on what -read-documents reads: it needs -read-documents")
+	case *approveSample < 0 || *approveSample > 100:
+		return errors.New("-approve-sample is a percent, 0 to 100")
+	case *readWorkers < 1 || *readWorkers > 16:
+		return errors.New("-read-workers is 1 to 16")
+	}
+	sh.readDocs, sh.approveDocs, sh.approveSample, sh.readWorkers = *readDocs, *approveDocs, *approveSample, *readWorkers
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	var opened []*openedPlan
@@ -425,6 +444,14 @@ func serve(args []string) error {
 	}
 	if docs != nil {
 		log.Printf("document model: %s at %s reads attachments for reviewers", docs.Name, *docURL)
+	}
+	if sh.readDocs {
+		if sh.approveDocs {
+			log.Printf("documents: read on arrival; approved without a person when the quote-checked findings approve "+
+				"(%d%% set aside for a check after the fact; never a denial)", sh.approveSample)
+		} else {
+			log.Printf("documents: read on arrival, %d at once; reviewers confirm the proposals", sh.readWorkers)
+		}
 	}
 	for _, x := range sh.extractors {
 		log.Printf("document text: %s (%s) for %s", x.Name, x.Path, strings.Join(x.Types, ", "))

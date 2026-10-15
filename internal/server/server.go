@@ -95,6 +95,8 @@ type Config struct {
 	Scheduled map[string]*policy.Policy
 	// PolicyRoot is the policy directory, where a scheduled policy's file is moved into force on its day.
 	PolicyRoot string
+	// AutoRead, when set (with Reader), reads a pended request's documents at once, and may approve on them.
+	AutoRead *AutoRead
 	// Faxes, when set, is the inbox of faxes received from the plan's fax service, which posts each to
 	// /api/feeds/fax with FaxToken as a bearer token.
 	Faxes    *intake.Inbox
@@ -121,6 +123,15 @@ func New(cfg Config) http.Handler {
 		}
 	}
 	cfg.Policies, cfg.Scheduled = nil, nil // read through cfg.set from here on, so a signed-off policy is seen everywhere
+	if cfg.AutoRead != nil && cfg.Reader != nil {
+		cfg.AutoRead.start(cfg)
+		// Pended cases no reading has touched yet, from before this start: read them too.
+		for _, c := range cfg.Cases.List(cases.Pended) {
+			if len(c.Readings) == 0 {
+				cfg.AutoRead.enqueue(c.ID)
+			}
+		}
+	}
 	if cfg.GoldCard != nil {
 		// Counting switches made in the console, in order: the last one per program stands. One for a program no longer
 		// in the file, or no longer valid for it, is ignored; the file is the starting point.
@@ -167,6 +178,8 @@ func New(cfg Config) http.Handler {
 	route("GET /api/reports/overrides", auth.Viewer, cfg.overridesReport)
 	route("GET /api/reports/list", auth.Viewer, cfg.listReport)
 	route("GET /api/reports/fairness", auth.Reviewer, cfg.fairnessReport)
+	route("GET /api/reports/automatic", auth.Viewer, cfg.automaticReport)
+	route("POST /api/cases/{id}/qa", auth.Reviewer, cfg.checkAutomatic)
 	scoped("GET /api/intake/form", auth.Reviewer, auth.ScopeIntake, cfg.intakeForm)
 	scoped("POST /api/intake", auth.Reviewer, auth.ScopeIntake, cfg.keyIn)
 	scoped("GET /api/fax", auth.Reviewer, auth.ScopeIntake, cfg.listFaxes)

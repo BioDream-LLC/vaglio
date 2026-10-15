@@ -8,6 +8,7 @@ import { IconCases, IconCheck, IconClock, IconCross } from './Icons'
 import {
   go,
   useAppealMutation,
+  useCheckAutomaticMutation,
   useExtendMutation,
   useCaseQuery,
   useCasesQuery,
@@ -341,9 +342,12 @@ function CaseBody({ c, me }: { c: CaseDetail; me: Me }) {
             <span className="tone-icon" aria-hidden="true">
               {c.review.decision === 'approve' ? <IconCheck size={20} strokeWidth={2.6} /> : <IconCross size={20} strokeWidth={2.6} />}
             </span>
-            Reviewed: {decisionText[c.review.decision]}, by {c.review.by}
+            {c.review.automatic
+              ? `${decisionText[c.review.decision]} on its documents, with no person`
+              : `Reviewed: ${decisionText[c.review.decision]}, by ${c.review.by}`}
           </h3>
           <p>{c.review.reason}</p>
+          {c.review.automatic && <AutomaticCheck c={c} me={me} />}
           <p className="meta">
             {when(c.review.time)}
             {c.review.reviewerNpi && ` · NPI ${c.review.reviewerNpi}`}
@@ -383,6 +387,37 @@ function CaseBody({ c, me }: { c: CaseDetail; me: Me }) {
       <CaseReceipts c={c} />
       <History c={c} />
     </>
+  )
+}
+
+/** The after-the-fact check of an automatic approval: does the document show what the approval rests on? */
+function AutomaticCheck({ c, me }: { c: CaseDetail; me: Me }) {
+  const [check, checking] = useCheckAutomaticMutation()
+  const [note, setNote] = useState('')
+  if (c.qa)
+    return (
+      <p className={c.qa.agree ? 'meta' : 'warn'}>
+        Checked by {c.qa.by} {when(c.qa.time)}: {c.qa.agree ? 'the documents show it.' : `disagreed: ${c.qa.note}`}
+      </p>
+    )
+  if (me.role === 'viewer') return c.review?.sampled ? <p className="meta">Set aside for a reviewer to check.</p> : null
+  return (
+    <div className="note">
+      <p>
+        {c.review?.sampled ? 'Set aside for a check. ' : ''}Read each quote against the document below: does it show what the
+        approval rests on? The approval stands either way; a disagreement is counted in the Reports.
+      </p>
+      <input aria-label="What the documents do not show" value={note} onChange={(e) => setNote(e.target.value)}
+        placeholder="If not: what the documents do not show" />{' '}
+      <button type="button" disabled={checking.isLoading} onClick={() => check({ id: c.id, agree: true, note: '' })}>
+        The documents show it
+      </button>{' '}
+      <button type="button" className="danger" disabled={checking.isLoading || !note.trim()}
+        onClick={() => check({ id: c.id, agree: false, note })}>
+        They do not
+      </button>
+      {checking.error && <p role="alert">{errorText(checking.error, 'Not recorded.')}</p>}
+    </div>
   )
 }
 

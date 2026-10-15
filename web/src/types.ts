@@ -193,6 +193,32 @@ export interface Review {
   reason: string
   reviewerNpi?: string
   credential?: string
+  /** No person decided: the policy approved on quote-checked findings from the documents. */
+  automatic?: boolean
+  /** Set aside for a reviewer's check after the fact. */
+  sampled?: boolean
+}
+
+/** A reviewer's after-the-fact check of an automatic approval. */
+export interface QA {
+  by: string
+  time: string
+  agree: boolean
+  note?: string
+}
+
+export interface AutomaticReport {
+  on: boolean
+  approve: boolean
+  samplePercent: number
+  reader?: { queued: number; read: number; failed: number; approved: number; waiting: number; dropped: number; sampled: number; lastError?: string }
+  approved: number
+  sampled: number
+  checked: number
+  disagree: number
+  disagreePercent: number | null
+  toCheck: { id: string; policy: string; time: string }[]
+  disputed: { id: string; policy: string; time: string; note?: string }[]
 }
 
 export interface AuditRecord {
@@ -238,6 +264,7 @@ export interface CaseDetail {
   exemption?: Exemption
   proposed?: { decision: 'deny'; why: string }
   precedence?: Precedence
+  qa?: QA
   channel?: 'fax' | 'phone' | 'mail' | 'portal'
   keyedBy?: string
   patientState?: string

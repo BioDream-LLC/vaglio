@@ -235,10 +235,12 @@ func (cfg Config) fetchDocuments(w http.ResponseWriter, r *http.Request, s auth.
 		writeJSON(w, http.StatusOK, map[string]any{"received": 0})
 		return
 	}
-	if _, err := cfg.Cases.Receive(c.ID, entries); err != nil {
+	got, err := cfg.Cases.Receive(c.ID, entries)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	cfg.readSoon(got) // what arrived is read like what came with the request
 	writeJSON(w, http.StatusOK, map[string]any{"received": len(entries)})
 }
 

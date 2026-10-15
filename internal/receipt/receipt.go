@@ -61,7 +61,8 @@ type Check struct {
 	// Decision is what was decided: approve, deny or pend, as the provider was told; for an appeal, overturned (approved
 	// on appeal) or upheld.
 	Decision string `json:"decision"`
-	// By is who made it: "engine" (the policy, unaided), "reviewer", "clinician" (a reviewer recorded as one), or
+	// By is who made it: "engine" (the policy, unaided), "documents" (the policy, on quote-checked findings a document
+	// model read in the request's documents), "reviewer", "clinician" (a reviewer recorded as one), or
 	// "appeal" (an appeal decided wherever appeals are decided).
 	By            string `json:"by"`
 	Credential    string `json:"credential,omitempty"` // a clinician's credential, as their account records it
@@ -195,6 +196,9 @@ func describe(r audit.Record) (described, error) {
 		d.Decision, d.By = rv.Decision, "reviewer"
 		if rv.ReviewerNPI != "" {
 			d.By, d.credential = "clinician", rv.Credential
+		}
+		if rv.Automatic {
+			d.By = "documents"
 		}
 	case cases.ActAppealed:
 		var a cases.Appeal

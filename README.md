@@ -273,6 +273,14 @@ software a plan runs, not an outcome a vendor sells.
 - **Richer date rules**: `find condition ... onset at least N days` (how long a condition has lasted), and
   `find procedure ... within N days times N apart N days` (two blocks at least 14 days apart; two RFA sessions in a
   year). Fewer procedures, or ones that cannot be dated apart, document nothing either way.
+- **Reading documents at scale** (`serve -read-documents`, with `-document-model-url`): a pended request's documents,
+  and those received later, are read as soon as it pends, by a pool of workers (`-read-workers`, 2 by default), so a
+  reviewer opens the case with the proposals waiting. With `-approve-from-documents`, a request the policy approves on
+  the readings' findings, each quoted word for word from its document, is approved with no person, sent to the PAS
+  server, and its letter and receipt say the plan's policy was applied to the documents. Only approvals: a reading that
+  would deny or pend changes nothing, and a denial proposed to a clinician still waits for one. `-approve-sample`
+  (10% by default) sets automatic approvals aside for a reviewer to check after the fact; the Reports screen counts the
+  checks and the disagreements, which is what says whether to keep it on.
 - **PDFs and scans for the document reader** (`serve -extract pdftotext,tesseract`): local programs make the text, which
   goes through the same quote gate. The case marks such documents, and the reviewer confirms against the original,
   served as a sandboxed download.
