@@ -458,32 +458,58 @@ func (s *Store) Open(o Opening, bundle []byte) (*Case, error) {
 	o.Bundle = hex.EncodeToString(sum[:])
 	path := filepath.Join(s.bundles, o.Bundle+".json")
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		if err := seal.WriteFile(path, "bundle", bundle, 0o600); err != nil {
+		// On disk before the record that names it: a case is never durable without its request.
+		tmp := path + "." + newID() + ".new" // two copies of one request may arrive together
+		if err := seal.WriteFileSync(tmp, "bundle", bundle, 0o600); err != nil {
+			return nil, err
+		}
+		if err := os.Rename(tmp, path); err != nil {
 			return nil, err
 		}
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	id := newID()
-	actor := "pas"
-	if o.KeyedBy != "" {
-		actor = "user:" + o.KeyedBy
-	}
-	if _, err := s.write(actor, ActOpened, id, o); err != nil {
-		return nil, err
-	}
-	if o.Claim != "" {
-		for _, old := range s.order {
-			c := s.cases[old]
-			if old != id && c.Status == Pended && c.Claim == o.Claim && c.Item == o.Item {
-				if _, err := s.write("system", ActSuperseded, old, map[string]string{"by": id}); err != nil {
-					return nil, err
+	c, wait, err := func() (*Case, func() error, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		id := newID()
+		actor := "pas"
+		if o.KeyedBy != "" {
+			actor = "user:" + o.KeyedBy
+		}
+		wait, err := s.writeLater(actor, ActOpened, id, o)
+		if err != nil {
+			return nil, nil, err
+		}
+		if o.Claim != "" {
+			for _, old := range s.order {
+				c := s.cases[old]
+				if old != id && c.Status == Pended && c.Claim == o.Claim && c.Item == o.Item {
+					if wait, err = s.writeLater("system", ActSuperseded, old, map[string]string{"by": id}); err != nil {
+						return nil, nil, err
+					}
 				}
 			}
 		}
+		c := *s.cases[id]
+		return &c, wait, nil
+	}()
+	if err != nil {
+		return nil, err
 	}
-	c := *s.cases[id]
-	return &c, nil
+	// The store's lock is released before the sync, so requests arriving together share one: the last record's sync
+	// covers the ones before it. The decision is answered only after.
+	if err := wait(); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+// writeLater is write, returning before the record is synced with the wait for it.
+func (s *Store) writeLater(actor, action, caseID string, data any) (func() error, error) {
+	r, wait, err := s.log.AppendLater(actor, action, caseID, data)
+	if err != nil {
+		return nil, err
+	}
+	return wait, s.apply(r)
 }
 
 // ErrNotPended is a review of a case nobody is waiting on.

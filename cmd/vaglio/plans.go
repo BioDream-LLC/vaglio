@@ -57,6 +57,8 @@ type planSpec struct {
 	// FaxConnectors is a file naming where else faxes come from: Sinch or Documo webhooks, SRFax or RingCentral polled,
 	// a scan folder.
 	FaxConnectors string `json:"faxConnectors,omitempty"`
+	// ReplicaTokenEnv names the token a standby copies this plan's data with (vaglio standby).
+	ReplicaTokenEnv string `json:"replicaTokenEnv,omitempty"`
 	// Webhook is where every record about a case is pushed, signed with the secret in WebhookSecretEnv.
 	Webhook          string `json:"webhook,omitempty"`
 	WebhookSecretEnv string `json:"webhookSecretEnv,omitempty"`
@@ -433,6 +435,14 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 		cfg.Deliver = func(c cases.Case) { go client.Deliver(ctx, st.cases, c) }
 		cfg.FetchDocuments = client.Documents
 		go client.Run(ctx, st.cases, 30*time.Second)
+	}
+	cfg.BundleDir, cfg.UsersPath = filepath.Join(sp.Data, "bundles"), filepath.Join(sp.Data, "users.json")
+	if sp.ReplicaTokenEnv != "" {
+		t, err := secretFrom(sp.ReplicaTokenEnv)
+		if err != nil || len(t) < 16 {
+			return fail(fmt.Errorf("replica-token-env: the standby's token is at least 16 characters (%v)", err))
+		}
+		cfg.ReplicaToken = t
 	}
 	if sp.FaxConnectors != "" {
 		started, err := openFaxConnectors(ctx, sp.FaxConnectors, &cfg, sp.Data)

@@ -70,6 +70,8 @@ func main() {
 	switch os.Args[1] {
 	case "data":
 		err = dataCmd(os.Args[2:], os.Stdout)
+	case "standby":
+		err = standbyCmd(os.Args[2:])
 	case "serve":
 		err = serve(os.Args[2:])
 	case "decide":
@@ -141,6 +143,7 @@ func usage(w io.Writer) {
                 (with VAGLIO_DATA_KEY set, every command seals patient data on disk; see vaglio data)
   vaglio user   add|reset|remove|list|provider -data DIR [-role viewer|reviewer|admin|provider] [-npi NPIs] [NAME]
   vaglio data   seal|status -data DIR
+  vaglio standby -from https://PRIMARY -token-env VAR -data DIR [-ca FILE] [-every 2s]
   vaglio user   sso -data DIR -role ROLE NAME          an account that signs in only through single sign-on
   vaglio user   scopes -data DIR -scopes author,audit,appeals,intake,policy:ID NAME   (empty to clear)
   vaglio user   clinician -data DIR -npi NPI -credential "MD, specialty" NAME   (-clear to remove)
@@ -238,6 +241,8 @@ func serve(args []string) error {
 	fs.Var(&criteriaTokens, "criteria-token-env", "NAME=VAR: the environment variable holding criteria service NAME's bearer token")
 	faxConnectorsFile := fs.String("fax-connectors", "", "a JSON file naming where else faxes come from: sinch, documo "+
 		"(webhooks), srfax, ringcentral (polled), folder (a scan folder)")
+	replicaTokenEnv := fs.String("replica-token-env", "", "name of an environment variable holding the token a standby "+
+		"copies this server's data with (vaglio standby)")
 	webhook := fs.String("webhook", "", "push every record about a case, as signed JSON events, to this https URL")
 	webhookSecretEnv := fs.String("webhook-secret-env", "", "name of an environment variable holding the webhook's signing secret (16+ bytes)")
 	members := fs.String("members", "", "the plan's member file (CSV: member_id, birth_date, plan, line, start, end, excluded): "+
@@ -256,7 +261,7 @@ func serve(args []string) error {
 	if *plansFile != "" {
 		for _, f := range []string{"policies", "hostname", "token-env", "pas-url", "pas-token-env", "pas-ca", "pas-api-url",
 			"goldcard", "fax-token-env", "appeals-token-env", "demo-account", "oidc-issuer", "oidc-client-id", "oidc-client-secret-env", "oidc-redirect-url", "oidc-group", "oidc-label", "criteria", "criteria-token-env",
-			"network", "npi-registry", "members", "webhook", "webhook-secret-env", "fax-connectors"} {
+			"network", "npi-registry", "members", "webhook", "webhook-secret-env", "fax-connectors", "replica-token-env"} {
 			if set[f] {
 				return fmt.Errorf("-%s is set per plan in the -plans file (the demonstration is for one plan only)", f)
 			}
@@ -296,7 +301,8 @@ func serve(args []string) error {
 			PASURL: *pasURL, PASAPI: *pasAPI, PASTokenEnv: *pasTokenEnv, PASCA: *pasCA, GoldCard: *goldCardFile,
 			FaxTokenEnv: *faxTokenEnv, AppealsTokenEnv: *appealsTokenEnv, Criteria: crit, Network: *network, Members: *members,
 			Webhook: *webhook, WebhookSecretEnv: *webhookSecretEnv, FaxConnectors: *faxConnectorsFile,
-			NPIRegistry: *npiRegistry}}
+			ReplicaTokenEnv: *replicaTokenEnv,
+			NPIRegistry:     *npiRegistry}}
 		if *oidcIssuer != "" {
 			plans[0].SSO = &ssoSpec{Issuer: *oidcIssuer, ClientID: *oidcClient, ClientSecretEnv: *oidcSecretEnv,
 				RedirectURL: *oidcRedirect, NameClaim: *oidcClaim, Group: *oidcGroup, Label: *oidcLabel}

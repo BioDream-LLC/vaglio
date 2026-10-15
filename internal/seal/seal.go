@@ -185,6 +185,22 @@ func WriteFile(path, purpose string, data []byte, perm os.FileMode) error {
 	return os.WriteFile(path, Blob(purpose, data), perm)
 }
 
+// WriteFileSync writes a file sealed for purpose and syncs it to disk before returning.
+func WriteFileSync(path, purpose string, data []byte, perm os.FileMode) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(Blob(purpose, data))
+	if err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	return err
+}
+
 // ReadFile reads a file, opening it if sealed.
 func ReadFile(path, purpose string) ([]byte, error) {
 	raw, err := os.ReadFile(path)

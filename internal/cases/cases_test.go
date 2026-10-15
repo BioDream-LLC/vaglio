@@ -127,3 +127,19 @@ func TestTheBundleMustMatch(t *testing.T) {
 		t.Error("viewing was not audited")
 	}
 }
+
+func TestTheSameRequestAtOnce(t *testing.T) {
+	s, _ := open(t, t.TempDir())
+	errs := make(chan error, 20)
+	for i := 0; i < 20; i++ {
+		go func(i int) {
+			_, err := s.Open(opening("approve", "sys|"+string(rune('a'+i)), "1"), []byte(`{"same":1}`))
+			errs <- err
+		}(i)
+	}
+	for i := 0; i < 20; i++ {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+}

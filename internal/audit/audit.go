@@ -57,6 +57,48 @@ type Log struct {
 	size    int64 // bytes of the file read into records
 	records []Record
 	now     func() time.Time
+
+	// Group commit: an append writes its line under mu, then waits, outside it, until the file is synced past that
+	// line. One waiter syncs for everyone written by then, so appends arriving together share one sync.
+	sy struct {
+		mu      sync.Mutex
+		cond    *sync.Cond
+		synced  int64 // the file is durable up to here
+		running bool
+		err     error // a failed sync: nothing more is written to this log
+	}
+}
+
+// durable waits until the file is synced past end.
+func (l *Log) durable(end int64) error {
+	s := &l.sy
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for s.synced < end {
+		if s.err != nil {
+			return s.err
+		}
+		if s.running {
+			s.cond.Wait()
+			continue
+		}
+		s.running = true
+		s.mu.Unlock()
+		l.mu.Lock()
+		target := l.size // everything written so far, by this process or (synced by them) others
+		l.mu.Unlock()
+		err := l.f.Sync()
+		s.mu.Lock()
+		s.running = false
+		if err != nil {
+			// After a failed fsync the file's state on disk is unknown; writing on would build on it.
+			s.err = fmt.Errorf("audit: syncing the log failed, so nothing more is written to it until a restart: %w", err)
+		} else if target > s.synced {
+			s.synced = target
+		}
+		s.cond.Broadcast()
+	}
+	return nil
 }
 
 // maxLine bounds one record. Records carry decisions and citations, not documents.
@@ -70,6 +112,7 @@ func Open(path string) (*Log, error) {
 		return nil, err
 	}
 	l := &Log{f: f, now: time.Now}
+	l.sy.cond = sync.NewCond(&l.sy.mu)
 	if err := lock(f); err != nil {
 		f.Close()
 		return nil, err
@@ -196,14 +239,59 @@ func (l *Log) Append(actor, action, caseID string, data any) (Record, error) {
 		}
 		raw = b
 	}
+	l.sy.mu.Lock()
+	failed := l.sy.err
+	l.sy.mu.Unlock()
+	if failed != nil {
+		return Record{}, failed
+	}
+	rec, end, err := l.write(actor, action, caseID, raw)
+	if err != nil {
+		return Record{}, err
+	}
+	// A decision is not made until it is written down: the record is answered only once it is on disk.
+	if err := l.durable(end); err != nil {
+		return Record{}, err
+	}
+	return rec, nil
+}
+
+// AppendLater writes a record like Append but returns before it is synced, with a function that waits until it is:
+// for a caller holding its own lock, which releases it before waiting so that appends arriving together share one sync.
+// Nothing may be answered on the record until wait has returned nil.
+func (l *Log) AppendLater(actor, action, caseID string, data any) (Record, func() error, error) {
+	var raw json.RawMessage
+	if data != nil {
+		b, err := json.Marshal(data)
+		if err != nil {
+			return Record{}, nil, err
+		}
+		raw = b
+	}
+	l.sy.mu.Lock()
+	failed := l.sy.err
+	l.sy.mu.Unlock()
+	if failed != nil {
+		return Record{}, nil, failed
+	}
+	rec, end, err := l.write(actor, action, caseID, raw)
+	if err != nil {
+		return Record{}, nil, err
+	}
+	return rec, func() error { return l.durable(end) }, nil
+}
+
+// write numbers, chains and writes one record, and returns it with the file offset its line ends at. Readers in this
+// process may see it before it is synced; Append returns it to the caller only after.
+func (l *Log) write(actor, action, caseID string, raw json.RawMessage) (Record, int64, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if err := lock(l.f); err != nil {
-		return Record{}, err
+		return Record{}, 0, err
 	}
 	defer unlock(l.f)
 	if err := l.catchUp(); err != nil {
-		return Record{}, err // another writer broke the chain: refuse to write after it
+		return Record{}, 0, err // another writer broke the chain: refuse to write after it
 	}
 	rec := Record{Seq: int64(len(l.records)) + 1, Time: l.now().UTC().Format(time.RFC3339Nano), Actor: actor,
 		Action: action, Case: caseID, Data: raw}
@@ -212,26 +300,65 @@ func (l *Log) Append(actor, action, caseID string, data any) (Record, error) {
 	}
 	h, err := rec.hash()
 	if err != nil {
-		return Record{}, err
+		return Record{}, 0, err
 	}
 	rec.Hash = h
+	end, err := l.put(rec)
+	return rec, end, err
+}
+
+// put writes a numbered, chained record's line. The caller holds mu and the file lock.
+func (l *Log) put(rec Record) (int64, error) {
 	line, err := json.Marshal(rec)
 	if err != nil {
-		return Record{}, err
+		return 0, err
 	}
 	line = seal.Line(line)
 	if len(line) >= maxLine {
-		return Record{}, fmt.Errorf("audit: a record of %d bytes is too large", len(line))
+		return 0, fmt.Errorf("audit: a record of %d bytes is too large", len(line))
 	}
 	if _, err := l.f.Write(append(line, '\n')); err != nil {
-		return Record{}, err
-	}
-	if err := l.f.Sync(); err != nil {
-		return Record{}, err
+		return 0, err
 	}
 	l.records = append(l.records, rec)
 	l.size += int64(len(line)) + 1
-	return rec, nil
+	return l.size, nil
+}
+
+// Copy appends a record made by another log - a standby's copy of its primary's - keeping its number, time and hash:
+// it must be the next record of this log's chain, and its hash must be its own.
+func (l *Log) Copy(rec Record) error {
+	end, err := func() (int64, error) {
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		if err := lock(l.f); err != nil {
+			return 0, err
+		}
+		defer unlock(l.f)
+		if err := l.catchUp(); err != nil {
+			return 0, err
+		}
+		prev := ""
+		if n := len(l.records); n > 0 {
+			prev = l.records[n-1].Hash
+		}
+		want, err := rec.hash()
+		switch {
+		case err != nil:
+			return 0, err
+		case rec.Seq != int64(len(l.records))+1:
+			return 0, fmt.Errorf("%w: record %d arrived after record %d", ErrBroken, rec.Seq, len(l.records))
+		case rec.Prev != prev:
+			return 0, fmt.Errorf("%w: record %d does not follow this log's last record", ErrBroken, rec.Seq)
+		case rec.Hash != want:
+			return 0, fmt.Errorf("%w: record %d has been altered", ErrBroken, rec.Seq)
+		}
+		return l.put(rec)
+	}()
+	if err != nil {
+		return err
+	}
+	return l.durable(end)
 }
 
 // Records returns the records after seq, at most limit of them (0: all).

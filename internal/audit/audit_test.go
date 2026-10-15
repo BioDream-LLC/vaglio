@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -141,5 +142,56 @@ func TestACutOffRecordIsRefused(t *testing.T) {
 	os.WriteFile(path, raw[:len(raw)-5], 0o600)
 	if _, err := Open(path); !errors.Is(err, ErrBroken) || !strings.Contains(err.Error(), "incomplete") {
 		t.Errorf("%v", err)
+	}
+}
+
+func TestGroupCommit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	l, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 200; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			if _, err := l.Append("t", "x", "", map[string]int{"i": i}); err != nil {
+				t.Error(err)
+			}
+		}(i)
+	}
+	wg.Wait()
+	l.Close()
+	if n, _, err := Verify(path); n != 200 || err != nil {
+		t.Fatalf("%d %v", n, err)
+	}
+}
+
+func TestCopy(t *testing.T) {
+	dir := t.TempDir()
+	a, _ := Open(filepath.Join(dir, "a.jsonl"))
+	b, _ := Open(filepath.Join(dir, "b.jsonl"))
+	defer a.Close()
+	defer b.Close()
+	for i := 0; i < 3; i++ {
+		a.Append("t", "x", "c", map[string]int{"i": i})
+	}
+	recs := a.Records(0, 0)
+	if err := b.Copy(recs[1]); err == nil {
+		t.Error("copied out of order")
+	}
+	altered := recs[0]
+	altered.Actor = "someone else"
+	if err := b.Copy(altered); err == nil {
+		t.Error("copied an altered record")
+	}
+	for _, r := range recs {
+		if err := b.Copy(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, ha := a.Head(); func() string { _, hb := b.Head(); return hb }() != ha {
+		t.Error("heads differ")
 	}
 }

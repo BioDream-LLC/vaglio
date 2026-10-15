@@ -110,6 +110,10 @@ type Config struct {
 	// FaxHooks are fax services' own webhooks (sinch, documo), at POST /api/feeds/fax/{service}; each checks its own
 	// credentials.
 	FaxHooks map[string]http.Handler
+	// ReplicaToken lets a standby copy this server (GET /api/replica/...); BundleDir and UsersPath are what it reads.
+	ReplicaToken string
+	BundleDir    string
+	UsersPath    string
 	// AutoRead, when set (with Reader), reads a pended request's documents at once, and may approve on them.
 	AutoRead *AutoRead
 	// Faxes, when set, is the inbox of faxes received from the plan's fax service, which posts each to
@@ -227,6 +231,9 @@ func New(cfg Config) http.Handler {
 	shown("GET /api/fax/{id}", auth.Reviewer, auth.ScopeIntake, cfg.getFax)
 	shown("GET /api/fax/{id}/content", auth.Reviewer, auth.ScopeIntake, cfg.faxContent)
 	scoped("POST /api/fax/{id}/set-aside", auth.Reviewer, auth.ScopeIntake, cfg.setAsideFax)
+	mux.HandleFunc("GET /api/replica/records", cfg.replicaRecords)
+	mux.HandleFunc("GET /api/replica/bundles/{sha}", cfg.replicaBundle)
+	mux.HandleFunc("GET /api/replica/users", cfg.replicaUsers)
 	mux.HandleFunc("POST /api/feeds/fax", cfg.receiveFax)
 	mux.HandleFunc("POST /api/feeds/fax/{service}", func(w http.ResponseWriter, r *http.Request) {
 		h, ok := cfg.FaxHooks[r.PathValue("service")]
