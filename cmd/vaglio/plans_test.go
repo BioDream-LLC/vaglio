@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/biodream-llc/vaglio/internal/server"
 )
 
 func writePlans(t *testing.T, body string) string {
@@ -109,5 +111,31 @@ func TestPlanSSO(t *testing.T) {
 		"sso":{"issuer":"https://id.example","clientId":"v","clientSecretEnv":"S","redirectUrl":"https://a.example/api/sso/callback"}}]}`),
 		t.TempDir()); err != nil {
 		t.Errorf("a plan with single sign-on: %v", err)
+	}
+}
+
+func TestFaxConnectorsFile(t *testing.T) {
+	data, scans := t.TempDir(), t.TempDir()
+	t.Setenv("SINCH_PW", "sinch-password")
+	f := writePlans(t, `{"sinch":{"passwordEnv":"SINCH_PW"},"folder":{"dir":"`+scans+`","every":"5s"}}`)
+	var cfg server.Config
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	started, err := openFaxConnectors(ctx, f, &cfg, data)
+	if err != nil || len(started) != 2 || cfg.Faxes == nil || cfg.FaxHooks["sinch"] == nil {
+		t.Fatalf("%v %v", started, err)
+	}
+	for name, body := range map[string]string{
+		"unknown field":   `{"sinch":{"password":"x"}}`,
+		"empty secret":    `{"sinch":{"passwordEnv":"NOT_SET_ANYWHERE"}}`,
+		"no folder":       `{"folder":{"dir":"/no/such/dir"}}`,
+		"too often":       `{"folder":{"dir":"` + scans + `","every":"1s"}}`,
+		"nothing at all":  `{}`,
+		"srfax no access": `{"srfax":{"passwordEnv":"SINCH_PW"}}`,
+	} {
+		var c server.Config
+		if _, err := openFaxConnectors(ctx, writePlans(t, body), &c, data); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
 	}
 }

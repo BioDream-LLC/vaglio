@@ -53,6 +53,9 @@ type planSpec struct {
 	GoldCard        string `json:"goldcard,omitempty"`
 	FaxTokenEnv     string `json:"faxTokenEnv,omitempty"`
 	AppealsTokenEnv string `json:"appealsTokenEnv,omitempty"`
+	// FaxConnectors is a file naming where else faxes come from: Sinch or Documo webhooks, SRFax or RingCentral polled,
+	// a scan folder.
+	FaxConnectors string `json:"faxConnectors,omitempty"`
 	// Webhook is where every record about a case is pushed, signed with the secret in WebhookSecretEnv.
 	Webhook          string `json:"webhook,omitempty"`
 	WebhookSecretEnv string `json:"webhookSecretEnv,omitempty"`
@@ -201,6 +204,8 @@ type openedPlan struct {
 	moved     []*policy.Policy
 	scheduled map[string]*policy.Policy
 	gold      *goldcard.Config
+	// connectors are the fax connectors started, for the start-up log.
+	connectors []string
 }
 
 var planIDRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
@@ -275,6 +280,7 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 		where = "plan " + sp.ID + ": "
 	}
 	fail := func(err error) (*openedPlan, error) { return nil, fmt.Errorf("%s%w", where, err) }
+	var connectors []string
 	token, err := secretFrom(sp.TokenEnv)
 	if err != nil {
 		return fail(fmt.Errorf("token-env: %w", err))
@@ -427,8 +433,15 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 		cfg.FetchDocuments = client.Documents
 		go client.Run(ctx, st.cases, 30*time.Second)
 	}
+	if sp.FaxConnectors != "" {
+		started, err := openFaxConnectors(ctx, sp.FaxConnectors, &cfg, sp.Data)
+		if err != nil {
+			return fail(fmt.Errorf("fax-connectors: %w", err))
+		}
+		connectors = started
+	}
 	ok = true
-	return &openedPlan{spec: sp, cfg: cfg, st: st, moved: moved, scheduled: scheduled, gold: gold}, nil
+	return &openedPlan{spec: sp, cfg: cfg, st: st, moved: moved, scheduled: scheduled, gold: gold, connectors: connectors}, nil
 }
 
 // report logs what a plan started with.
@@ -458,6 +471,9 @@ func (op *openedPlan) report(origin string) {
 	if o := op.cfg.Outside; o != nil {
 		for name, c := range o.Criteria {
 			log.Printf("%scriteria service %s: %s", who, name, c.URL)
+		}
+		for _, c := range op.connectors {
+			log.Printf("%sfaxes also from: %s", who, c)
 		}
 		if op.cfg.Webhook != nil {
 			log.Printf("%swebhook: every record about a case goes to %s, signed", who, op.cfg.Webhook.URL)

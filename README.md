@@ -242,6 +242,20 @@ software a plan runs, not an outcome a vendor sells.
   so the receiver can check the chain. A new webhook starts from now; `GET /api/export/events?after=SEQ` (admin, or
   the audit scope) gives the same events as NDJSON for history or a nightly load, and is itself recorded.
   `GET /api/export/status` says how far the webhook has got and its last error.
+- **Fax connectors** (`serve -fax-connectors FILE`, secrets named by environment variable): besides the plain fax
+  webhook, faxes come into the inbox from Sinch's (formerly Phaxio) incoming-fax webhook, multipart or JSON, at
+  `/api/feeds/fax/sinch`; Documo's webhook at `/api/feeds/fax/documo`, the fax then downloaded with the account's API
+  key; SRFax, polled (it pushes nothing), each fax marked viewed once kept; RingCentral's message store, polled,
+  signed in with the JWT grant; and a folder a scanner or fax server writes to, each file moved to `kept/` or to
+  `refused/` with the reason. A fax already in the inbox is not kept or recorded twice. Each is written from its
+  service's public documentation and tested against a stand-in built from it, not against the service; eFax
+  Corporate's inbound API is documented to customers only, so it is not here.
+
+  ```
+  {"sinch": {"passwordEnv": "SINCH_HOOK_PASSWORD"},
+   "srfax": {"accessId": "12345", "passwordEnv": "SRFAX_PASSWORD", "every": "1m"},
+   "folder": {"dir": "/srv/scans"}}
+  ```
 - **Says what would change it**: every pend and denial carries each smallest set of evidence whose documentation would
   approve it, and says when a route needs the record to be wrong rather than more documentation. The provider is told
   the routes that need only more documentation.
@@ -403,7 +417,7 @@ advice before submitting shows in Perfuse only from its `crd-advisor` branch, no
 protocol is Vaglio's own: no licensed criteria vendor is known to speak it yet, so a plan's licence needs a small adapter
 (`examples/criteria-service` is where to start one).
 Automatic approval from documents is tested with a stand-in model only; how often a real model's approvals survive the
-checks is what the sampled checks will show. Faxes arrive by a fax service's webhook; there is no fax line or modem
+checks is what the sampled checks will show. Faxes arrive through a fax service (its webhook or its API) or a scan folder; there is no fax line or modem
 support.
 
 

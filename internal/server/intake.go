@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"mime"
@@ -159,29 +161,40 @@ func (cfg Config) receiveFax(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pages, _ := strconv.Atoi(r.URL.Query().Get("pages"))
-	from := r.URL.Query().Get("from")
+	f, err := cfg.StoreFax(r.Context(), raw, ct, r.URL.Query().Get("from"), pages, "fax-service")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"fax": f.ID})
+}
+
+// StoreFax keeps a fax in the inbox, with the text the extractors make of it, and records its arrival from source (the
+// fax service's webhook, a connector, a scan folder). One that is in the inbox already is that one, not recorded again.
+func (cfg Config) StoreFax(ctx context.Context, raw []byte, ct, from string, pages int, source string) (intake.Fax, error) {
+	if cfg.Faxes == nil {
+		return intake.Fax{}, errors.New("no fax inbox")
+	}
 	if len(from) > 32 {
 		from = from[:32]
 	}
 	text := ""
 	if x := cfg.Extractors.For(ct); x != nil {
-		if t, err := x.Extract(r.Context(), raw); err == nil {
+		if t, err := x.Extract(ctx, raw); err == nil {
 			text = t
 		} else {
 			log.Printf("fax: %s could not make text of it: %v", x.Name, err)
 		}
 	}
-	f, err := cfg.inbox().Add(raw, ct, from, pages, text, time.Now())
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
+	f, isNew, err := cfg.inbox().AddNew(raw, ct, from, pages, text, time.Now())
+	if err != nil || !isNew {
+		return f, err
 	}
-	if _, err := cfg.Audit.Append("fax-service", ActFaxReceived, "", map[string]any{"fax": f.ID, "sha256": f.SHA256,
+	if _, err := cfg.Audit.Append(source, ActFaxReceived, "", map[string]any{"fax": f.ID, "sha256": f.SHA256,
 		"from": f.From, "pages": f.Pages}); err != nil {
-		writeError(w, http.StatusInternalServerError, "the fax could not be recorded: "+err.Error())
-		return
+		return f, fmt.Errorf("the fax could not be recorded: %w", err)
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"fax": f.ID})
+	return f, nil
 }
 
 func (cfg Config) listFaxes(w http.ResponseWriter, r *http.Request, _ auth.Session) {

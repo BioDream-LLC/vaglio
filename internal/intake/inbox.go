@@ -58,13 +58,19 @@ func ext(contentType string) string {
 
 // Add keeps a fax. A fax whose bytes match one kept already (a service delivering twice) is that one.
 func (b *Inbox) Add(raw []byte, contentType, from string, pages int, text string, now time.Time) (Fax, error) {
+	f, _, err := b.AddNew(raw, contentType, from, pages, text, now)
+	return f, err
+}
+
+// AddNew is Add, saying whether the fax is new.
+func (b *Inbox) AddNew(raw []byte, contentType, from string, pages int, text string, now time.Time) (Fax, bool, error) {
 	if len(raw) == 0 || len(raw) > MaxDocument {
-		return Fax{}, fmt.Errorf("a fax is 1 byte to %d MB", MaxDocument>>20)
+		return Fax{}, false, fmt.Errorf("a fax is 1 byte to %d MB", MaxDocument>>20)
 	}
 	switch contentType {
 	case "application/pdf", "image/tiff", "image/png", "image/jpeg":
 	default:
-		return Fax{}, fmt.Errorf("a fax is PDF, TIFF, PNG or JPEG, not %q", contentType)
+		return Fax{}, false, fmt.Errorf("a fax is PDF, TIFF, PNG or JPEG, not %q", contentType)
 	}
 	sum := sha256.Sum256(raw)
 	h := hex.EncodeToString(sum[:])
@@ -72,17 +78,17 @@ func (b *Inbox) Add(raw []byte, contentType, from string, pages int, text string
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if f, err := b.get(id); err == nil {
-		return f, nil
+		return f, false, nil
 	}
 	if err := os.MkdirAll(b.Dir, 0o700); err != nil {
-		return Fax{}, err
+		return Fax{}, false, err
 	}
 	f := Fax{ID: id, Received: now.UTC().Format(time.RFC3339), From: from, Pages: pages, ContentType: contentType,
 		Size: len(raw), SHA256: h, Text: text}
 	if err := os.WriteFile(b.path(id, ext(contentType)), raw, 0o600); err != nil {
-		return Fax{}, err
+		return Fax{}, false, err
 	}
-	return f, b.save(f)
+	return f, true, b.save(f)
 }
 
 func (b *Inbox) save(f Fax) error {

@@ -107,6 +107,9 @@ type Config struct {
 	Members *eligibility.Members
 	// Webhook, when set, pushes every record about a case to the plan's systems; GET /api/export/status shows it.
 	Webhook *feed.Webhook
+	// FaxHooks are fax services' own webhooks (sinch, documo), at POST /api/feeds/fax/{service}; each checks its own
+	// credentials.
+	FaxHooks map[string]http.Handler
 	// AutoRead, when set (with Reader), reads a pended request's documents at once, and may approve on them.
 	AutoRead *AutoRead
 	// Faxes, when set, is the inbox of faxes received from the plan's fax service, which posts each to
@@ -225,6 +228,14 @@ func New(cfg Config) http.Handler {
 	shown("GET /api/fax/{id}/content", auth.Reviewer, auth.ScopeIntake, cfg.faxContent)
 	scoped("POST /api/fax/{id}/set-aside", auth.Reviewer, auth.ScopeIntake, cfg.setAsideFax)
 	mux.HandleFunc("POST /api/feeds/fax", cfg.receiveFax)
+	mux.HandleFunc("POST /api/feeds/fax/{service}", func(w http.ResponseWriter, r *http.Request) {
+		h, ok := cfg.FaxHooks[r.PathValue("service")]
+		if !ok {
+			writeError(w, http.StatusNotFound, "no such fax connector")
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
 	scoped("POST /api/cases/{id}/appeal", auth.Reviewer, auth.ScopeAppeals, cfg.appealCase)
 	scoped("POST /api/cases/{id}/appeal/received", auth.Reviewer, auth.ScopeAppeals, cfg.receiveAppeal)
 	route("GET /api/queue", auth.Viewer, cfg.queue)
