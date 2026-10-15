@@ -7,9 +7,11 @@ Wants=network-online.target
 User=vaglio
 Group=vaglio
 WorkingDirectory=/opt/vaglio
-ExecStart=/bin/sh -c 'VAGLIO_TOKEN=$(cat /opt/vaglio/conf/token) exec /opt/vaglio/vaglio serve -addr :8443 \
+ExecStart=/bin/sh -c 'VAGLIO_TOKEN=$(cat /opt/vaglio/conf/token) VAGLIO_APPEALS=$(cat /opt/vaglio/conf/appeals-token) \
+  VAGLIO_FAX=$(cat /opt/vaglio/conf/fax-token) exec /opt/vaglio/vaglio serve -addr :8443 \
   -hostname vaglio.perfuse.health -tls-cert /opt/vaglio/tls/fullchain.pem -tls-key /opt/vaglio/tls/privkey.pem \
-  -data /opt/vaglio/data -policies /opt/vaglio/policies -token-env VAGLIO_TOKEN -demo-account demo:try-vaglio-demo'
+  -data /opt/vaglio/data -policies /opt/vaglio/policies -token-env VAGLIO_TOKEN -demo-account demo:try-vaglio-demo \
+  -appeals-token-env VAGLIO_APPEALS -fax-token-env VAGLIO_FAX -extract pdftotext'
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true

@@ -8,7 +8,7 @@ port=${1:-8443}
 here=$(cd "$(dirname "$0")" && pwd)
 
 apt-get update -qq
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl certbot python3 >/dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl certbot python3 poppler-utils >/dev/null
 id vaglio >/dev/null 2>&1 || useradd --system --home /opt/vaglio --shell /usr/sbin/nologin vaglio
 install -d -o vaglio -g vaglio -m 0700 /opt/vaglio/data /opt/vaglio/logs
 install -d -o root -g vaglio -m 0750 /opt/vaglio/conf /opt/vaglio/tls /opt/vaglio/policies
@@ -22,7 +22,12 @@ install -m 0755 "$here/traffic.py" /opt/vaglio/traffic.py
 if [ ! -s /opt/vaglio/conf/token ]; then
   head -c 32 /dev/urandom | base64 | tr -dc A-Za-z0-9 > /opt/vaglio/conf/token
 fi
-chown root:vaglio /opt/vaglio/conf/token && chmod 0640 /opt/vaglio/conf/token
+# The appeals system's and the fax service's tokens, for the invented appeals and faxes the traffic sends.
+for t in appeals-token fax-token; do
+  [ -s /opt/vaglio/conf/$t ] || head -c 32 /dev/urandom | base64 | tr -dc A-Za-z0-9 > /opt/vaglio/conf/$t
+done
+chown root:vaglio /opt/vaglio/conf/token /opt/vaglio/conf/appeals-token /opt/vaglio/conf/fax-token
+chmod 0640 /opt/vaglio/conf/token /opt/vaglio/conf/appeals-token /opt/vaglio/conf/fax-token
 # The traffic goes to this machine by its public name, so the certificate matches.
 grep -q " $host\$" /etc/hosts || echo "127.0.0.1 $host" >> /etc/hosts
 

@@ -354,8 +354,9 @@ func serve(args []string) error {
 		sh.drafter = &server.Drafter{Model: &draft.OpenAI{Base: *draftURL, Key: key, Model: *draftModel}, Name: *draftModel}
 	}
 	if *extract != "" {
-		if docs == nil && *draftURL == "" {
-			return errors.New("-extract makes text for the document model or for drafting: it needs -document-model-url or -draft-model-url")
+		if docs == nil && *draftURL == "" && *faxTokenEnv == "" && *plansFile == "" {
+			return errors.New("-extract makes text for the document model, drafting or the fax inbox: it needs " +
+				"-document-model-url, -draft-model-url or -fax-token-env")
 		}
 		for _, name := range strings.Split(*extract, ",") {
 			x, err := reader.Lookup(strings.TrimSpace(name))

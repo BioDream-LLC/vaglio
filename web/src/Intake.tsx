@@ -12,6 +12,7 @@ import {
   useFaxQuery,
   useIntakeFormQuery,
   useKeyInMutation,
+  useMeQuery,
   useSetAsideFaxMutation,
 } from './store'
 import type { Channel, IntakeBody, KeyedAnswer } from './types'
@@ -80,6 +81,7 @@ function FaxInbox({ open, onOpen }: { open: string | null; onOpen: (id: string |
 }
 
 function FaxPanel({ id, onClosed }: { id: string; onClosed: () => void }) {
+  const viewing = useMeQuery().data?.role === 'viewer' // a public demonstration's viewer reads only
   const { data: f } = useFaxQuery(id)
   const [setAside, aside] = useSetAsideFaxMutation()
   const [reason, setReason] = useState('')
@@ -99,7 +101,7 @@ function FaxPanel({ id, onClosed }: { id: string; onClosed: () => void }) {
       ) : (
         <p className="meta">No text was made of it: read the image.</p>
       )}
-      <details>
+      {!viewing && <details>
         <summary>Not a request? Set it aside</summary>
         <label htmlFor="aside-reason">Why</label>
         <input id="aside-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="A duplicate of an earlier fax" />
@@ -114,7 +116,7 @@ function FaxPanel({ id, onClosed }: { id: string; onClosed: () => void }) {
           Set aside
         </button>
         {aside.error && <p role="alert">{errorText(aside.error, 'Not set aside.')}</p>}
-      </details>
+      </details>}
     </div>
   )
 }
@@ -130,6 +132,7 @@ const blank = (): IntakeBody => ({
 })
 
 function IntakeForm({ fax, onDone }: { fax: string | null; onDone: () => void }) {
+  const viewing = useMeQuery().data?.role === 'viewer' // a public demonstration's viewer reads only
   const [f, setF] = useState<IntakeBody>(blank)
   const [file, setFile] = useState<File | null>(null)
   const [done, setDone] = useState<KeyedAnswer | null>(null)
@@ -315,7 +318,8 @@ function IntakeForm({ fax, onDone }: { fax: string | null; onDone: () => void })
         </label>
       )}
       <p>
-        <button type="submit" disabled={keying.isLoading || !policies?.length}>
+        {viewing && <p className="note">Public demonstration: the form is shown as a clerk sees it; keying in is for a reviewer.</p>}
+        <button type="submit" disabled={viewing || keying.isLoading || !policies?.length}>
           {keying.isLoading ? 'Deciding…' : 'Decide it'}
         </button>
       </p>

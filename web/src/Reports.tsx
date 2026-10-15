@@ -364,7 +364,7 @@ const dimensionName: Record<string, string> = {
 function Fairness({ period }: { period: Period }) {
   const { data: me } = useMeQuery()
   const [open, setOpen] = useState(false)
-  const allowed = me && me.role !== 'viewer'
+  const allowed = me && (me.role !== 'viewer' || me.demo) // a demonstration's viewer may read it
   const { data: f, error, isFetching } = useFairnessQuery(period, { skip: !open || !allowed })
   if (!allowed) return null
   const pc = (v?: number) => (v == null ? 'n/a' : `${v.toFixed(0)}%`)

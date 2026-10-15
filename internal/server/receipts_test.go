@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/biodream-llc/vaglio/internal/intake"
 	"github.com/biodream-llc/vaglio/internal/receipt"
 )
 
@@ -58,7 +59,10 @@ func TestReceipts(t *testing.T) {
 }
 
 func TestDemoAccount(t *testing.T) {
-	e := newEnvWith(t, "", func(c *Config) { c.Demo, c.DemoName, c.DemoPassword = true, "demo", "try-vaglio-demo" })
+	e := newEnvWith(t, "", func(c *Config) {
+		c.Demo, c.DemoName, c.DemoPassword = true, "demo", "try-vaglio-demo"
+		c.Faxes, c.FaxToken = &intake.Inbox{Dir: t.TempDir()}, "fax-secret"
+	})
 	if err := e.users.SetPassword("demo", "try-vaglio-demo"); err != nil {
 		t.Fatal(err)
 	}
@@ -76,6 +80,22 @@ func TestDemoAccount(t *testing.T) {
 	}
 	if w := do(demo, "POST", "/api/replay", `{"source":""}`); w.Code != 403 {
 		t.Errorf("the demo account replayed: %d", w.Code)
+	}
+	// The demonstration's viewer reads the reviewer's fairness report and fax inbox, and changes nothing there.
+	for _, path := range []string{"/api/reports/fairness", "/api/fax", "/api/intake/form?system=http://www.ama-assn.org/go/cpt&code=72148"} {
+		if w := do(demo, "GET", path, ""); w.Code != 200 {
+			t.Errorf("demo %s: %d %s", path, w.Code, w.Body)
+		}
+	}
+	if w := do(demo, "POST", "/api/intake", `{}`); w.Code != 403 {
+		t.Errorf("the demo account keyed in a request: %d", w.Code)
+	}
+	plain := newEnvWith(t, "", func(c *Config) { c.Faxes, c.FaxToken = &intake.Inbox{Dir: t.TempDir()}, "fax-secret" })
+	viewer := plain.signedIn(t, "viewer")
+	for _, path := range []string{"/api/reports/fairness", "/api/fax"} {
+		if w := do(viewer, "GET", path, ""); w.Code != 403 {
+			t.Errorf("a viewer outside a demonstration read %s: %d", path, w.Code)
+		}
 	}
 	if w := newEnv(t, "").raw("GET", "/api/demo", "", nil, ""); w.Code != 404 {
 		t.Errorf("a real deployment names a demo account: %d", w.Code)

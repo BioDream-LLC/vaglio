@@ -174,7 +174,7 @@ const tabs: Tab[] = [
     tone: 'text-fuchsia-400',
     shown: (me) => me.editing && (can(me, 'admin', 'author') || !!me.npi),
   },
-  { screen: 'intake', label: 'Intake', icon: IconInbox, tone: 'text-sky-400', shown: (me) => can(me, 'reviewer', 'intake') },
+  { screen: 'intake', label: 'Intake', icon: IconInbox, tone: 'text-sky-400', shown: (me) => can(me, 'reviewer', 'intake') || !!me.demo },
   { screen: 'try', label: 'Try a policy', icon: IconFlask, tone: 'text-sky-400' },
   { screen: 'reports', label: 'Reports', icon: IconChart, tone: 'text-emerald-400' },
   { screen: 'audit', label: 'Audit log', icon: IconLedger, tone: 'text-rose-400', shown: (me) => can(me, 'admin', 'audit') },

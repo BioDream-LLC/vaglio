@@ -156,6 +156,22 @@ func New(cfg Config) http.Handler {
 	scoped := func(pattern string, need auth.Role, scope string, h func(http.ResponseWriter, *http.Request, auth.Session)) {
 		mux.HandleFunc(pattern, cfg.signedIn(need, scope, h))
 	}
+	// shown: a reviewer's read-only screen that a public demonstration's viewer may also read. A demonstration holds
+	// invented requests only (serve -demo-account), and its viewer is there to look at everything and change nothing.
+	shown := func(pattern string, need auth.Role, scope string, h func(http.ResponseWriter, *http.Request, auth.Session)) {
+		if !strings.HasPrefix(pattern, "GET ") {
+			panic("only a GET is shown to a demonstration's viewer: " + pattern)
+		}
+		strict := cfg.signedIn(need, scope, h)
+		viewer := cfg.signedIn(auth.Viewer, "", h)
+		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+			if cfg.Demo {
+				viewer(w, r)
+				return
+			}
+			strict(w, r)
+		})
+	}
 	mux.HandleFunc("POST /api/login", cfg.login)
 	mux.HandleFunc("POST /api/logout", cfg.logout)
 	mux.HandleFunc("GET /api/sso", cfg.ssoInfo)
@@ -180,14 +196,14 @@ func New(cfg Config) http.Handler {
 	route("GET /api/reports/pends", auth.Viewer, cfg.pendsReport)
 	route("GET /api/reports/overrides", auth.Viewer, cfg.overridesReport)
 	route("GET /api/reports/list", auth.Viewer, cfg.listReport)
-	route("GET /api/reports/fairness", auth.Reviewer, cfg.fairnessReport)
+	shown("GET /api/reports/fairness", auth.Reviewer, "", cfg.fairnessReport)
 	route("GET /api/reports/automatic", auth.Viewer, cfg.automaticReport)
 	route("POST /api/cases/{id}/qa", auth.Reviewer, cfg.checkAutomatic)
-	scoped("GET /api/intake/form", auth.Reviewer, auth.ScopeIntake, cfg.intakeForm)
+	shown("GET /api/intake/form", auth.Reviewer, auth.ScopeIntake, cfg.intakeForm)
 	scoped("POST /api/intake", auth.Reviewer, auth.ScopeIntake, cfg.keyIn)
-	scoped("GET /api/fax", auth.Reviewer, auth.ScopeIntake, cfg.listFaxes)
-	scoped("GET /api/fax/{id}", auth.Reviewer, auth.ScopeIntake, cfg.getFax)
-	scoped("GET /api/fax/{id}/content", auth.Reviewer, auth.ScopeIntake, cfg.faxContent)
+	shown("GET /api/fax", auth.Reviewer, auth.ScopeIntake, cfg.listFaxes)
+	shown("GET /api/fax/{id}", auth.Reviewer, auth.ScopeIntake, cfg.getFax)
+	shown("GET /api/fax/{id}/content", auth.Reviewer, auth.ScopeIntake, cfg.faxContent)
 	scoped("POST /api/fax/{id}/set-aside", auth.Reviewer, auth.ScopeIntake, cfg.setAsideFax)
 	mux.HandleFunc("POST /api/feeds/fax", cfg.receiveFax)
 	scoped("POST /api/cases/{id}/appeal", auth.Reviewer, auth.ScopeAppeals, cfg.appealCase)
