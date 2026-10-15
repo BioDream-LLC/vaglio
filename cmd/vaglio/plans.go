@@ -21,6 +21,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/deliver"
 	"github.com/biodream-llc/vaglio/internal/editor"
 	"github.com/biodream-llc/vaglio/internal/eligibility"
+	"github.com/biodream-llc/vaglio/internal/feed"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/intake"
 	"github.com/biodream-llc/vaglio/internal/oidc"
@@ -52,6 +53,9 @@ type planSpec struct {
 	GoldCard        string `json:"goldcard,omitempty"`
 	FaxTokenEnv     string `json:"faxTokenEnv,omitempty"`
 	AppealsTokenEnv string `json:"appealsTokenEnv,omitempty"`
+	// Webhook is where every record about a case is pushed, signed with the secret in WebhookSecretEnv.
+	Webhook          string `json:"webhook,omitempty"`
+	WebhookSecretEnv string `json:"webhookSecretEnv,omitempty"`
 	// ClinicianDenials: only clinicians deny this plan's requests (serve -clinician-denials turns it on for every plan).
 	ClinicianDenials bool `json:"clinicianDenials,omitempty"`
 	// EditPolicies: this plan's console has the policy editor (serve -edit-policies turns it on for every plan).
@@ -380,6 +384,18 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 			return fail(fmt.Errorf("appeals-token-env: %s is empty", sp.AppealsTokenEnv))
 		}
 	}
+	if sp.Webhook != "" {
+		secret, err := secretFrom(sp.WebhookSecretEnv)
+		if err != nil {
+			return fail(fmt.Errorf("webhook-secret-env: %w", err))
+		}
+		hook := &feed.Webhook{URL: sp.Webhook, Secret: []byte(secret), Cursor: filepath.Join(sp.Data, "webhook.cursor"),
+			Log: st.log}
+		if err := hook.Start(ctx); err != nil {
+			return fail(fmt.Errorf("webhook: %w", err))
+		}
+		cfg.Webhook = hook
+	}
 	if sh.demo != "" {
 		name, pw, ok := strings.Cut(sh.demo, ":")
 		if !ok {
@@ -442,6 +458,9 @@ func (op *openedPlan) report(origin string) {
 	if o := op.cfg.Outside; o != nil {
 		for name, c := range o.Criteria {
 			log.Printf("%scriteria service %s: %s", who, name, c.URL)
+		}
+		if op.cfg.Webhook != nil {
+			log.Printf("%swebhook: every record about a case goes to %s, signed", who, op.cfg.Webhook.URL)
 		}
 		if op.cfg.Members != nil {
 			log.Printf("%smember file: %s, %d members; coverage is checked before a decision", who, op.spec.Members, op.cfg.Members.Size())

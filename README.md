@@ -234,6 +234,14 @@ software a plan runs, not an outcome a vendor sells.
   descriptions (the Surescripts ePA companion guide), not the member-only NCPDP schema: the envelope, linkage and
   statuses are as published; the element names inside a question set and an approval's dates are inferred, and say so
   in `internal/ncpdp`. Not certified with any intermediary; check against the plan's before use.
+- **Feeds to the plan's systems** (claims, care management, a warehouse): `serve -webhook https://... -webhook-secret-env
+  VAR` pushes every record about a case (decided, reviewed, assigned, appealed, delivered; not page views) as JSON
+  events, in order and at least once, from a cursor kept on disk, retried with backoff while the receiver is down.
+  Each delivery is signed: `Vaglio-Signature: t=UNIX,v1=HEX`, HEX the HMAC-SHA256 of the time, a dot and the body, so
+  a receiver checks it and refuses old ones. An event is the audit record itself, with its hash and the previous one,
+  so the receiver can check the chain. A new webhook starts from now; `GET /api/export/events?after=SEQ` (admin, or
+  the audit scope) gives the same events as NDJSON for history or a nightly load, and is itself recorded.
+  `GET /api/export/status` says how far the webhook has got and its last error.
 - **Says what would change it**: every pend and denial carries each smallest set of evidence whose documentation would
   approve it, and says when a route needs the record to be wrong rather than more documentation. The provider is told
   the routes that need only more documentation.

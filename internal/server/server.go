@@ -33,6 +33,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/cases"
 	"github.com/biodream-llc/vaglio/internal/decide"
 	"github.com/biodream-llc/vaglio/internal/eligibility"
+	"github.com/biodream-llc/vaglio/internal/feed"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/intake"
 	"github.com/biodream-llc/vaglio/internal/outside"
@@ -104,6 +105,8 @@ type Config struct {
 	// Members is the plan's member file (serve -members): a request is approved or denied only for a member covered
 	// on the day; otherwise it pends for a person to check.
 	Members *eligibility.Members
+	// Webhook, when set, pushes every record about a case to the plan's systems; GET /api/export/status shows it.
+	Webhook *feed.Webhook
 	// AutoRead, when set (with Reader), reads a pended request's documents at once, and may approve on them.
 	AutoRead *AutoRead
 	// Faxes, when set, is the inbox of faxes received from the plan's fax service, which posts each to
@@ -243,6 +246,8 @@ func New(cfg Config) http.Handler {
 	route("GET /api/policies/{id}/versions/{sha}", auth.Viewer, cfg.policyVersion)
 	scoped("GET /api/audit", auth.Admin, auth.ScopeAudit, cfg.listAudit)
 	scoped("GET /api/audit/verify", auth.Admin, auth.ScopeAudit, cfg.verifyAudit)
+	scoped("GET /api/export/events", auth.Admin, auth.ScopeAudit, cfg.exportEvents)
+	scoped("GET /api/export/status", auth.Admin, auth.ScopeAudit, cfg.exportStatus)
 	route("POST /api/policies/check", auth.Viewer, cfg.checkSourceHandler)
 	route("POST /api/cases/{id}/extend", auth.Reviewer, cfg.extendCase)
 	mux.HandleFunc("POST /api/feeds/appeals", cfg.appealsFeed)

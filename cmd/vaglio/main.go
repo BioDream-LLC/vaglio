@@ -225,6 +225,8 @@ func serve(args []string) error {
 	fs.Var(&criteria, "criteria", "NAME=URL: a criteria service the plan runs or licenses, named by its policies' "+
 		"\"find criteria NAME ...\" (repeatable). It is sent the request: https, or http on this machine")
 	fs.Var(&criteriaTokens, "criteria-token-env", "NAME=VAR: the environment variable holding criteria service NAME's bearer token")
+	webhook := fs.String("webhook", "", "push every record about a case, as signed JSON events, to this https URL")
+	webhookSecretEnv := fs.String("webhook-secret-env", "", "name of an environment variable holding the webhook's signing secret (16+ bytes)")
 	members := fs.String("members", "", "the plan's member file (CSV: member_id, birth_date, plan, line, start, end, excluded): "+
 		"a request is approved or denied only for a member covered on the day; otherwise it pends")
 	network := fs.String("network", "", "the plan's provider network: a file of NPIs (one per line, or a CSV's first column)")
@@ -241,7 +243,7 @@ func serve(args []string) error {
 	if *plansFile != "" {
 		for _, f := range []string{"policies", "hostname", "token-env", "pas-url", "pas-token-env", "pas-ca", "pas-api-url",
 			"goldcard", "fax-token-env", "appeals-token-env", "demo-account", "oidc-issuer", "oidc-client-id", "oidc-client-secret-env", "oidc-redirect-url", "oidc-group", "oidc-label", "criteria", "criteria-token-env",
-			"network", "npi-registry", "members"} {
+			"network", "npi-registry", "members", "webhook", "webhook-secret-env"} {
 			if set[f] {
 				return fmt.Errorf("-%s is set per plan in the -plans file (the demonstration is for one plan only)", f)
 			}
@@ -280,6 +282,7 @@ func serve(args []string) error {
 		plans = []planSpec{{Hostname: strings.ToLower(*hostname), Policies: *dir, Data: *data, TokenEnv: *tokenEnv,
 			PASURL: *pasURL, PASAPI: *pasAPI, PASTokenEnv: *pasTokenEnv, PASCA: *pasCA, GoldCard: *goldCardFile,
 			FaxTokenEnv: *faxTokenEnv, AppealsTokenEnv: *appealsTokenEnv, Criteria: crit, Network: *network, Members: *members,
+			Webhook: *webhook, WebhookSecretEnv: *webhookSecretEnv,
 			NPIRegistry: *npiRegistry}}
 		if *oidcIssuer != "" {
 			plans[0].SSO = &ssoSpec{Issuer: *oidcIssuer, ClientID: *oidcClient, ClientSecretEnv: *oidcSecretEnv,
