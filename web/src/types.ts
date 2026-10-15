@@ -1,7 +1,7 @@
 // Types mirror the Go structs' JSON tags (internal/decide, internal/policy, internal/cases, internal/server). Keep them in
 // step.
 
-export type Role = 'viewer' | 'reviewer' | 'admin'
+export type Role = 'viewer' | 'reviewer' | 'admin' | 'provider'
 
 export interface Me {
   user: string
@@ -22,7 +22,9 @@ export interface Me {
 
 /** Whether a session may do a job: the role, or the scope beside it. */
 export function can(me: Me, role: Role, scope?: string): boolean {
-  const rank: Record<Role, number> = { viewer: 1, reviewer: 2, admin: 3 }
+  // A provider's account is off the ladder: it does no job of the plan's.
+  const rank: Record<Role, number> = { provider: -1, viewer: 1, reviewer: 2, admin: 3 }
+  if (me.role === 'provider') return false
   if (rank[me.role] >= rank[role]) return true
   return !!scope && (me.scopes ?? []).includes(scope)
 }
@@ -765,4 +767,28 @@ export interface Fax {
   case?: string
   by?: string
   reason?: string
+}
+
+/** A request as its provider sees it in the portal. */
+export interface PortalRequest {
+  id: string
+  received: string
+  service: string
+  title: string
+  patient: string
+  providerNpi: string
+  status: 'approved' | 'denied' | 'waiting' | 'with-a-clinician' | 'replaced'
+  why?: string
+  requested?: string[]
+  due?: string
+  receipt?: string
+  appeal?: 'received' | 'upheld' | 'overturned'
+  appealDue?: string
+  sent?: number
+}
+
+export interface PortalDocument {
+  description: string
+  contentType: string
+  data: string
 }

@@ -25,6 +25,7 @@ import { ReceiptPage, receiptFromHash } from './Receipt'
 import { Reports } from './Reports'
 import { Intake } from './Intake'
 import { Queue } from './Queue'
+import { Portal } from './Portal'
 import { Audit, Policies, PolicyView, Try } from './Screens'
 import {
   api,
@@ -63,6 +64,8 @@ function Signed() {
   const { data: me, error, isLoading } = useMeQuery()
   if (isLoading) return <p className="layout text-muted">Loading…</p>
   if (isUnauthorized(error) || !me) return <SignIn />
+  // A provider's office sees its portal only: none of the plan's own screens.
+  if (me.role === 'provider') return <Portal me={me} />
   return <Console me={me} />
 }
 

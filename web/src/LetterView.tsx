@@ -13,10 +13,10 @@ const langs = [
  * The decision's letter, as it would be sent: written from the decision by template, never by a model, so it says
  * nothing the decision does not. Print prints the letter alone.
  */
-export function LetterView({ id }: { id: string }) {
+export function LetterView({ id, portal = false }: { id: string; portal?: boolean }) {
   const [lang, setLang] = useState<'en' | 'es'>('en')
   const [open, setOpen] = useState(false)
-  const { data, error, isFetching } = useLetterQuery({ id, lang }, { skip: !open })
+  const { data, error, isFetching } = useLetterQuery({ id, lang, portal }, { skip: !open })
   return (
     <details className="mt-4" onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
       <summary className="flex cursor-pointer items-center gap-2 font-semibold">

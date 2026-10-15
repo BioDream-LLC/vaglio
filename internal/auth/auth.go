@@ -37,13 +37,17 @@ const (
 	Admin    Role = "admin"    // also read the audit log
 )
 
+// Provider is an account of a provider's office, outside the ladder: it reaches the provider portal only, for the
+// requests of the NPIs its account records, and nothing of the plan's own screens.
+const Provider Role = "provider"
+
 var rank = map[Role]int{Viewer: 1, Reviewer: 2, Admin: 3}
 
-// Can is whether a role includes another.
+// Can is whether a role includes another. A provider's includes none: it has no place on the ladder.
 func (r Role) Can(need Role) bool { return rank[r] >= rank[need] && rank[need] > 0 }
 
 // Valid is whether r is a known role.
-func (r Role) Valid() bool { return rank[r] > 0 }
+func (r Role) Valid() bool { return rank[r] > 0 || r == Provider }
 
 // User is one account.
 type User struct {
@@ -62,6 +66,8 @@ type User struct {
 	// SSO marks an account that signs in only through the organization's identity provider: it has no password, and the
 	// provider's sign-in is accepted for it only because an administrator made it, with its role, here.
 	SSO bool `json:"sso,omitempty"`
+	// ProviderNPIs are the NPIs a provider account acts for: it sees and sends requests of these only.
+	ProviderNPIs []string `json:"providerNpis,omitempty"`
 }
 
 // Scopes. A role is a ladder (viewer, reviewer, admin); a scope is one job beside it, for the people whose work is not on
@@ -243,7 +249,7 @@ func (u *Users) Set(name string, role Role) (string, error) {
 		return "", fmt.Errorf("%q is not a usable name: 2 to 32 lower case letters, digits, '.', '_' or '-', starting with a letter", name)
 	}
 	if !role.Valid() {
-		return "", fmt.Errorf("role is viewer, reviewer or admin, not %q", role)
+		return "", fmt.Errorf("role is viewer, reviewer, admin or provider, not %q", role)
 	}
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -372,6 +378,46 @@ func (u *Users) SetClinician(name, npi, credential string) error {
 	return u.save()
 }
 
+// SetProviderNPIs records the NPIs a provider account acts for.
+func (u *Users) SetProviderNPIs(name string, npis []string) error {
+	for _, n := range npis {
+		if !ValidNPI(n) {
+			return fmt.Errorf("%q is not an NPI: ten digits, the last a check digit", n)
+		}
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if err := u.reload(); err != nil {
+		return err
+	}
+	us, ok := u.byID[name]
+	if !ok {
+		return fmt.Errorf("no user %q", name)
+	}
+	if us.Role != Provider {
+		return fmt.Errorf("%s is not a provider account", name)
+	}
+	if len(npis) == 0 {
+		return errors.New("a provider account acts for at least one NPI")
+	}
+	us.ProviderNPIs = append([]string(nil), npis...)
+	u.byID[name] = us
+	return u.save()
+}
+
+// ActsFor is whether a provider account acts for an NPI.
+func (us User) ActsFor(npi string) bool {
+	if us.Role != Provider || npi == "" {
+		return false
+	}
+	for _, n := range us.ProviderNPIs {
+		if n == npi {
+			return true
+		}
+	}
+	return false
+}
+
 // Get returns an account without its password hash.
 func (u *Users) Get(name string) (User, bool, error) {
 	us, ok, err := u.lookup(name)
@@ -462,6 +508,9 @@ type Session struct {
 func (s Session) Has(scope string) bool {
 	if s.Role == Admin {
 		return true
+	}
+	if s.Role == Provider {
+		return false // a provider's account takes no job of the plan's, whatever its file says
 	}
 	for _, sc := range s.Scopes {
 		if sc == scope {

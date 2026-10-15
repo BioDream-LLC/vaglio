@@ -227,6 +227,28 @@ describe('the work queue', () => {
   })
 })
 
+describe('the provider portal', () => {
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+  })
+
+  it("shows a provider's office its own requests, and none of the plan's screens", async () => {
+    respond({
+      '/api/me': { user: 'clinic', role: 'provider' },
+      '/api/portal/me': { user: 'clinic', npis: ['1234567893'] },
+      '/api/portal/requests': [
+        { id: 'r1', received: '2026-10-15T10:00:00Z', service: 'cpt|72148', title: 'Lumbar MRI', patient: 'Patient/p1',
+          providerNpi: '1234567893', status: 'waiting', requested: ['Six weeks of physical therapy'], due: '2026-10-22T10:00:00Z' },
+      ],
+    })
+    renderApp()
+    expect(await screen.findByText('Waiting for information', undefined, { timeout: 3000 })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Send a new request' })).toBeTruthy()
+    expect(screen.queryByRole('navigation', { name: 'Sections' })).toBeNull()
+  })
+})
+
 describe('documents and routes', () => {
   afterEach(() => {
     cleanup()

@@ -99,6 +99,9 @@ var (
 
 var contentTypes = []string{"application/pdf", "image/tiff", "image/png", "image/jpeg", "text/plain"}
 
+// AcceptedType is whether a document of this type is kept with a request.
+func AcceptedType(t string) bool { return slices.Contains(contentTypes, t) }
+
 // Check says what is wrong with a form, or nil.
 func (f *Form) Check() error {
 	var bad []string

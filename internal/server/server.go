@@ -185,7 +185,17 @@ func New(cfg Config) http.Handler {
 	mux.HandleFunc("GET /api/sso/callback", cfg.ssoCallback)
 	mux.HandleFunc("GET /api/receipts/{code}", cfg.checkReceipt)
 	mux.HandleFunc("GET /api/demo", cfg.demoInfo)
-	route("GET /api/me", auth.Viewer, cfg.me)
+	mux.HandleFunc("GET /api/me", cfg.anySession(cfg.me))
+	mux.HandleFunc("GET /api/portal/me", cfg.portal(cfg.portalMe))
+	mux.HandleFunc("GET /api/portal/requests", cfg.portal(cfg.portalList))
+	mux.HandleFunc("POST /api/portal/requests", cfg.portal(cfg.portalSubmit))
+	mux.HandleFunc("GET /api/portal/requests/{id}", cfg.portal(cfg.portalGet))
+	mux.HandleFunc("GET /api/portal/requests/{id}/letter", cfg.portal(cfg.portalLetter))
+	mux.HandleFunc("POST /api/portal/requests/{id}/documents", cfg.portal(cfg.portalDocuments))
+	mux.HandleFunc("POST /api/portal/requests/{id}/appeal", cfg.portal(cfg.portalAppeal))
+	mux.HandleFunc("GET /api/portal/form", cfg.portal(func(w http.ResponseWriter, r *http.Request, _ auth.User) {
+		cfg.intakeForm(w, r, auth.Session{})
+	}))
 	route("GET /api/policies", auth.Viewer, cfg.listPolicies)
 	route("GET /api/policies/{id}", auth.Viewer, cfg.getPolicy)
 	route("GET /api/policies/{id}/source", auth.Viewer, cfg.policySource)
@@ -359,7 +369,12 @@ func (cfg Config) signedIn(need auth.Role, scope string, h func(http.ResponseWri
 
 // decodeJSON reads a console request body, refusing unknown fields and anything too large.
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody))
+	return decodeJSONLimit(w, r, v, maxBody)
+}
+
+// decodeJSONLimit is decodeJSON with its own size limit, for bodies that carry documents.
+func decodeJSONLimit(w http.ResponseWriter, r *http.Request, v any, limit int64) bool {
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
 		var tooBig *http.MaxBytesError

@@ -797,12 +797,12 @@ func format(files []string, w io.Writer) error {
 // server does; run it while the server is up and the server picks the change up at the next request.
 func userCmd(args []string, w io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: vaglio user add|reset|sso|scopes|clinician|remove|list -data DIR [-role ROLE] [NAME]")
+		return errors.New("usage: vaglio user add|reset|sso|scopes|clinician|provider|remove|list -data DIR [-role ROLE] [NAME]")
 	}
 	fs := flag.NewFlagSet("user", flag.ExitOnError)
 	dir := fs.String("data", "data", "the server's data directory")
-	role := fs.String("role", "", "viewer, reviewer or admin")
-	npi := fs.String("npi", "", "clinician: the person's NPI")
+	role := fs.String("role", "", "viewer, reviewer or admin; or provider, for the provider portal")
+	npi := fs.String("npi", "", "clinician: the person's NPI; provider: the NPIs the account acts for, comma-separated")
 	credential := fs.String("credential", "", `clinician: the licence and specialty, such as "MD, orthopaedic surgery"`)
 	clear := fs.Bool("clear", false, "clinician: remove the NPI and credential")
 	scopes := fs.String("scopes", "", "scopes: a comma-separated list (author, audit, appeals, intake, policy:ID); empty clears them")
@@ -827,6 +827,9 @@ func userCmd(args []string, w io.Writer) error {
 			}
 			if len(u.Scopes) > 0 {
 				extra += "  scopes " + strings.Join(u.Scopes, ",")
+			}
+			if len(u.ProviderNPIs) > 0 {
+				extra += "  acts for NPI " + strings.Join(u.ProviderNPIs, ",")
 			}
 			fmt.Fprintf(w, "%-24s %-9s created %s%s\n", u.Name, u.Role, u.Created, extra)
 		}
@@ -861,7 +864,7 @@ func userCmd(args []string, w io.Writer) error {
 		case args[0] == "add" && current != nil:
 			return fmt.Errorf("user %s exists; vaglio user reset gives them a new password", name)
 		case args[0] == "add" && r == "":
-			return errors.New("add needs -role viewer, reviewer or admin")
+			return errors.New("add needs -role viewer, reviewer, admin or provider")
 		case args[0] == "reset" && current == nil:
 			return fmt.Errorf("no user %s", name)
 		case args[0] == "reset" && r == "":
@@ -879,6 +882,21 @@ func userCmd(args []string, w io.Writer) error {
 			return err
 		}
 		fmt.Fprintf(w, "user %s (%s), password: %s\nIt is shown only now.\n", name, r, pw)
+		return nil
+	case "provider":
+		var npis []string
+		for _, n := range strings.Split(*npi, ",") {
+			if n = strings.TrimSpace(n); n != "" {
+				npis = append(npis, n)
+			}
+		}
+		if err := users.SetProviderNPIs(name, npis); err != nil {
+			return err
+		}
+		if _, err := l.Append("system", "user.provider", "", map[string]any{"name": name, "npis": npis, "by": "command line"}); err != nil {
+			return err
+		}
+		fmt.Fprintf(w, "provider account %s acts for NPI %s in the provider portal\n", name, strings.Join(npis, ", "))
 		return nil
 	case "clinician":
 		if *clear {

@@ -42,6 +42,8 @@ import type {
   Workload,
   PeerToPeer,
   AppealRequest,
+  PortalRequest,
+  PortalDocument,
   Verification,
 } from './types'
 
@@ -62,7 +64,7 @@ const baseQuery: typeof raw = async (args, apiCtx, extra) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery,
-  tagTypes: ['Me', 'Case', 'Audit', 'Draft', 'Policy', 'Fax'],
+  tagTypes: ['Me', 'Case', 'Audit', 'Draft', 'Policy', 'Fax', 'Portal'],
   endpoints: (b) => ({
     me: b.query<Me, void>({ query: () => 'me', providesTags: ['Me'] }),
     login: b.mutation<Me, { name: string; password: string }>({
@@ -83,8 +85,8 @@ export const api = createApi({
       query: (id) => `policies/${encodeURIComponent(id)}/map`,
       providesTags: ['Policy'],
     }),
-    letter: b.query<Letter, { id: string; lang: string }>({
-      query: ({ id, lang }) => `cases/${encodeURIComponent(id)}/letter?lang=${lang}`,
+    letter: b.query<Letter, { id: string; lang: string; portal?: boolean }>({
+      query: ({ id, lang, portal }) => `${portal ? 'portal/requests' : 'cases'}/${encodeURIComponent(id)}/letter?lang=${lang}`,
       providesTags: ['Case'],
     }),
     policyVersions: b.query<PolicyVersion[], string>({
@@ -248,6 +250,27 @@ export const api = createApi({
       query: ({ id, ...body }) => ({ url: `cases/${encodeURIComponent(id)}/appeal/received`, method: 'POST', body }),
       invalidatesTags: ['Case', 'Audit'],
     }),
+    portalMe: b.query<{ user: string; npis: string[] }, void>({ query: () => 'portal/me' }),
+    portalRequests: b.query<PortalRequest[], void>({ query: () => 'portal/requests', providesTags: ['Portal'] }),
+    portalRequest: b.query<PortalRequest, string>({
+      query: (id) => `portal/requests/${encodeURIComponent(id)}`,
+      providesTags: ['Portal'],
+    }),
+    portalForm: b.query<IntakePolicy[], { system: string; code: string }>({
+      query: ({ system, code }) => `portal/form?system=${encodeURIComponent(system)}&code=${encodeURIComponent(code)}`,
+    }),
+    portalSubmit: b.mutation<PortalRequest, Omit<IntakeBody, 'channel' | 'faxes' | 'reference' | 'received'>>({
+      query: (body) => ({ url: 'portal/requests', method: 'POST', body }),
+      invalidatesTags: ['Portal'],
+    }),
+    portalDocuments: b.mutation<PortalRequest, { id: string; documents: PortalDocument[] }>({
+      query: ({ id, ...body }) => ({ url: `portal/requests/${encodeURIComponent(id)}/documents`, method: 'POST', body }),
+      invalidatesTags: ['Portal'],
+    }),
+    portalAppeal: b.mutation<PortalRequest, { id: string; reason: string; expedited: boolean }>({
+      query: ({ id, ...body }) => ({ url: `portal/requests/${encodeURIComponent(id)}/appeal`, method: 'POST', body }),
+      invalidatesTags: ['Portal'],
+    }),
     replay: b.mutation<ReplayReport, string>({
       query: (source) => ({ url: 'replay', method: 'POST', body: { source } }),
       invalidatesTags: ['Audit'],
@@ -326,6 +349,13 @@ export const {
   useEscalateMutation,
   usePeerToPeerMutation,
   useReceiveAppealMutation,
+  usePortalMeQuery,
+  usePortalRequestsQuery,
+  usePortalRequestQuery,
+  usePortalFormQuery,
+  usePortalSubmitMutation,
+  usePortalDocumentsMutation,
+  usePortalAppealMutation,
 } = api
 
 /** What the person trying a policy has entered for one piece of evidence. Unaddressed is the absence of an entry. */

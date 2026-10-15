@@ -218,6 +218,13 @@ software a plan runs, not an outcome a vendor sells.
   answers a FHIR `CoverageEligibilityRequest` with a `CoverageEligibilityResponse`: in force on the day, the benefit
   period, and per item whether the benefit leaves it out and whether prior authorization is required (a policy here
   decides it). X12 270/271 is not spoken; a clearinghouse or Perfuse translates.
+- **A provider portal** (sign in with a provider account: `vaglio user add -role provider NAME`, then `vaglio user
+  provider -npi NPI[,NPI] NAME`): a provider's office sends a request (the policy's questions, yes, no or not known,
+  and its documents), and it is decided at once on the same path as a PAS request. It sees each request's status, the
+  reason, what is still needed and by when, its letter and receipt; sends documents to a request that waits (read and
+  shown to the reviewer like any other); and appeals a denial. It sees the requests of its own NPIs only, and none of
+  the plan's screens: a provider account is off the role ladder and takes no scope, whatever its file says. Another
+  office's request is "no such request", not "forbidden".
 - **Says what would change it**: every pend and denial carries each smallest set of evidence whose documentation would
   approve it, and says when a route needs the record to be wrong rather than more documentation. The provider is told
   the routes that need only more documentation.
