@@ -267,7 +267,7 @@ function ListReviewTable({ period }: { period: Period }) {
                 <td>{r.requests}</td>
                 <td>{r.approvedPercent.toFixed(1)}%</td>
                 <td>{r.engineApproved}</td>
-                <td>{r.reversedPercent == null ? 'no denials' : `${r.reversed} of ${r.engineDenials}`}</td>
+                <td>{r.reversedPercent == null ? 'no denials' : `${r.reversed ?? 0} of ${r.engineDenials ?? 0}`}</td>
                 <td>{r.medianReviewHours == null ? 'n/a' : `${r.medianReviewHours.toFixed(1)} h`}</td>
                 <td>
                   <span className={`rounded-md px-2 py-0.5 text-xs ring-1 ${verdictClass[r.verdict]}`} title={r.why}>
@@ -419,7 +419,7 @@ function Fairness({ period }: { period: Period }) {
                     ) : (
                       <>
                         <td>{g.requests}</td>
-                        <td>{g.engineDenials ? `${g.reversed} of ${g.engineDenials} (${pc(g.reversedPercent)})` : 'no denials'}</td>
+                        <td>{g.engineDenials ? `${g.reversed ?? 0} of ${g.engineDenials} (${pc(g.reversedPercent)})` : 'no denials'}</td>
                         <td>{pc(g.pendedPercent)}</td>
                         <td>{pc(g.approvedPercent)}</td>
                       </>

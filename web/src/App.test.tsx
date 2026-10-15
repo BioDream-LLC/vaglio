@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux'
 import { makeStore, parseHash, selectPolicy, setEvidence, toHash, toRequest } from './store'
 import { App, Result } from './App'
@@ -182,6 +182,20 @@ describe('clinician denials and reports', () => {
     expect(screen.getByText('Approved after an extension')).toBeTruthy()
     expect(screen.getByText('Determined late, or waiting past the deadline')).toBeTruthy()
     expect(screen.getByText(/No gold card programs are configured/)).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Do errors fall harder on some patients?' })).toBeNull() // reviewers only
+  })
+
+  it("shows a demonstration's viewer the fairness report, with no reversals as 0", async () => {
+    window.location.hash = '#/reports'
+    respond({
+      '/api/me': { user: 'demo', role: 'viewer', demo: true },
+      '/api/reports/fairness': { from: '', to: '', requests: 30, note: '', dimensions: [{ name: 'age', groups: [
+        { value: '65-74', requests: 20, engineDenials: 6, reversedPercent: 0, pendedPercent: 25, approvedPercent: 60 },
+        { value: '75 and over', suppressed: true }] }] },
+    })
+    renderApp()
+    fireEvent.click(await screen.findByRole('button', { name: 'Make the report' }, { timeout: 3000 }))
+    expect(await screen.findByText('0 of 6 (0%)')).toBeTruthy()
   })
 })
 
