@@ -46,7 +46,6 @@ import (
 	"github.com/biodream-llc/vaglio/internal/decide"
 	"github.com/biodream-llc/vaglio/internal/draft"
 	"github.com/biodream-llc/vaglio/internal/editor"
-	"github.com/biodream-llc/vaglio/internal/oidc"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/precedence"
 	"github.com/biodream-llc/vaglio/internal/reader"
@@ -239,10 +238,10 @@ func serve(args []string) error {
 	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
 	if *plansFile != "" {
 		for _, f := range []string{"policies", "hostname", "token-env", "pas-url", "pas-token-env", "pas-ca", "pas-api-url",
-			"goldcard", "fax-token-env", "appeals-token-env", "demo-account", "oidc-issuer", "criteria", "criteria-token-env",
+			"goldcard", "fax-token-env", "appeals-token-env", "demo-account", "oidc-issuer", "oidc-client-id", "oidc-client-secret-env", "oidc-redirect-url", "oidc-group", "oidc-label", "criteria", "criteria-token-env",
 			"network", "npi-registry"} {
 			if set[f] {
-				return fmt.Errorf("-%s is set per plan in the -plans file (single sign-on and the demonstration are for one plan)", f)
+				return fmt.Errorf("-%s is set per plan in the -plans file (the demonstration is for one plan only)", f)
 			}
 		}
 	}
@@ -280,6 +279,10 @@ func serve(args []string) error {
 			PASURL: *pasURL, PASAPI: *pasAPI, PASTokenEnv: *pasTokenEnv, PASCA: *pasCA, GoldCard: *goldCardFile,
 			FaxTokenEnv: *faxTokenEnv, AppealsTokenEnv: *appealsTokenEnv, Criteria: crit, Network: *network,
 			NPIRegistry: *npiRegistry}}
+		if *oidcIssuer != "" {
+			plans[0].SSO = &ssoSpec{Issuer: *oidcIssuer, ClientID: *oidcClient, ClientSecretEnv: *oidcSecretEnv,
+				RedirectURL: *oidcRedirect, NameClaim: *oidcClaim, Group: *oidcGroup, Label: *oidcLabel}
+		}
 	}
 	names := planNames(plans)
 	if err := ac.check(names, *tlsCert); err != nil {
@@ -396,19 +399,16 @@ func serve(args []string) error {
 		}
 		opened = append(opened, op)
 	}
-	if *oidcIssuer != "" {
-		secret, err := secretFrom(*oidcSecretEnv)
-		if err != nil {
-			return fmt.Errorf("-oidc-client-secret-env: %w", err)
+	for _, op := range opened {
+		if op.spec.SSO == nil {
+			continue
 		}
-		dctx, cancel := context.WithTimeout(ctx, 20*time.Second)
-		prov, err := oidc.Discover(dctx, oidc.Config{Issuer: *oidcIssuer, ClientID: *oidcClient, ClientSecret: secret,
-			RedirectURL: *oidcRedirect, NameClaim: *oidcClaim, Group: *oidcGroup})
-		cancel()
+		sso, err := openSSO(ctx, op.spec, len(opened) > 1)
 		if err != nil {
-			return fmt.Errorf("single sign-on: %w", err)
+			return fmt.Errorf("%s%w", planPrefix(op, len(opened) > 1), err)
 		}
-		opened[0].cfg.SSO = server.NewSSO(prov, *oidcLabel)
+		op.cfg.SSO = sso
+		log.Printf("%ssingle sign-on: %s", planPrefix(op, len(opened) > 1), op.spec.SSO.Issuer)
 	}
 	var handler http.Handler
 	if len(opened) == 1 {
@@ -486,9 +486,6 @@ func serve(args []string) error {
 	}
 	for _, x := range sh.extractors {
 		log.Printf("document text: %s (%s) for %s", x.Name, x.Path, strings.Join(x.Types, ", "))
-	}
-	if *oidcIssuer != "" {
-		log.Printf("single sign-on: %s", *oidcIssuer)
 	}
 	err = srv.Serve(ln)
 	if errors.Is(err, http.ErrServerClosed) {

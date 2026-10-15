@@ -122,6 +122,23 @@ func TestSingleSignOn(t *testing.T) {
 	if w := e.raw("GET", callback, "", stateCookie, ""); !strings.Contains(w.Header().Get("Location"), "sso=failed") {
 		t.Errorf("a replayed state: %s", w.Header().Get("Location"))
 	}
+
+	// Another plan on the same server, with the same identity provider and an account of the same name: a sign-in
+	// started at this plan cannot be finished at that one, since each plan keeps its own sign-ins in progress.
+	other := newEnvWith(t, "", func(c *Config) { c.SSO = NewSSO(prov, "") })
+	other.users.SetSSO("kim", "admin")
+	start = e.raw("GET", "/api/sso/start", "", nil, "")
+	to, _ = url.Parse(start.Header().Get("Location"))
+	nonce = to.Query().Get("nonce")
+	for _, c := range start.Result().Cookies() {
+		if c.Name == ssoCookie {
+			stateCookie = c
+		}
+	}
+	if w := other.raw("GET", "/api/sso/callback?code=c&state="+to.Query().Get("state"), "", stateCookie, ""); !strings.Contains(
+		w.Header().Get("Location"), "sso=failed") {
+		t.Errorf("a sign-in started at one plan finished at another: %s", w.Header().Get("Location"))
+	}
 	failures := 0
 	for _, r := range e.log.Records(0, 0) {
 		if r.Action == "user.sign_in_failed" && strings.Contains(string(r.Data), `"via":"sso"`) {

@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -21,6 +22,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/editor"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/intake"
+	"github.com/biodream-llc/vaglio/internal/oidc"
 	"github.com/biodream-llc/vaglio/internal/outside"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/reader"
@@ -53,6 +55,8 @@ type planSpec struct {
 	ClinicianDenials bool `json:"clinicianDenials,omitempty"`
 	// EditPolicies: this plan's console has the policy editor (serve -edit-policies turns it on for every plan).
 	EditPolicies bool `json:"editPolicies,omitempty"`
+	// SSO is the plan's single sign-on: its own identity provider, client and callback on its own hostname.
+	SSO *ssoSpec `json:"sso,omitempty"`
 	// Criteria are the plan's criteria services, by the name its policies give them: {"url": ..., "tokenEnv": ...}.
 	Criteria map[string]criteriaSpec `json:"criteria,omitempty"`
 	// Network is the plan's provider network file (NPIs); NPIRegistry is "nppes" for the public registry, or a file.
@@ -60,6 +64,49 @@ type planSpec struct {
 	NPIRegistry string `json:"npiRegistry,omitempty"`
 
 	allowed []string // Host header values it answers to
+}
+
+// ssoSpec is a plan's OpenID Connect sign-in.
+type ssoSpec struct {
+	Issuer          string `json:"issuer"`
+	ClientID        string `json:"clientId"`
+	ClientSecretEnv string `json:"clientSecretEnv"`
+	RedirectURL     string `json:"redirectUrl"`
+	NameClaim       string `json:"nameClaim,omitempty"` // default preferred_username
+	Group           string `json:"group,omitempty"`
+	Label           string `json:"label,omitempty"`
+}
+
+// openSSO discovers a plan's identity provider. With several plans the callback must be on the plan's own hostname: a
+// sign-in finished at another plan's address would make a session there.
+func openSSO(ctx context.Context, sp planSpec, several bool) (server.SSO, error) {
+	s := sp.SSO
+	if s.Issuer == "" || s.ClientID == "" || s.RedirectURL == "" {
+		return server.SSO{}, errors.New("single sign-on needs the issuer, the client id and the redirect URL")
+	}
+	u, err := url.Parse(s.RedirectURL)
+	if err != nil || u.Scheme != "https" || u.Path != "/api/sso/callback" {
+		return server.SSO{}, fmt.Errorf("single sign-on: the redirect URL is https://HOST/api/sso/callback, not %q", s.RedirectURL)
+	}
+	if several && !strings.EqualFold(u.Hostname(), sp.Hostname) {
+		return server.SSO{}, fmt.Errorf("single sign-on: the redirect URL's host %s is not the plan's hostname %s", u.Hostname(), sp.Hostname)
+	}
+	secret, err := secretFrom(s.ClientSecretEnv)
+	if err != nil {
+		return server.SSO{}, fmt.Errorf("single sign-on client secret: %w", err)
+	}
+	claim := s.NameClaim
+	if claim == "" {
+		claim = "preferred_username"
+	}
+	dctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	prov, err := oidc.Discover(dctx, oidc.Config{Issuer: s.Issuer, ClientID: s.ClientID, ClientSecret: secret,
+		RedirectURL: s.RedirectURL, NameClaim: claim, Group: s.Group})
+	if err != nil {
+		return server.SSO{}, fmt.Errorf("single sign-on: %w", err)
+	}
+	return server.NewSSO(prov, s.Label), nil
 }
 
 // criteriaSpec is one criteria service.
@@ -421,4 +468,12 @@ func planNames(plans []planSpec) []string {
 		}
 	}
 	return out
+}
+
+// planPrefix names the plan in a message, when there are several.
+func planPrefix(op *openedPlan, several bool) string {
+	if !several {
+		return ""
+	}
+	return op.spec.Name + " (" + op.spec.ID + "): "
 }

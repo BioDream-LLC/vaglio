@@ -355,7 +355,7 @@ advice before submitting shows in Perfuse only from its `crd-advisor` branch, no
 protocol is Vaglio's own: no licensed criteria vendor is known to speak it yet, so a plan's licence needs a small adapter.
 Automatic approval from documents is tested with a stand-in model only; how often a real model's approvals survive the
 checks is what the sampled checks will show. Faxes arrive by a fax service's webhook; there is no fax line or modem
-support. Several plans on one server cannot use single sign-on yet.
+support.
 
 
 ## Try it
@@ -441,7 +441,9 @@ A utilization management organization deciding for several plans runs one server
   {"id": "acme", "name": "Acme Health", "hostname": "acme.pa.example", "policies": "/srv/acme/policies",
    "tokenEnv": "ACME_PAS_TOKEN", "pasUrl": "https://perfuse.acme.example/fhir", "pasTokenEnv": "ACME_PERFUSE_TOKEN"},
   {"id": "blue", "name": "Blue Plan", "hostname": "blue.pa.example", "policies": "/srv/blue/policies",
-   "tokenEnv": "BLUE_PAS_TOKEN", "faxTokenEnv": "BLUE_FAX_TOKEN", "clinicianDenials": true}
+   "tokenEnv": "BLUE_PAS_TOKEN", "faxTokenEnv": "BLUE_FAX_TOKEN", "clinicianDenials": true,
+   "sso": {"issuer": "https://login.blue.example", "clientId": "vaglio", "clientSecretEnv": "BLUE_SSO_SECRET",
+           "redirectUrl": "https://blue.pa.example/api/sso/callback", "label": "Sign in with Blue Plan"}}
 ]}
 ```
 
@@ -450,8 +452,10 @@ Each plan is reached at its own hostname and is wholly its own: its policies, it
 fax inbox and appeals feed, and whether only clinicians deny. A session or a token of one plan opens nothing at another,
 a Host header no plan has is refused, and the file is refused if two plans share an id, hostname, data or policy
 directory, or token variable. The certificate covers every plan's hostname (Vaglio's own authority, or `-acme` for all
-of them). Reports and `vaglio user`, `report` and `audit` commands take each plan's data directory. Single sign-on and
-the demonstration account are for a one-plan server.
+of them). Reports and `vaglio user`, `report` and `audit` commands take each plan's data directory. Each plan may have
+its own single sign-on (`sso`, the same settings as the `-oidc-*` flags); its callback must be on the plan's own
+hostname, and a sign-in started at one plan cannot be finished at another, even with one identity provider for both.
+The demonstration account is for a one-plan server.
 
 ### Its certificate
 

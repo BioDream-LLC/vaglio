@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -59,5 +60,54 @@ func TestByHost(t *testing.T) {
 		if !strings.Contains(w.Body.String(), want) {
 			t.Errorf("%s: %d %q", host, w.Code, w.Body)
 		}
+	}
+}
+
+func fakeIssuer(t *testing.T) string {
+	t.Helper()
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"issuer":"` + srv.URL + `","authorization_endpoint":"` + srv.URL + `/auth","token_endpoint":"` +
+			srv.URL + `/token","jwks_uri":"` + srv.URL + `/keys"}`))
+	})
+	mux.HandleFunc("/keys", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"keys":[]}`)) })
+	return srv.URL
+}
+
+func TestPlanSSO(t *testing.T) {
+	t.Setenv("ACME_SSO", "s1")
+	acme := planSpec{ID: "acme", Hostname: "acme.pa.example", SSO: &ssoSpec{Issuer: fakeIssuer(t), ClientID: "vaglio",
+		ClientSecretEnv: "ACME_SSO", RedirectURL: "https://acme.pa.example/api/sso/callback", Label: "Sign in with Acme"}}
+	sso, err := openSSO(context.Background(), acme, true)
+	if err != nil || sso.Provider == nil || sso.Label != "Sign in with Acme" {
+		t.Fatalf("%+v %v", sso, err)
+	}
+	for name, change := range map[string]func(s *ssoSpec){
+		"another plan's callback": func(s *ssoSpec) { s.RedirectURL = "https://blue.pa.example/api/sso/callback" },
+		"not the callback path":   func(s *ssoSpec) { s.RedirectURL = "https://acme.pa.example/callback" },
+		"plain http":              func(s *ssoSpec) { s.RedirectURL = "http://acme.pa.example/api/sso/callback" },
+		"no client id":            func(s *ssoSpec) { s.ClientID = "" },
+		"no secret":               func(s *ssoSpec) { s.ClientSecretEnv = "NOT_SET_ANYWHERE" },
+	} {
+		sp := acme
+		spec := *acme.SSO
+		change(&spec)
+		sp.SSO = &spec
+		if _, err := openSSO(context.Background(), sp, true); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	// One plan: its callback is checked for its form, not against a hostname the plan may not have.
+	one := acme
+	one.Hostname = ""
+	if _, err := openSSO(context.Background(), one, false); err != nil {
+		t.Errorf("one plan: %v", err)
+	}
+	if _, err := readPlans(writePlans(t, `{"plans":[{"id":"a","hostname":"a.example","policies":"p",
+		"sso":{"issuer":"https://id.example","clientId":"v","clientSecretEnv":"S","redirectUrl":"https://a.example/api/sso/callback"}}]}`),
+		t.TempDir()); err != nil {
+		t.Errorf("a plan with single sign-on: %v", err)
 	}
 }
