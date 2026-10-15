@@ -75,6 +75,10 @@ func (cfg Config) keyIn(w http.ResponseWriter, r *http.Request, s auth.Session) 
 	}
 	f := body.Form
 	f.KeyedBy = s.User
+	if f.Channel == "ncpdp" {
+		writeError(w, http.StatusBadRequest, "an NCPDP ePA request comes from the ePA intermediary, not keyed in")
+		return
+	}
 	for _, id := range body.Faxes {
 		fx, ok := cfg.inbox().Get(id)
 		if !ok {

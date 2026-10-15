@@ -225,6 +225,15 @@ software a plan runs, not an outcome a vendor sells.
   shown to the reviewer like any other); and appeals a denial. It sees the requests of its own NPIs only, and none of
   the plan's screens: a provider account is off the role ladder and takes no scope, whatever its file says. Another
   office's request is "no such request", not "forbidden".
+- **NCPDP SCRIPT electronic prior authorization** (`POST /api/pas/ncpdp`, behind the PAS token, from the plan's ePA
+  intermediary): a `PAInitiationRequest` for a drug a policy here decides (RxNorm, or NDC where a policy lists NDC
+  codes) is answered `Open` with the policy's questions; one for any other drug `Closed` with reason CC (not required).
+  A `PARequest` is decided on the same path as every other request, its answers and the prescriber's diagnoses read
+  as evidence: `Approved`, `Denied` with the reason in `PANote`, `Open` again with only the questions still unanswered,
+  or `InProcess` when it waits for a person. Other transactions get a SCRIPT `Error`. Written from public
+  descriptions (the Surescripts ePA companion guide), not the member-only NCPDP schema: the envelope, linkage and
+  statuses are as published; the element names inside a question set and an approval's dates are inferred, and say so
+  in `internal/ncpdp`. Not certified with any intermediary; check against the plan's before use.
 - **Says what would change it**: every pend and denial carries each smallest set of evidence whose documentation would
   approve it, and says when a route needs the record to be wrong rather than more documentation. The provider is told
   the routes that need only more documentation.

@@ -25,7 +25,7 @@ import (
 )
 
 // Channels a request can arrive by.
-var Channels = []string{"fax", "phone", "mail", "portal"}
+var Channels = []string{"fax", "phone", "mail", "portal", "ncpdp"}
 
 // Form is what a person keys in from one request.
 type Form struct {

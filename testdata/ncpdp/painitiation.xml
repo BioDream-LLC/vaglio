@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Invented: no real patient, prescriber or plan. Shaped after the public Surescripts ePA companion guide's example. -->
+<Message DatatypesVersion="20230115" TransportVersion="20230115" TransactionDomain="SCRIPT" TransactionVersion="20230115" StructuresVersion="20230115" ECLVersion="20230115">
+  <Header>
+    <To Qualifier="P">PLAN-EXAMPLE</To>
+    <From Qualifier="EPAINI">EHR-EXAMPLE</From>
+    <MessageID>MSG-1001</MessageID>
+    <SentTime>2026-10-15T14:00:00.0Z</SentTime>
+  </Header>
+  <Body>
+    <PAInitiationRequest>
+      <PAReferenceID>REF-20261015-1</PAReferenceID>
+      <BenefitsCoordination>
+        <PayerIdentification><PayerID>PLAN-EXAMPLE</PayerID></PayerIdentification>
+        <CardholderID>CH-555</CardholderID>
+        <PBMMemberID>M1</PBMMemberID>
+      </BenefitsCoordination>
+      <Patient>
+        <HumanPatient>
+          <Names><Name><LastName>Example</LastName><FirstName>Pat</FirstName></Name></Names>
+          <GenderAndSex><AdministrativeGender>F</AdministrativeGender></GenderAndSex>
+          <DateOfBirth><Date>1971-03-04</Date></DateOfBirth>
+        </HumanPatient>
+      </Patient>
+      <Prescriber>
+        <NonVeterinarian>
+          <Identification><NPI>1234567893</NPI></Identification>
+          <Names><Name><LastName>Doe</LastName><FirstName>Jan</FirstName></Name></Names>
+        </NonVeterinarian>
+      </Prescriber>
+      <MedicationPrescribed>
+        <DrugDescription>adalimumab 40 MG/0.4 ML pen injector</DrugDescription>
+        <Product><DrugCoded><DrugDBCode><Code>327361</Code><Qualifier>SBD</Qualifier></DrugDBCode></DrugCoded></Product>
+        <Diagnosis><ClinicalInformationQualifier>1</ClinicalInformationQualifier><Primary><Code>M069</Code><Qualifier>ABF</Qualifier></Primary></Diagnosis>
+      </MedicationPrescribed>
+    </PAInitiationRequest>
+  </Body>
+</Message>

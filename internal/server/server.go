@@ -260,6 +260,7 @@ func New(cfg Config) http.Handler {
 	mux.HandleFunc("POST /api/pas/decide", cfg.decidePAS)
 	mux.HandleFunc("POST /api/pas/advise", cfg.crdAdvise)
 	mux.HandleFunc("POST /api/pas/eligibility", cfg.coverageEligibility)
+	mux.HandleFunc("POST /api/pas/ncpdp", cfg.ncpdpEPA)
 
 	// Without these, a wrong method falls through to the /api/ catch-all and reads as "no such endpoint".
 	for path, allow := range map[string]string{
