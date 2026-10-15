@@ -209,6 +209,15 @@ software a plan runs, not an outcome a vendor sells.
   the queue. It is decided by someone other than the person who denied, and a denial is upheld on appeal only by a
   clinician. The letter says when it was received and is due, then the appeal's reason, and after an upheld appeal
   points to the further, independent review. An outcome decided elsewhere still comes by the appeals feed.
+- **The member's coverage** (`serve -members FILE`, the plan's member file as CSV: `member_id`, `birth_date`, `plan`,
+  `line`, `start`, `end`, `excluded`): before a request is approved or denied, the member the Coverage names
+  (`subscriberId`) is looked up for the day of the service. Not found, not covered that day, or a benefit that leaves
+  the service out: the request pends for a person to check, with the policy's own decision kept on the case. A member
+  file is late or wrong often enough that it never denies. A birth date in the file must match the request's, so a
+  mistyped id is not taken for someone else. The file is read again when it changes. `POST /api/pas/eligibility`
+  answers a FHIR `CoverageEligibilityRequest` with a `CoverageEligibilityResponse`: in force on the day, the benefit
+  period, and per item whether the benefit leaves it out and whether prior authorization is required (a policy here
+  decides it). X12 270/271 is not spoken; a clearinghouse or Perfuse translates.
 - **Says what would change it**: every pend and denial carries each smallest set of evidence whose documentation would
   approve it, and says when a route needs the record to be wrong rather than more documentation. The provider is told
   the routes that need only more documentation.

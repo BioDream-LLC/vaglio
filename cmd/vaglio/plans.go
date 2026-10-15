@@ -20,6 +20,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/cases"
 	"github.com/biodream-llc/vaglio/internal/deliver"
 	"github.com/biodream-llc/vaglio/internal/editor"
+	"github.com/biodream-llc/vaglio/internal/eligibility"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/intake"
 	"github.com/biodream-llc/vaglio/internal/oidc"
@@ -60,7 +61,9 @@ type planSpec struct {
 	// Criteria are the plan's criteria services, by the name its policies give them: {"url": ..., "tokenEnv": ...}.
 	Criteria map[string]criteriaSpec `json:"criteria,omitempty"`
 	// Network is the plan's provider network file (NPIs); NPIRegistry is "nppes" for the public registry, or a file.
-	Network     string `json:"network,omitempty"`
+	Network string `json:"network,omitempty"`
+	// Members is the plan's member file (CSV): coverage is checked before a request is approved or denied.
+	Members     string `json:"members,omitempty"`
 	NPIRegistry string `json:"npiRegistry,omitempty"`
 
 	allowed []string // Host header values it answers to
@@ -293,6 +296,14 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 	if err != nil {
 		return fail(err)
 	}
+	var members *eligibility.Members
+	if sp.Members != "" {
+		m, err := eligibility.Open(sp.Members)
+		if err != nil {
+			return fail(fmt.Errorf("-members: %w", err))
+		}
+		members = m
+	}
 	src, err := openOutside(sp, policies)
 	if err != nil {
 		return fail(err)
@@ -350,6 +361,7 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 		Scheduled:        scheduled,
 		PolicyRoot:       sp.Policies,
 		Outside:          src,
+		Members:          members,
 	}
 	if sp.FaxTokenEnv != "" {
 		if cfg.FaxToken, err = secretFrom(sp.FaxTokenEnv); err != nil {
@@ -430,6 +442,9 @@ func (op *openedPlan) report(origin string) {
 	if o := op.cfg.Outside; o != nil {
 		for name, c := range o.Criteria {
 			log.Printf("%scriteria service %s: %s", who, name, c.URL)
+		}
+		if op.cfg.Members != nil {
+			log.Printf("%smember file: %s, %d members; coverage is checked before a decision", who, op.spec.Members, op.cfg.Members.Size())
 		}
 		if o.Network != nil {
 			log.Printf("%sprovider network: %s", who, o.Network.Source)

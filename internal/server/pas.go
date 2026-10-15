@@ -13,6 +13,7 @@ import (
 	"github.com/biodream-llc/perfuse/pas"
 	"github.com/biodream-llc/vaglio/internal/cases"
 	"github.com/biodream-llc/vaglio/internal/decide"
+	"github.com/biodream-llc/vaglio/internal/eligibility"
 	"github.com/biodream-llc/vaglio/internal/evidence"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/policy"
@@ -137,6 +138,13 @@ func (cfg Config) decideBundle(raw []byte, seq, requestID, channel, keyedBy stri
 	}
 	if len(choice.SetAside)+len(choice.Unsettled) > 0 {
 		o.Precedence = &choice
+	}
+	if el := cfg.checkEligibility(req, seq, service); el != nil {
+		o.Eligibility = el
+		if el.Status != eligibility.Active && a.Decision != "pend" {
+			// The policy's decision stays in the case for the person who checks; the provider is told it waits.
+			a.Decision, a.Why, a.Requested = "pend", eligibilityWhy(el), nil
+		}
 	}
 	a.Exemption, a.Proposed, a.Precedence = o.Exemption, o.Proposed, o.Precedence
 	if a.Decision != "pend" {

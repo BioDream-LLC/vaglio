@@ -32,6 +32,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/auth"
 	"github.com/biodream-llc/vaglio/internal/cases"
 	"github.com/biodream-llc/vaglio/internal/decide"
+	"github.com/biodream-llc/vaglio/internal/eligibility"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/intake"
 	"github.com/biodream-llc/vaglio/internal/outside"
@@ -100,6 +101,9 @@ type Config struct {
 	PolicyRoot string
 	// Outside are the sources of evidence a request does not carry: criteria services, the network, the NPI registry.
 	Outside *outside.Sources
+	// Members is the plan's member file (serve -members): a request is approved or denied only for a member covered
+	// on the day; otherwise it pends for a person to check.
+	Members *eligibility.Members
 	// AutoRead, when set (with Reader), reads a pended request's documents at once, and may approve on them.
 	AutoRead *AutoRead
 	// Faxes, when set, is the inbox of faxes received from the plan's fax service, which posts each to
@@ -245,6 +249,7 @@ func New(cfg Config) http.Handler {
 	route("POST /api/drafts/{id}/signoff", auth.Reviewer, cfg.signDraft)
 	mux.HandleFunc("POST /api/pas/decide", cfg.decidePAS)
 	mux.HandleFunc("POST /api/pas/advise", cfg.crdAdvise)
+	mux.HandleFunc("POST /api/pas/eligibility", cfg.coverageEligibility)
 
 	// Without these, a wrong method falls through to the /api/ catch-all and reads as "no such endpoint".
 	for path, allow := range map[string]string{

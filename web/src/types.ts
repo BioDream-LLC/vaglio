@@ -313,6 +313,14 @@ export interface CaseDetail {
   drug?: boolean
   appeal?: Appeal
   appealTaken?: AppealRequest
+  eligibility?: {
+    status: 'active' | 'inactive' | 'not-found' | 'excluded' | 'unknown'
+    why: string
+    member?: string
+    date: string
+    coverage?: { member: string; plan?: string; line?: string; start: string; end?: string }
+    source: string
+  }
   assigned?: { to: string; by: string; time: string }
   escalated?: { by: string; time: string; note: string }
   peerToPeer?: PeerToPeer[]

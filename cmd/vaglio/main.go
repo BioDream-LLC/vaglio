@@ -128,7 +128,7 @@ func usage(w io.Writer) {
                 [-draft-model-url URL [-draft-model M] [-draft-key-env VAR]] [-demo-account NAME:PASSWORD]
                 [-fax-token-env VAR] [-acme [-acme-email ADDR] [-acme-directory URL]] [-plans FILE]
                 [-read-documents [-approve-from-documents [-approve-sample PCT]] [-read-workers N]]
-                [-criteria NAME=URL [-criteria-token-env NAME=VAR]] [-network FILE] [-npi-registry nppes|FILE]
+                [-criteria NAME=URL [-criteria-token-env NAME=VAR]] [-network FILE] [-npi-registry nppes|FILE] [-members FILE]
   vaglio user   add|reset|remove|list -data DIR [-role viewer|reviewer|admin] [NAME]
   vaglio user   sso -data DIR -role ROLE NAME          an account that signs in only through single sign-on
   vaglio user   scopes -data DIR -scopes author,audit,appeals,intake,policy:ID NAME   (empty to clear)
@@ -225,6 +225,8 @@ func serve(args []string) error {
 	fs.Var(&criteria, "criteria", "NAME=URL: a criteria service the plan runs or licenses, named by its policies' "+
 		"\"find criteria NAME ...\" (repeatable). It is sent the request: https, or http on this machine")
 	fs.Var(&criteriaTokens, "criteria-token-env", "NAME=VAR: the environment variable holding criteria service NAME's bearer token")
+	members := fs.String("members", "", "the plan's member file (CSV: member_id, birth_date, plan, line, start, end, excluded): "+
+		"a request is approved or denied only for a member covered on the day; otherwise it pends")
 	network := fs.String("network", "", "the plan's provider network: a file of NPIs (one per line, or a CSV's first column)")
 	npiRegistry := fs.String("npi-registry", "", `where providers' specialties are read: "nppes" (the public NPI Registry API; `+
 		`it is sent the provider's NPI only), or a CSV of npi,taxonomy... extracted from the NPPES download`)
@@ -239,7 +241,7 @@ func serve(args []string) error {
 	if *plansFile != "" {
 		for _, f := range []string{"policies", "hostname", "token-env", "pas-url", "pas-token-env", "pas-ca", "pas-api-url",
 			"goldcard", "fax-token-env", "appeals-token-env", "demo-account", "oidc-issuer", "oidc-client-id", "oidc-client-secret-env", "oidc-redirect-url", "oidc-group", "oidc-label", "criteria", "criteria-token-env",
-			"network", "npi-registry"} {
+			"network", "npi-registry", "members"} {
 			if set[f] {
 				return fmt.Errorf("-%s is set per plan in the -plans file (the demonstration is for one plan only)", f)
 			}
@@ -277,7 +279,7 @@ func serve(args []string) error {
 		}
 		plans = []planSpec{{Hostname: strings.ToLower(*hostname), Policies: *dir, Data: *data, TokenEnv: *tokenEnv,
 			PASURL: *pasURL, PASAPI: *pasAPI, PASTokenEnv: *pasTokenEnv, PASCA: *pasCA, GoldCard: *goldCardFile,
-			FaxTokenEnv: *faxTokenEnv, AppealsTokenEnv: *appealsTokenEnv, Criteria: crit, Network: *network,
+			FaxTokenEnv: *faxTokenEnv, AppealsTokenEnv: *appealsTokenEnv, Criteria: crit, Network: *network, Members: *members,
 			NPIRegistry: *npiRegistry}}
 		if *oidcIssuer != "" {
 			plans[0].SSO = &ssoSpec{Issuer: *oidcIssuer, ClientID: *oidcClient, ClientSecretEnv: *oidcSecretEnv,

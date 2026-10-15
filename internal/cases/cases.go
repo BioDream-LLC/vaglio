@@ -25,6 +25,7 @@ import (
 
 	"github.com/biodream-llc/vaglio/internal/audit"
 	"github.com/biodream-llc/vaglio/internal/decide"
+	"github.com/biodream-llc/vaglio/internal/eligibility"
 	"github.com/biodream-llc/vaglio/internal/evidence"
 	"github.com/biodream-llc/vaglio/internal/precedence"
 	"github.com/biodream-llc/vaglio/internal/reader"
@@ -87,6 +88,9 @@ type Opening struct {
 	KeyedBy string `json:"keyedBy,omitempty"`
 	// Precedence is why this policy decided when other policies are for the same service.
 	Precedence *precedence.Choice `json:"precedence,omitempty"`
+	// Eligibility is the member file's answer, when the server has one: a request whose member was not covered on the
+	// day pends for a person, whatever the policy decided.
+	Eligibility *eligibility.Check `json:"eligibility,omitempty"`
 }
 
 // Exemption is a gold card approval: the program, and the provider's record it rests on.

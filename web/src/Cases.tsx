@@ -270,6 +270,14 @@ function CaseBody({ c, me }: { c: CaseDetail; me: Me }) {
         <dd>{c.patient}</dd>
         <dt>Provider</dt>
         <dd>{c.provider}</dd>
+        {c.eligibility && (
+          <>
+            <dt>Coverage</dt>
+            <dd className={c.eligibility.status === 'active' ? 'text-emerald-400' : 'text-amber-400'}>
+              {c.eligibility.why} <span className="meta">(member file {c.eligibility.source})</span>
+            </dd>
+          </>
+        )}
         <dt>Request</dt>
         <dd>
           <a href={`/api/cases/${encodeURIComponent(c.id)}/bundle`} target="_blank" rel="noreferrer">
@@ -324,6 +332,13 @@ function CaseBody({ c, me }: { c: CaseDetail; me: Me }) {
 
       {c.exemption && <ExemptionNote e={c.exemption} />}
       {c.precedence && <PrecedenceNote p={c.precedence} title={c.policyTitle} />}
+      {c.eligibility && c.eligibility.status !== 'active' && (
+        <p className="note warn">
+          <strong>Pended on the member's coverage.</strong> The policy {c.result.outcome === 'approved' ? 'would approve' : c.result.outcome === 'denied' ? 'would deny' : 'decides'} this
+          request, but the member file says: {c.eligibility.why}. Check the coverage with the plan's enrollment records before
+          deciding; a file that is late or wrong is not a reason to deny.
+        </p>
+      )}
       {c.proposed && (
         <div className="note warn">
           <p>
