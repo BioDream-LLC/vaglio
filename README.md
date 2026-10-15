@@ -285,7 +285,8 @@ software a plan runs, not an outcome a vendor sells.
   without its reason is not used. A policy naming a source the server lacks is refused at start. A stored case is
   decided again (replays, confirmed readings) on what the sources said then, not asked again. The criteria service is
   sent `{"criterion", "policy", "policyVersion", "service", "bundle"}` and answers `{"result": "met" | "not-met" |
-  "unknown", "reason", "reference"}`.
+  "unknown", "reason", "reference"}`. `examples/criteria-service` is a small service in that form to copy: one invented
+  criterion, and the place where a plan calls its own licensed engine instead.
 - **Reading documents at scale** (`serve -read-documents`, with `-document-model-url`): a pended request's documents,
   and those received later, are read as soon as it pends, by a pool of workers (`-read-workers`, 2 by default), so a
   reviewer opens the case with the proposals waiting. With `-approve-from-documents`, a request the policy approves on
@@ -352,7 +353,8 @@ sign-on is tested against a test provider only, not a real one; Let's Encrypt is
 authority, not yet against Let's Encrypt itself; reading scanned images needs `tesseract` installed;
 there is no release build yet; the letters' appeal paragraph is generic, not a plan's own deadlines and addresses;
 advice before submitting shows in Perfuse only from its `crd-advisor` branch, not yet merged. The criteria-service
-protocol is Vaglio's own: no licensed criteria vendor is known to speak it yet, so a plan's licence needs a small adapter.
+protocol is Vaglio's own: no licensed criteria vendor is known to speak it yet, so a plan's licence needs a small adapter
+(`examples/criteria-service` is where to start one).
 Automatic approval from documents is tested with a stand-in model only; how often a real model's approvals survive the
 checks is what the sampled checks will show. Faxes arrive by a fax service's webhook; there is no fax line or modem
 support.
