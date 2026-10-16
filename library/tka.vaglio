@@ -1,5 +1,5 @@
-# Total knee arthroplasty (27447), primary, from Medicare LCD L36575 (Noridian). Status draft: awaiting clinical sign-off
-# (vaglio signoff). Every clause is quoted from library/sources/L36575-TKA.txt.
+# Total knee arthroplasty (27447), primary, from Medicare LCD L36575 (Noridian). In force as published; a plan that reads a rule
+# differently overrides it in the console. Every clause is quoted from library/sources/L36575-TKA.txt.
 #
 # Drafted by hand. Two readings for the clinician to confirm:
 # - The LCD lists six findings after the advanced-joint-disease criteria, joined by "or": failure of a previous osteotomy,
@@ -14,7 +14,6 @@ policy tka
   title "Total knee arthroplasty (27447), primary"
   version 0.1.0
   source "Medicare LCD L36575, Total Knee Arthroplasty (Noridian, Jurisdiction F), indications and limitations"
-  status draft
   authority lcd
   lines medicare-advantage medicare
   states AK AZ ID MT ND OR SD UT WA WY

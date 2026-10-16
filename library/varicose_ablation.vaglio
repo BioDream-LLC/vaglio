@@ -1,5 +1,6 @@
 # Endovenous radiofrequency or laser ablation of varicose veins (36475, 36476, 36478, 36479), from Medicare LCD L34536
-# (WPS). Status draft: awaiting clinical sign-off (vaglio signoff). Every clause is quoted from
+# (WPS). In force as published; a plan that reads a rule
+# differently overrides it in the console. Every clause is quoted from
 # library/sources/L34536-varicose.txt; the codes are those of its billing and coding article A56914.
 #
 # Drafted by hand. The LCD's indications for any treatment, a failed three-month trial of conservative therapy and
@@ -15,7 +16,6 @@ policy varicose_ablation
   title "Endovenous radiofrequency or laser ablation of varicose veins (36475-36479)"
   version 0.1.0
   source "Medicare LCD L34536, Treatment of Varicose Veins of the Lower Extremities (WPS): indications and limitations for ERFA and laser ablation"
-  status draft
   authority lcd
   lines medicare-advantage medicare
   states IA KS MO NE IN MI

@@ -1,5 +1,6 @@
 # Functional upper blepharoplasty and blepharoptosis repair (15822, 15823, 67901-67908), from Medicare LCD L34411
-# (Palmetto GBA). Status draft: awaiting clinical sign-off (vaglio signoff). Every clause is quoted from
+# (Palmetto GBA). In force as published; a plan that reads a rule
+# differently overrides it in the console. Every clause is quoted from
 # library/sources/L34411-blepharoplasty.txt; the codes are those of its billing and coding article A56503.
 #
 # Drafted by hand. Functional, and so covered, when the upper lid or overhanging skin produces a functional deficit of
@@ -13,7 +14,6 @@ policy blepharoplasty
   title "Functional upper blepharoplasty or blepharoptosis repair (15822, 15823, 67901-67908)"
   version 0.1.0
   source "Medicare LCD L34411, Blepharoplasty, Eyelid Surgery, and Brow Lift (Palmetto GBA)"
-  status draft
   authority lcd
   lines medicare-advantage medicare
   states AL GA TN NC SC VA WV

@@ -1,5 +1,5 @@
 {
-  "note": "Policies drafted from published coverage documents: Medicare LCDs and NCDs and public state Medicaid criteria. Each passes the drafting gates against its source (internal/draft/library_test.go). None is in force until a clinician signs it off: vaglio signoff, then copy it into the server's policy directory. The AHIP/BCBSA standard documentation set for 66 services is not public (only its categories are), so the library is built from public documents; categories are named after AHIP's where they match.",
+  "note": "Policies drafted from published coverage documents: Medicare LCDs and NCDs and public state Medicaid criteria. Each passes the drafting gates against its source (internal/draft/library_test.go). They are built into the program and decide as published (serve -library, on by default). A plan that reads a rule differently overrides the policy in the console (Override, with -edit-policies): its clinician-signed version of the same id decides instead. The AHIP/BCBSA standard documentation set for 66 services is not public (only its categories are), so the library is built from public documents; categories are named after AHIP's where they match.",
   "policies": [
     {
       "file": "cpap_osa.vaglio",

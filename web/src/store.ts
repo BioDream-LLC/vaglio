@@ -133,6 +133,10 @@ export const api = createApi({
       query: (id) => ({ url: `drafts/${encodeURIComponent(id)}`, method: 'DELETE' }),
       invalidatesTags: ['Draft', 'Audit'],
     }),
+    removeOverride: b.mutation<unknown, string>({
+      query: (id) => ({ url: `policies/${encodeURIComponent(id)}/override`, method: 'DELETE' }),
+      invalidatesTags: ['Policy', 'Audit'],
+    }),
     draftFrom: b.mutation<Draft, string>({
       query: (id) => ({ url: `policies/${encodeURIComponent(id)}/draft`, method: 'POST', body: {} }),
       invalidatesTags: ['Draft', 'Audit'],
@@ -314,6 +318,7 @@ export const {
   useLoginMutation,
   useLogoutMutation,
   usePoliciesQuery,
+  useRemoveOverrideMutation,
   usePolicySourceQuery,
   usePolicyCheckQuery,
   useDecideMutation,

@@ -1,5 +1,5 @@
-# MRI of the lumbar spine, from Washington State Labor & Industries' Imaging Guidelines: Lumbar Spine MRI (2010). Status
-# draft: awaiting clinical sign-off (vaglio signoff). Every clause is quoted from library/sources/WA-LNI-lumbar-MRI.txt.
+# MRI of the lumbar spine, from Washington State Labor & Industries' Imaging Guidelines: Lumbar Spine MRI (2010). In
+# force as published; a plan that reads a rule differently overrides it in the console. Every clause is quoted from library/sources/WA-LNI-lumbar-MRI.txt.
 # The sourced counterpart of the illustrative policies/lumbar_mri.vaglio.
 #
 # Drafted by hand, as five routes to approval:
@@ -19,7 +19,6 @@ policy lumbar_mri_wa
   title "MRI of the lumbar spine (Washington L&I criteria)"
   version 0.1.0
   source "Washington State Department of Labor & Industries, Imaging Guidelines: Lumbar Spine MRI, February 12, 2010"
-  status draft
   authority state
   states WA
   questionnaire https://vaglio.example/Questionnaire/lumbar-mri-wa

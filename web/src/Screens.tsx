@@ -13,6 +13,7 @@ import {
   useAuditQuery,
   useDecideMutation,
   useDraftFromMutation,
+  useRemoveOverrideMutation,
   useDraftsQuery,
   usePoliciesQuery,
   usePolicyCheckQuery,
@@ -194,6 +195,14 @@ export function PolicyScope({ p }: { p: PolicySummary }) {
           {p.inEffect ? `until ${p.ends}` : `ended ${p.ends}`}
         </span>
       )}
+      {p.library?.state === 'published' && (
+        <span className={`${tag} bg-emerald-500/10 text-emerald-300 ring-emerald-500/30`}>Library, as published</span>
+      )}
+      {p.library?.state === 'overridden' && (
+        <span className={`${tag} bg-amber-500/10 text-amber-300 ring-amber-500/30`}>
+          Overrides library v{p.library.published}
+        </span>
+      )}
       {p.next && (
         <span className={`${tag} bg-amber-500/10 text-amber-300 ring-amber-500/30`}>
           v{p.next.version} signed, in force from {p.next.effective}
@@ -241,15 +250,63 @@ export function PolicyView({ id, me }: { id: string; me: Me }) {
         </pre>
       )}
       <PolicyMap id={id} />
-      {me.editing && can(me, 'admin', 'author') && <EditAsDraft id={id} />}
+      <Override id={id} me={me} />
       {me.role !== 'viewer' && <TimeMachine id={id} />}
       {source && me.role !== 'viewer' && <Replay source={source} />}
     </section>
   )
 }
 
+/** A library policy decides as published until the plan overrides it; a policy of the plan's own is edited as a draft.
+ * Overriding starts a draft of the next version; once a clinician signs it off, it decides instead of the library's. */
+function Override({ id, me }: { id: string; me: Me }) {
+  const { data: policies } = usePoliciesQuery()
+  const [remove, { error, isLoading }] = useRemoveOverrideMutation()
+  const lib = policies?.find((p) => p.id === id)?.library
+  const author = me.editing && can(me, 'admin', 'author')
+  if (!lib) return author ? <EditAsDraft id={id} label="Edit as a new draft" /> : null
+  if (lib.state === 'published') {
+    return (
+      <div className="note ok">
+        <p>
+          From the library, deciding as published (v{lib.published}). If your plan reads any rule differently, override
+          it: your version decides instead of the library's once a clinician signs it off.
+        </p>
+        {author ? (
+          <EditAsDraft id={id} label="Override" />
+        ) : (
+          <p className="meta">
+            {me.editing ? 'An author or admin starts an override.' : 'Overriding needs the policy editor: start the server with -edit-policies.'}
+          </p>
+        )}
+      </div>
+    )
+  }
+  return (
+    <div className="note warn">
+      <p>Overridden: your plan's version decides instead of the library's v{lib.published}.</p>
+      {author && <EditAsDraft id={id} label="Change the override" />}
+      {me.editing && me.npi && (
+        <p>
+          <button
+            type="button"
+            disabled={isLoading}
+            onClick={() => {
+              if (window.confirm(`Remove your override of ${id} and decide with the library's v${lib.published} again?`)) remove(id)
+            }}
+          >
+            Remove the override
+          </button>{' '}
+          <span className="meta">The library's version decides again at once. Recorded in the audit log.</span>
+          {error && <span role="alert"> {errorText(error, 'Could not remove the override.')}</span>}
+        </p>
+      )}
+    </div>
+  )
+}
+
 /** Starts the next version of a policy in force as a draft, or opens the one already started. */
-function EditAsDraft({ id }: { id: string }) {
+function EditAsDraft({ id, label }: { id: string; label: string }) {
   const { data: drafts } = useDraftsQuery()
   const [start, { error, isLoading }] = useDraftFromMutation()
   const dispatch = useDispatch()
@@ -267,9 +324,9 @@ function EditAsDraft({ id }: { id: string }) {
           dispatch(go({ screen: 'draft', id }))
         }}
       >
-        {open ? 'Open its draft' : 'Edit as a new draft'}
+        {open ? 'Open its draft' : label}
       </button>{' '}
-      <span className="meta">The version in force keeps deciding until a clinician signs the draft off.</span>
+      <span className="meta">What decides now keeps deciding until a clinician signs the draft off.</span>
       {error && <span role="alert"> {errorText(error, 'Could not start a draft.')}</span>}
     </p>
   )

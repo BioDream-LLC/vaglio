@@ -1,5 +1,5 @@
-# CPAP (E0601) for obstructive sleep apnea, initial coverage, from Medicare LCD L33718. Status draft: awaiting clinical
-# sign-off (vaglio signoff). Every clause is quoted from library/sources/L33718-E0601.txt.
+# CPAP (E0601) for obstructive sleep apnea, initial coverage, from Medicare LCD L33718. In force as published; a plan that reads a rule
+# differently overrides it in the console. Every clause is quoted from library/sources/L33718-E0601.txt.
 #
 # Drafted by machine (library/drafts/cpap_osa.machine.vaglio), then corrected by hand: the machine draft passed every
 # gate but required a symptom or comorbidity for every sleep test, where the LCD requires one only when the AHI or RDI
@@ -10,7 +10,6 @@ policy cpap_osa
   title "CPAP device (E0601) for obstructive sleep apnea, initial coverage"
   version 0.1.0
   source "Medicare LCD L33718, Positive Airway Pressure (PAP) Devices for the Treatment of Obstructive Sleep Apnea: initial coverage of E0601"
-  status draft
   authority lcd
   lines medicare-advantage medicare
   questionnaire https://vaglio.example/Questionnaire/cpap-osa

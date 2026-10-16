@@ -311,8 +311,12 @@ software a plan runs, not an outcome a vendor sells.
   for them. No PAS server waits for these decisions: the provider is sent the letter. Calls and letters are keyed in the
   same way. An account needs the reviewer role or the `intake` scope; a fax not to key in is set aside with a reason.
 - **A policy library** (`library/`): policies drafted from published coverage documents, each held by a test to the
-  drafting gates against its source, which is kept beside it with where and when it was retrieved. All are drafts until
-  a clinician signs them off. The AHIP/BCBSA standard documentation set for 66 services is not public (only its
+  drafting gates against its source, which is kept beside it with where and when it was retrieved. The library is
+  built into the program and decides as published (`serve -library`, on by default; `-library=false` turns it off). Where
+  a plan reads a rule differently, it overrides the policy: **Override** on the policy's screen (with `-edit-policies`)
+  starts a draft of the next version, and once a clinician signs it off the plan's version decides instead of the
+  library's. **Remove the override**, a clinician's act too, puts the published one back. Both are in the audit log, and
+  the policy list marks each library policy "as published" or "overrides library vX". The AHIP/BCBSA standard documentation set for 66 services is not public (only its
   categories are), so the library is built from public documents:
 
   | Policy | Basis | Category |
@@ -706,9 +710,10 @@ whose NPI and credential the decision records.
 <details>
 <summary><b>Are the policies in the library ready to use?</b></summary>
 
-They are drafts. Each is drafted from a public coverage document kept beside it and quoted word for word, and passes
-every gate, but a plan's own medical director must read each one against its source and sign it off before it decides
-anything. The server refuses an unsigned policy. The policies in `policies/` are illustrative only.
+Yes: they decide as published. Each is drafted from a public coverage document kept beside it and quoted word for word,
+and passes every gate. Where a plan's medical director reads a rule differently, they override that policy in the
+console, and the plan's signed version decides instead; removing the override puts the published one back. A plan that
+wants none of them runs with `-library=false`. The policies in `policies/` are illustrative only.
 
 </details>
 

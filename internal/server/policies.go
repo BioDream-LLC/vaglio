@@ -164,9 +164,10 @@ func (cfg Config) activateDue() {
 
 // Audit actions for policies.
 const (
-	ActDraftSaved   = "policy.draft_saved"
-	ActDraftRemoved = "policy.draft_removed"
-	ActSigned       = "policy.signed"
+	ActDraftSaved      = "policy.draft_saved"
+	ActDraftRemoved    = "policy.draft_removed"
+	ActSigned          = "policy.signed"
+	ActOverrideRemoved = "policy.override_removed"
 )
 
 // SourceCheck is what the editor shows beside a source as it is written: where it fails to parse, or its check and
@@ -412,9 +413,14 @@ func (cfg Config) draftFromLive(w http.ResponseWriter, r *http.Request, s auth.S
 		return
 	}
 	q := *p
-	q.Status, q.Signed = policy.Draft, nil
-	src := "# Draft of the next version of " + id + ", started from version " + p.Version + ". Change the version before\n" +
-		"# signing it off: a changed policy is a new version.\n" + policy.Format(&q)
+	q.Status, q.Signed, q.Version = policy.Draft, nil, nextVersion(p.Version)
+	src := "# Draft of the next version of " + id + ", started from version " + p.Version + " and numbered " + q.Version +
+		". A changed\n# policy is a new version.\n" + policy.Format(&q)
+	if lib := cfg.Library[id]; lib != nil && lib == p {
+		src = "# Override of the library policy " + id + " " + p.Version + ", as " + q.Version + ": change what this plan reads\n" +
+			"# differently. Once a clinician signs it off it decides instead of the library's; removing the override puts\n" +
+			"# the library's back. " + p.Source + ".\n" + policy.Format(&q)
+	}
 	if _, err := cfg.Audit.Append("user:"+s.User, ActDraftSaved, "", map[string]string{"policy": id,
 		"sha256": editor.Hash([]byte(src)), "from": p.Version}); err != nil {
 		writeError(w, http.StatusInternalServerError, "the draft could not be recorded, so it is not made: "+err.Error())

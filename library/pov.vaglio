@@ -1,5 +1,5 @@
-# Power operated vehicle, Group 1 (K0800, K0801, K0802), from Medicare LCD L33789 (the DME MACs). Status draft:
-# awaiting clinical sign-off (vaglio signoff). Every clause is quoted from library/sources/L33789-power-mobility.txt,
+# Power operated vehicle, Group 1 (K0800, K0801, K0802), from Medicare LCD L33789 (the DME MACs). In force as published; a plan that reads a rule
+# differently overrides it in the console. Every clause is quoted from library/sources/L33789-power-mobility.txt,
 # which lists the codes itself.
 #
 # Drafted by hand. The LCD's basic criteria A to C (a mobility limitation that significantly impairs mobility-related
@@ -15,7 +15,6 @@ policy pov
   title "Power operated vehicle, Group 1 (K0800-K0802)"
   version 0.1.0
   source "Medicare LCD L33789, Power Mobility Devices (DME MACs): basic coverage criteria and power operated vehicles"
-  status draft
   authority lcd
   lines medicare-advantage medicare
   questionnaire https://vaglio.example/Questionnaire/pov

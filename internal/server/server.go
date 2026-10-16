@@ -50,7 +50,10 @@ const cookieName = "vaglio_session"
 
 // Config is what the server serves and to whom.
 type Config struct {
-	Policies     map[string]*policy.Policy
+	Policies map[string]*policy.Policy
+	// Library is the published policy library (serve -library), by id. A library policy decides as published until the
+	// plan overrides it with its own signed version of the same id; removing the override puts it back.
+	Library      map[string]*policy.Policy
 	Assets       fs.FS    // the built web console; nil serves the API only
 	AllowedHosts []string // Host header values accepted; empty accepts any (tests only)
 	Token        string   // when set, required as "Authorization: Bearer <token>" on /api/pas/, the PAS server's endpoint
@@ -276,6 +279,7 @@ func New(cfg Config) http.Handler {
 	scoped("PUT /api/drafts/{id}", auth.Admin, auth.ScopeAuthor, cfg.saveDraft)
 	scoped("DELETE /api/drafts/{id}", auth.Admin, auth.ScopeAuthor, cfg.removeDraft)
 	scoped("POST /api/policies/{id}/draft", auth.Admin, auth.ScopeAuthor, cfg.draftFromLive)
+	route("DELETE /api/policies/{id}/override", auth.Reviewer, cfg.removeOverride)
 	scoped("GET /api/drafting", auth.Reviewer, auth.ScopeAuthor, cfg.draftingInfo)
 	scoped("POST /api/drafting", auth.Admin, auth.ScopeAuthor, cfg.draftFromDocument)
 	scoped("GET /api/drafting/{job}", auth.Admin, auth.ScopeAuthor, cfg.draftJob)
@@ -504,6 +508,8 @@ type Summary struct {
 	InEffect bool `json:"inEffect"`
 	// Next is its version signed and waiting for its effective date, if any.
 	Next *Scheduled `json:"next,omitempty"`
+	// Library says whether it is the library's policy as published, or the plan's override of one.
+	Library *LibraryState `json:"library,omitempty"`
 }
 
 // Scheduled is a version signed and waiting for its effective date.
@@ -520,7 +526,7 @@ func (cfg Config) listPolicies(w http.ResponseWriter, r *http.Request, _ auth.Se
 	summary := func(p *policy.Policy) Summary {
 		return Summary{ID: p.ID, Title: p.Title, Version: p.Version, Source: p.Source, Evidence: []policy.Argument{},
 			Services: p.Services, Authority: p.Authority, Effective: p.Effective, Ends: p.Ends, Lines: p.Lines,
-			States: p.States, InEffect: p.InEffect(day)}
+			States: p.States, InEffect: p.InEffect(day), Library: cfg.libraryState(p)}
 	}
 	seen := map[string]bool{}
 	for _, p := range cfg.set.all() {
@@ -562,7 +568,10 @@ func (cfg Config) policy(w http.ResponseWriter, r *http.Request) (*policy.Policy
 
 func (cfg Config) getPolicy(w http.ResponseWriter, r *http.Request, _ auth.Session) {
 	if p, ok := cfg.policy(w, r); ok {
-		writeJSON(w, http.StatusOK, p)
+		writeJSON(w, http.StatusOK, struct {
+			*policy.Policy
+			Library *LibraryState `json:"library,omitempty"`
+		}{p, cfg.libraryState(p)})
 	}
 }
 
@@ -581,7 +590,7 @@ func (cfg Config) policyMap(w http.ResponseWriter, r *http.Request, _ auth.Sessi
 func (cfg Config) policySource(w http.ResponseWriter, r *http.Request, _ auth.Session) {
 	if p, ok := cfg.policy(w, r); ok {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		_, _ = w.Write([]byte(policy.Format(p)))
+		_, _ = w.Write([]byte(cfg.sourceOf(p)))
 	}
 }
 

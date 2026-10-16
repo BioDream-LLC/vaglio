@@ -1,5 +1,6 @@
 # Hyperbaric oxygen therapy (G0277, 99183), from Medicare NCD 20.29, with the codes of the Medicare Claims Processing
-# Manual chapter 32 section 30.1. Status draft: awaiting clinical sign-off (vaglio signoff). Every clause is quoted from
+# Manual chapter 32 section 30.1. In force as published; a plan that reads a rule
+# differently overrides it in the console. Every clause is quoted from
 # library/sources/NCD20.29-HBO.txt.
 #
 # Drafted by hand. Covered for the NCD's listed conditions (one question for the fourteen besides diabetic wounds), or
@@ -12,7 +13,6 @@ policy hbo
   title "Hyperbaric oxygen therapy (G0277, 99183)"
   version 0.1.0
   source "Medicare NCD 20.29, Hyperbaric Oxygen Therapy: covered conditions; Claims Processing Manual ch. 32, 30.1 for codes"
-  status draft
   authority ncd
   lines medicare-advantage medicare
   questionnaire https://vaglio.example/Questionnaire/hbo

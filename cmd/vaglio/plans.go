@@ -192,6 +192,7 @@ type shared struct {
 	extensionDays    int
 	clinicianDenials bool
 	editPolicies     bool
+	library          map[string]*policy.Policy // serve -library: the published library, nil when off
 	demo             string
 	readDocs         bool
 	approveDocs      bool
@@ -305,7 +306,7 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 	if err != nil {
 		return fail(fmt.Errorf("putting scheduled policies in force: %w", err))
 	}
-	policies, scheduled, err := loadPolicies(sp.Policies)
+	policies, scheduled, err := loadPolicies(sp.Policies, sh.library)
 	if err != nil {
 		return fail(err)
 	}
@@ -356,6 +357,7 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 	}
 	cfg := server.Config{
 		Policies:     policies,
+		Library:      sh.library,
 		Assets:       web.Assets(),
 		AllowedHosts: sp.allowed,
 		Token:        token,

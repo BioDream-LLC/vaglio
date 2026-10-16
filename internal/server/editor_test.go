@@ -64,11 +64,20 @@ func TestPolicyEditor(t *testing.T) {
 	if w := do(admin, "POST", "/api/policies/lumbar_mri/draft", ""); w.Code != 409 {
 		t.Errorf("a second draft over the first: %d", w.Code)
 	}
-	// Started from the version in force, it is not ready: the version must change.
+	// Started from the version in force, it is numbered the next one, so it is ready as it stands.
 	w = do(admin, "GET", "/api/drafts/lumbar_mri", "")
 	var dv DraftView
 	json.Unmarshal(w.Body.Bytes(), &dv)
-	if dv.Ready || !strings.Contains(dv.NotReady, "new version") || dv.InForce == "" {
+	if !dv.Ready || !strings.Contains(dv.Source, "version 0.1.1") || dv.InForce == "" {
+		t.Errorf("a draft from the live version: %+v", dv.SourceCheck)
+	}
+	// Saved back at the version in force, it is not ready: the version must change.
+	if w := do(admin, "PUT", "/api/drafts/lumbar_mri", body(nextLumbar(t, "0.1.0"))); w.Code != 200 {
+		t.Fatalf("save: %d %s", w.Code, w.Body)
+	}
+	w = do(admin, "GET", "/api/drafts/lumbar_mri", "")
+	json.Unmarshal(w.Body.Bytes(), &dv)
+	if dv.Ready || !strings.Contains(dv.NotReady, "new version") {
 		t.Errorf("a draft at the live version: %+v", dv.SourceCheck)
 	}
 	if w := do(admin, "PUT", "/api/drafts/lumbar_mri", body(nextLumbar(t, "0.2.0"))); w.Code != 200 {

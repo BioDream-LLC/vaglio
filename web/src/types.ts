@@ -58,6 +58,8 @@ export interface PolicySummary {
   inEffect: boolean
   /** The version signed and waiting for its effective date. */
   next?: { version: string; effective: string; title: string }
+  /** A library policy: deciding as published, or overridden by the plan's own version (published is the library's). */
+  library?: { state: 'published' | 'overridden'; published: string }
 }
 
 /** A policy for the same service that did not decide this request, and why. */

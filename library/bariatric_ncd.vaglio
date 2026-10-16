@@ -1,5 +1,6 @@
 # Bariatric surgery, from Medicare NCD 100.1, with the procedure codes of the Medicare Claims Processing Manual chapter 32
-# section 150.2. Status draft: awaiting clinical sign-off (vaglio signoff). Every clause is quoted from
+# section 150.2. In force as published; a plan that reads a rule
+# differently overrides it in the console. Every clause is quoted from
 # library/sources/NCD100.1-bariatric.txt. The sourced counterpart of the illustrative policies/bariatric_surgery.vaglio.
 #
 # Drafted by hand. The NCD's three conditions, all required: BMI of 35 or more, a co-morbidity related to obesity (type 2
@@ -10,7 +11,6 @@ policy bariatric_ncd
   title "Bariatric surgery for co-morbid conditions related to morbid obesity"
   version 0.1.0
   source "Medicare NCD 100.1, Bariatric Surgery for Treatment of Co-Morbid Conditions Related to Morbid Obesity; Medicare Claims Processing Manual chapter 32, section 150.2"
-  status draft
   authority ncd
   lines medicare-advantage medicare
   questionnaire https://vaglio.example/Questionnaire/bariatric-ncd

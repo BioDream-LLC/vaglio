@@ -52,6 +52,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/seal"
 	"github.com/biodream-llc/vaglio/internal/server"
 	"github.com/biodream-llc/vaglio/internal/tlsserve"
+	"github.com/biodream-llc/vaglio/library"
 )
 
 var version = "dev"
@@ -212,6 +213,8 @@ func serve(args []string) error {
 	draftKeyEnv := fs.String("draft-key-env", "", "name of an environment variable holding -draft-model-url's API key")
 	demo := fs.String("demo-account", "", "NAME:PASSWORD - a public demonstration on invented data: a viewer account with "+
 		"this published password, shown on the sign-in page, and a banner on every screen. Never on real patient data")
+	useLibrary := fs.Bool("library", true, "decide with the policy library built into the program, as published, beside "+
+		"-policies; a policy of the same id in -policies overrides the library's (the console's Override, with -edit-policies)")
 	editPolicies := fs.Bool("edit-policies", false, "turn on the console's policy editor: drafts are saved in -policies/drafts, "+
 		"and a draft a clinician signs off is written into -policies and put in force")
 	oidcIssuer := fs.String("oidc-issuer", "", "single sign-on: the OpenID Connect provider's issuer URL")
@@ -368,6 +371,11 @@ func serve(args []string) error {
 		}
 	}
 	sh := shared{docs: docs, clinicianDenials: *clinicianDenials, editPolicies: *editPolicies, demo: *demo}
+	if *useLibrary {
+		if sh.library, err2 = library.Policies(); err2 != nil {
+			return err2
+		}
+	}
 	if *draftURL != "" {
 		if !*editPolicies && !slices.ContainsFunc(plans, func(p planSpec) bool { return p.EditPolicies }) {
 			return errors.New("-draft-model-url drafts into the policy editor: it needs -edit-policies")
@@ -612,13 +620,15 @@ func openData(dir string) (*data, error) {
 // loadDir loads every policy in a directory, and refuses to start if any of them fails its exhaustive check: a policy
 // that contradicts itself on some evidence must not be in front of a request.
 func loadDir(dir string) (map[string]*policy.Policy, error) {
-	live, _, err := loadPolicies(dir)
+	live, _, err := loadPolicies(dir, nil)
 	return live, err
 }
 
 // loadPolicies reads the policies in force in dir and those signed and waiting in dir/scheduled for their effective
-// date. Every one must be signed and pass its check, and no two may tie for a request (package precedence).
-func loadPolicies(dir string) (live, scheduled map[string]*policy.Policy, err error) {
+// date. Every one must be signed and pass its check, and no two may tie for a request (package precedence). The library
+// policies in lib (serve -library) decide too, each as published unless the directory holds the plan's own policy of the
+// same id: that one overrides it.
+func loadPolicies(dir string, lib map[string]*policy.Policy) (live, scheduled map[string]*policy.Policy, err error) {
 	var files []string
 	for _, ext := range []string{policy.Ext, ".json"} {
 		found, err := filepath.Glob(filepath.Join(dir, "*"+ext))
@@ -627,7 +637,7 @@ func loadPolicies(dir string) (live, scheduled map[string]*policy.Policy, err er
 		}
 		files = append(files, found...)
 	}
-	if len(files) == 0 {
+	if len(files) == 0 && len(lib) == 0 {
 		return nil, nil, fmt.Errorf("no policies in %s", dir)
 	}
 	live = map[string]*policy.Policy{}
@@ -649,6 +659,12 @@ func loadPolicies(dir string) (live, scheduled map[string]*policy.Policy, err er
 		}
 		live[p.ID] = p
 		all = append(all, p)
+	}
+	for id, p := range lib {
+		if _, overridden := live[id]; !overridden {
+			live[id] = p
+			all = append(all, p)
+		}
 	}
 	if scheduled, err = (editor.Dir{Path: dir}).ScheduledPolicies(); err != nil {
 		return nil, nil, err

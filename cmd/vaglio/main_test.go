@@ -9,6 +9,7 @@ import (
 
 	"github.com/biodream-llc/vaglio/internal/auth"
 	"github.com/biodream-llc/vaglio/internal/policy"
+	"github.com/biodream-llc/vaglio/library"
 )
 
 func init() { auth.Iterations = 1000 }
@@ -191,7 +192,9 @@ func TestReportAndReplayOnAnEmptyLog(t *testing.T) {
 
 func TestSignoff(t *testing.T) {
 	dir := t.TempDir()
+	// The library's policy is in force as published; made a draft again, it is one a clinician signs.
 	src, _ := os.ReadFile("../../library/cpap_osa.vaglio")
+	src = []byte(strings.Replace(string(src), "\n  version ", "\n  status draft\n  version ", 1))
 	f := filepath.Join(dir, "cpap_osa.vaglio")
 	os.WriteFile(f, src, 0o644)
 	now := func() time.Time { return time.Date(2026, 10, 13, 9, 0, 0, 0, time.UTC) }
@@ -233,5 +236,28 @@ func TestReadAppealsCSV(t *testing.T) {
 		if _, err := readAppealsCSV(strings.NewReader(src)); err == nil {
 			t.Errorf("%s was accepted", name)
 		}
+	}
+}
+
+// The library decides beside a plan's own policies; the plan's policy of a library id overrides the library's, and the
+// illustrative policies tie with none of the library's.
+func TestLoadWithLibrary(t *testing.T) {
+	lib, err := library.Policies()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if live, _, err := loadPolicies(t.TempDir(), lib); err != nil || len(live) != len(lib) {
+		t.Fatalf("the library alone: %d %v", len(live), err)
+	}
+	if _, _, err := loadPolicies("../../policies", lib); err != nil {
+		t.Fatalf("with the illustrative policies: %v", err)
+	}
+	dir := t.TempDir()
+	src, _ := os.ReadFile("../../library/cpap_osa.vaglio")
+	src = []byte(strings.Replace(string(src), "\n  version 0.1.0", "\n  version 0.2.0", 1))
+	os.WriteFile(filepath.Join(dir, "cpap_osa.vaglio"), src, 0o644)
+	live, _, err := loadPolicies(dir, lib)
+	if err != nil || live["cpap_osa"].Version != "0.2.0" || live["esi"] != lib["esi"] {
+		t.Fatalf("an override: %v %+v", err, live["cpap_osa"])
 	}
 }

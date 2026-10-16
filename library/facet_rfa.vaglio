@@ -1,5 +1,5 @@
-# Initial thermal radiofrequency ablation of facet joint nerves (64633-64636), from Medicare LCD L38773 (CGS). Status
-# draft: awaiting clinical sign-off (vaglio signoff). Every clause is quoted from library/sources/L38773-facet.txt.
+# Initial thermal radiofrequency ablation of facet joint nerves (64633-64636), from Medicare LCD L38773 (CGS). In
+# force as published; a plan that reads a rule differently overrides it in the console. Every clause is quoted from library/sources/L38773-facet.txt.
 #
 # Drafted by hand. The LCD's four criteria for every facet intervention, then the initial-RFA criterion: two diagnostic
 # medial branch blocks, each with at least 80% relief. The blocks are found in the record as two facet injections
@@ -13,7 +13,6 @@ policy facet_rfa
   title "Facet joint radiofrequency ablation (64633-64636), initial"
   version 0.1.0
   source "Medicare LCD L38773, Facet Joint Interventions for Pain Management (CGS), indications C and limitations"
-  status draft
   authority lcd
   lines medicare-advantage medicare
   states KY OH

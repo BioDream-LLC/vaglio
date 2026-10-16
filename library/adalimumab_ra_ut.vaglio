@@ -1,5 +1,6 @@
 # Adalimumab for rheumatoid arthritis, from the Utah Medicaid pharmacy prior authorization form for Humira (adalimumab)
-# and biosimilars (last updated 4-1-26): Part I and section 7. Status draft: awaiting clinical sign-off (vaglio signoff).
+# and biosimilars (last updated 4-1-26): Part I and section 7. In force as published; a plan that reads a rule
+# differently overrides it in the console.
 # Every clause is quoted from library/sources/UT-Medicaid-adalimumab.txt. The sourced counterpart of the illustrative
 # policies/adalimumab_ra.vaglio.
 #
@@ -14,7 +15,6 @@ policy adalimumab_ra_ut
   title "Adalimumab for rheumatoid arthritis (Utah Medicaid criteria)"
   version 0.1.0
   source "Utah Medicaid Pharmacy Prior Authorization Request Form, Humira (adalimumab) and Biosimilars, last updated 4-1-26, Part I and Part II section 7"
-  status draft
   authority state
   lines medicaid
   states UT

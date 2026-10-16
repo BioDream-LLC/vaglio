@@ -1,5 +1,5 @@
-# Epidural steroid injections (62320-62323, 64479-64484), from Medicare LCD L39240 (Noridian). Status draft: awaiting
-# clinical sign-off (vaglio signoff). Every clause is quoted from library/sources/L39240-ESI.txt; the codes are those of
+# Epidural steroid injections (62320-62323, 64479-64484), from Medicare LCD L39240 (Noridian). In force as published; a plan that reads a rule
+# differently overrides it in the console. Every clause is quoted from library/sources/L39240-ESI.txt; the codes are those of
 # its billing and coding article A58993.
 #
 # Drafted by hand. The LCD's three requirements, all needed: a supported diagnosis (radiculopathy, radicular pain or
@@ -18,7 +18,6 @@ policy esi
   title "Epidural steroid injection (62320-62323, 64479-64484)"
   version 0.1.0
   source "Medicare LCD L39240, Epidural Steroid Injections for Pain Management (Noridian), covered indications and limitations"
-  status draft
   authority lcd
   lines medicare-advantage medicare
   states AK AZ CA HI ID MT ND NV OR SD UT WA WY

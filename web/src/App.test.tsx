@@ -389,6 +389,31 @@ describe('the policy editor', () => {
     expect(screen.queryByRole('button', { name: 'Sign off and put in force…' })).toBeNull()
   })
 
+  const esi = { id: 'esi', title: 'ESI', version: '0.1.0', source: 'LCD L39240', evidence: [], services: [], inEffect: true }
+
+  it('offers an override of a library policy, and its removal to a clinician', async () => {
+    window.location.hash = '#/policy/esi'
+    respond({ '/api/me': { user: 'ana', role: 'admin', editing: true },
+      '/api/policies': [{ ...esi, library: { state: 'published', published: '0.1.0' } }] })
+    renderApp()
+    expect(await screen.findByRole('button', { name: 'Override' })).toBeTruthy()
+    expect(screen.getByText(/deciding as published/)).toBeTruthy()
+    cleanup()
+    respond({ '/api/me': { user: 'dr.lee', role: 'reviewer', npi: '1234567893', credential: 'MD', editing: true },
+      '/api/policies': [{ ...esi, version: '0.1.1', library: { state: 'overridden', published: '0.1.0' } }] })
+    renderApp()
+    expect(await screen.findByRole('button', { name: 'Remove the override' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Override' })).toBeNull()
+  })
+
+  it('says how to turn overriding on when the editor is off', async () => {
+    window.location.hash = '#/policy/esi'
+    respond({ '/api/me': { user: 'ana', role: 'admin', editing: false },
+      '/api/policies': [{ ...esi, library: { state: 'published', published: '0.1.0' } }] })
+    renderApp()
+    expect(await screen.findByText(/start the server with -edit-policies/)).toBeTruthy()
+  })
+
   it('hides the Drafts tab when the editor is off', async () => {
     respond({ '/api/me': { user: 'ana', role: 'admin', editing: false }, '/api/cases': [] })
     renderApp()
