@@ -213,7 +213,8 @@ export function PolicyScope({ p }: { p: PolicySummary }) {
 }
 
 export function PolicyView({ id, me }: { id: string; me: Me }) {
-  const { data: source, error } = usePolicySourceQuery(id)
+  // currentData, not data: data keeps the last policy's source while this one loads, and the editor below would start from it.
+  const { currentData: source, error } = usePolicySourceQuery(id)
   const { data: check } = usePolicyCheckQuery(id)
   return (
     <section aria-labelledby="policy-h">
@@ -249,10 +250,10 @@ export function PolicyView({ id, me }: { id: string; me: Me }) {
           {source}
         </pre>
       )}
-      <PolicyMap id={id} />
+      <PolicyMap key={`map-${id}`} id={id} />
       <Override id={id} me={me} />
-      {me.role !== 'viewer' && <TimeMachine id={id} />}
-      {source && me.role !== 'viewer' && <Replay source={source} />}
+      {me.role !== 'viewer' && <TimeMachine key={`versions-${id}`} id={id} />}
+      {source && me.role !== 'viewer' && <Replay key={`source-${id}`} source={source} />}
     </section>
   )
 }

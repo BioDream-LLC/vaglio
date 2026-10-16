@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Provider } from 'react-redux'
 import { makeStore, parseHash, selectPolicy, setEvidence, toHash, toRequest } from './store'
 import { App, Result } from './App'
@@ -404,6 +404,27 @@ describe('the policy editor', () => {
     renderApp()
     expect(await screen.findByRole('button', { name: 'Remove the override' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Override' })).toBeNull()
+  })
+
+  it("shows the new policy's source after moving from one policy to another", async () => {
+    window.location.hash = '#/policy/esi'
+    vi.stubGlobal('fetch', async (input: Request | string) => {
+      const path = new URL(typeof input === 'string' ? input : input.url, 'http://localhost').pathname
+      const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path === '/api/me') return json({ user: 'ana', role: 'admin', editing: true })
+      if (path === '/api/policies') return json([esi, { ...esi, id: 'hbo', title: 'HBO' }])
+      const m = /^\/api\/policies\/(\w+)\/source$/.exec(path)
+      if (m) return new Response(`policy ${m[1]}\n`, { status: 200 })
+      return new Response(JSON.stringify({ error: 'no' }), { status: 404 })
+    })
+    renderApp()
+    await waitFor(() => expect((screen.getByLabelText(/^Source/) as HTMLTextAreaElement).value).toBe('policy esi\n'))
+    act(() => {
+      window.location.hash = '#/policy/hbo'
+      window.dispatchEvent(new HashChangeEvent('hashchange'))
+    })
+    expect(await screen.findByRole('heading', { name: 'hbo' })).toBeTruthy()
+    await waitFor(() => expect((screen.getByLabelText(/^Source/) as HTMLTextAreaElement).value).toBe('policy hbo\n'))
   })
 
   it('says how to turn overriding on when the editor is off', async () => {

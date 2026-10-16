@@ -327,14 +327,15 @@ function Console({ me }: { me: Me }) {
         <main>
           {view.screen === 'queue' && <Queue me={me} />}
           {view.screen === 'cases' && <Cases />}
-          {view.screen === 'case' && view.id && <CaseView id={view.id} me={me} />}
+          {/* Keyed by id: moving to another case, policy or draft starts its screen afresh, never from the last one's state. */}
+          {view.screen === 'case' && view.id && <CaseView key={view.id} id={view.id} me={me} />}
           {view.screen === 'policies' && <Policies />}
-          {view.screen === 'policy' && view.id && <PolicyView id={view.id} me={me} />}
+          {view.screen === 'policy' && view.id && <PolicyView key={view.id} id={view.id} me={me} />}
           {view.screen === 'reports' && <Reports />}
           {view.screen === 'try' && <Try />}
           {view.screen === 'intake' && <Intake />}
           {view.screen === 'drafts' && (me.editing ? <Drafts me={me} /> : <p>The policy editor is off on this server.</p>)}
-          {view.screen === 'draft' && view.id && <DraftView id={view.id} me={me} />}
+          {view.screen === 'draft' && view.id && <DraftView key={view.id} id={view.id} me={me} />}
           {view.screen === 'audit' &&
             (can(me, 'admin', 'audit') ? <Audit /> : <p>The audit log needs the admin role or the audit scope.</p>)}
         </main>

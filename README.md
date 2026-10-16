@@ -11,9 +11,10 @@ rests on. One rule outranks all the others: **a denial may rest on evidence of a
 When anything the record leaves unaddressed could change a denial, the request is pended and that evidence is asked
 for by name.
 
-**One 9 MB program. 14 MB of memory at rest.** Its reviewers' console, policy editor, reports and audit log are built
-in; it decides Da Vinci PAS requests behind [Perfuse](https://github.com/BioDream-LLC/perfuse) or any PAS server that
-calls its decision hook.
+**One 11 MB program, about 22 MB of memory at rest.** Its reviewers' console, work queue, policy editor, policy library,
+reports and audit log are built in; it decides Da Vinci PAS requests behind
+[Perfuse](https://github.com/BioDream-LLC/perfuse) or any PAS server that calls its decision hook, and takes faxes,
+calls and portal requests too.
 
 [![License](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-8b5cf6.svg)](LICENSE.md) [![Go](https://img.shields.io/badge/Go-1.27%2B-00ADD8.svg?logo=go&logoColor=white)](https://go.dev) [![Version](https://img.shields.io/badge/version-v0.0.1-orange.svg)](#status) [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS-lightgrey.svg)](#build) [![Works with](https://img.shields.io/badge/works%20with-Perfuse-3b82f6.svg)](https://github.com/BioDream-LLC/perfuse)
 
@@ -45,8 +46,9 @@ requests through a standard API, and publish their numbers. Vaglio gives the rea
 front of the reviewer, and builds the published metrics from its own log.
 
 **Policies are short text files that keep the plan's own words.** Each rule quotes its source sentence exactly, and
-every policy is tested on every combination of evidence it can be given before it may decide anything. A clinician
-signs it off; until then the server refuses it.
+every policy is tested on every combination of evidence it can be given before it may decide anything. A plan's own
+policy decides only once a clinician signs it off. The built-in library, drafted from public Medicare and Medicaid
+documents, decides as published, and a plan that reads a rule differently overrides it in the console.
 
 **People stay in charge.** Whatever the rules cannot settle goes to a reviewer, with the evidence found, what is
 missing and the due date. A plan can require that only a clinician ever denies. Every decision, review, override and
@@ -56,6 +58,23 @@ appeal is kept in a tamper-evident log that can be replayed against a new policy
 
 New to prior authorization? **[The slides](docs/Vaglio-overview.pptx)** explain Vaglio in plain words, with no
 software background needed.
+
+<table>
+<tr>
+<td width="33%" valign="top"><b>A proof for every answer</b><br><sub>Each step quotes the policy and cites the record. Missing evidence never denies: it is asked for by name.</sub></td>
+<td width="33%" valign="top"><b>A receipt for every decision</b><br><sub>Anyone can check one against the tamper-evident log, without seeing the patient.</sub></td>
+<td width="33%" valign="top"><b>What would change it</b><br><sub>Flip any evidence and watch the decision and its proof redraw.</sub></td>
+</tr>
+<tr>
+<td valign="top"><b>Checked before it decides</b><br><sub>Every policy is tested on every combination of evidence, and replayed over past cases before it goes live.</sub></td>
+<td valign="top"><b>People stay in charge</b><br><sub>A work queue, physician review, peer-to-peer calls and appeals; optionally, only a clinician denies.</sub></td>
+<td valign="top"><b>Reports that answer the hard questions</b><br><sub>The CMS-0057-F metrics, which services still need prior authorization, and whether errors fall harder on some patients.</sub></td>
+</tr>
+</table>
+
+<img src="docs/assets/screens/whatif.png" alt="The what-if sandbox on a denied case: switching six weeks of conservative therapy to present turns the denial into an approval, and the proof redraws with the changed evidence lit up." width="100%">
+
+<sub><b>What would change it.</b> One piece of evidence switched, and the denial becomes an approval with its proof redrawn. [More screens](#what-it-looks-like).</sub>
 
 ## Why now
 
@@ -99,7 +118,7 @@ itself checks, built from the plan's quoted policy and the cited record, by code
 | **How it is run** | A product or service from the vendor, often with delegated review | Software the plan runs on its own servers |
 | **Why an answer is what it is** | An explanation or rationale, in the vendor's form | A proof per decision: each step cites the clause and the record |
 | **Missing evidence** | Handled by each product's own rules | Never supports a denial; asked for by name |
-| **Before a policy goes live** | The vendor's validation | Tested on every combination of evidence, signed off by a clinician, replayed over past cases |
+| **Before a policy goes live** | The vendor's validation | Tested on every combination of evidence and replayed over past cases; a plan's own policies and overrides signed off by a clinician |
 | **Medical-necessity criteria** | Often licensed InterQual or MCG | The plan's own policies, public Medicare and Medicaid ones, or the plan's licensed criteria through its own criteria service |
 | **Source code** | Closed | Published (PolyForm Shield 1.0.0) |
 | **Track record** | Large production deployments | None yet (v0.0.1) |
@@ -127,6 +146,10 @@ software a plan runs, not an outcome a vendor sells.
 
 ## Everything it does
 
+### Deciding
+
+Every request gets an answer the record supports: approve, deny with its proof, or pend and ask.
+
 - **Decides PAS requests** for a PAS server such as Perfuse (`POST /api/pas/decide`): reads the request's evidence,
   decides on the policy for the service, and answers approve, deny with its clause and documented absences, or pend with
   what is needed.
@@ -137,64 +160,89 @@ software a plan runs, not an outcome a vendor sells.
   Observations (thresholds in one unit, yes/no, coded values). What it cannot read with confidence is "not addressed",
   the one state that can never support a denial; a record that says both is sent to a person; documents no rule reads
   are listed for the reviewer.
-- **Policies in a small language** (`.vaglio`), compiled to the model the engine solves, with errors at line and column,
-  `vaglio fmt`, lint warnings, and an exhaustive check over every combination of evidence before a policy may load.
-- **Drafts policies from coverage documents** with a language model, behind gates a draft must pass: it compiles, every
-  clause is quoted word for word, every code appears in the document, it passes the exhaustive check, and it has no lint
-  warnings. What passes is written with `status draft`, which the server refuses until a person signs it off.
-
-- **Makes the DTR questionnaire from the policy** (`vaglio questionnaire`, or the policy screen): exactly the questions
-  its decisions read, so the form and the policy cannot drift. `-put` stores it on the PAS server, which serves it to
-  DTR apps. The pend report says which missing evidence pends requests most, and whether a question asks for it.
-- **Gold carding** (`serve -goldcard FILE`): providers whose recent record under a program (approval rate, look-back
-  window, minimum decisions, optionally a state and policies) qualifies are approved without review, with an answer
-  naming the program and the record, and the cases counted. Known by NPI only; exempt approvals never count toward the
-  next exemption.
-- **CMS prior authorization metrics** from the log (`vaglio report metrics`, the Reports screen, CSV): standard and
-  expedited, counts and percentages, time to determination. Appeals and extensions are not seen by Vaglio and are
-  reported as not tracked, never as zero.
+- **Says what would change it**: every pend and denial carries each smallest set of evidence whose documentation would
+  approve it, and says when a route needs the record to be wrong rather than more documentation. The provider is told
+  the routes that need only more documentation.
+- **Asks for documents the standard way**: evidence can name the LOINC attachment codes that would show it (`request
+  document loinc ...`). A pend names them and the questionnaire, and Perfuse asks the provider with a Da Vinci CDex Task
+  and CommunicationRequests. What the provider sends back through `$submit-attachment` is fetched into the case, and the
+  policy decides again on the request as it now stands, for the reviewer to weigh.
 - **Clinician denials** (`serve -clinician-denials`, for California SB 1120 and laws like it): the engine never denies
   on its own. It pends the request and proposes the denial to a reviewer; only an account recorded as a clinician
   (`vaglio user clinician -npi -credential`) may deny, and the decision records their NPI and credential.
-- **Replay** (`vaglio replay`, or edit a policy's source in the console): runs a new policy version over every stored
-  request it covers and lists the decisions it would change, flagging those that would overrule a reviewer. It changes
-  nothing, and is audited.
-- **Replay time machine** (each policy's screen): every version of a policy put in force is kept in `DATA/versions` by
-  its SHA-256 (at start and at sign-off). Slide across them to see how each would have decided every past request,
-  which decisions it would change, and, for any of them, the two proofs side by side. Versions in force before this
-  release were not kept; they start with the next start.
-- **What if** (every case, in the console): flip any piece of evidence between present, absent and not addressed, and
-  the decision and its proof redraw at once, with what changed lit up in the proof. Nothing is recorded; the case keeps
-  its decision.
+- **Effective dates and which policy wins** (`effective`, `ends`, `authority ncd|lcd|state|plan`, `lines`, `states` in a
+  policy's header): a policy signed off before its effective date waits in `-policies/scheduled/`, and the version it
+  replaces keeps deciding until the first request of that day, which the audit log records. When several policies are
+  for one service, the one deciding a request is in effect that day, covers the member's line of business (from the
+  request's Coverage type) and the patient's state, and has the highest authority: a national coverage determination
+  over a local one or a state's criteria, over the plan's own policy. The case says why that one, and why not each of
+  the others. Two policies of one rank that could both reach a request are refused at load and at sign-off, so the
+  choice is never a tie. When a higher policy may apply but the request does not say (no Coverage type, no address), the
+  lower one may approve, never deny: the request is pended and the missing coverage or address asked for.
+- **Richer date rules**: `find condition ... onset at least N days` (how long a condition has lasted), and
+  `find procedure ... within N days times N apart N days` (two blocks at least 14 days apart; two RFA sessions in a
+  year). Fewer procedures, or ones that cannot be dated apart, document nothing either way.
+- **Evidence from outside the request**: a criteria service the plan runs or licenses (`find criteria NAME CRITERION`,
+  `serve -criteria NAME=URL [-criteria-token-env NAME=VAR]`), the plan's provider network (`find provider in-network`,
+  `serve -network npis.csv`), and providers' specialties from the federal NPI registry (`find provider specialty
+  207X00000X`, `serve -npi-registry nppes` for the public API, which is sent only the provider's NPI and kept for a day,
+  or a CSV extract of its download). Each finding is cited in the proof like the record's own: the criterion and the
+  service's reason, the network file and its date, the registry's listing. Every source fails safe: no answer in five
+  seconds, an error, "unknown", or an NPI the registry does not know is not addressed, which never denies; a "not met"
+  without its reason is not used. A policy naming a source the server lacks is refused at start. A stored case is
+  decided again (replays, confirmed readings) on what the sources said then, not asked again. The criteria service is
+  sent `{"criterion", "policy", "policyVersion", "service", "bundle"}` and answers `{"result": "met" | "not-met" |
+  "unknown", "reason", "reference"}`. `examples/criteria-service` is a small service in that form to copy: one invented
+  criterion, and the place where a plan calls its own licensed engine instead.
+- **Drug prior authorization**: `drug` policies, `find medication rxnorm ... within N days lasting N days` over
+  MedicationDispenses and MedicationStatements (days of supply summed across fills, for step therapy), counted apart in
+  the CMS metrics. `policies/adalimumab_ra.vaglio` is an illustrative step-therapy policy.
+- **NCPDP SCRIPT electronic prior authorization** (`POST /api/pas/ncpdp`, behind the PAS token, from the plan's ePA
+  intermediary): a `PAInitiationRequest` for a drug a policy here decides (RxNorm, or NDC where a policy lists NDC
+  codes) is answered `Open` with the policy's questions; one for any other drug `Closed` with reason CC (not required).
+  A `PARequest` is decided on the same path as every other request, its answers and the prescriber's diagnoses read
+  as evidence: `Approved`, `Denied` with the reason in `PANote`, `Open` again with only the questions still unanswered,
+  or `InProcess` when it waits for a person. Other transactions get a SCRIPT `Error`. Written from public
+  descriptions (the Surescripts ePA companion guide), not the member-only NCPDP schema: the envelope, linkage and
+  statuses are as published; the element names inside a question set and an approval's dates are inferred, and say so
+  in `internal/ncpdp`. Not certified with any intermediary; check against the plan's before use.
+- **The member's coverage** (`serve -members FILE`, the plan's member file as CSV: `member_id`, `birth_date`, `plan`,
+  `line`, `start`, `end`, `excluded`): before a request is approved or denied, the member the Coverage names
+  (`subscriberId`) is looked up for the day of the service. Not found, not covered that day, or a benefit that leaves
+  the service out: the request pends for a person to check, with the policy's own decision kept on the case. A member
+  file is late or wrong often enough that it never denies. A birth date in the file must match the request's, so a
+  mistyped id is not taken for someone else. The file is read again when it changes. `POST /api/pas/eligibility`
+  answers a FHIR `CoverageEligibilityRequest` with a `CoverageEligibilityResponse`: in force on the day, the benefit
+  period, and per item whether the benefit leaves it out and whether prior authorization is required (a policy here
+  decides it). X12 270/271 is not spoken; a clearinghouse or Perfuse translates.
+
+### Explaining every answer
+
+The proof, written for whoever needs it: the provider, the patient, a regulator.
+
 - **Receipts**: every decision (the engine's, a reviewer's, an appeal's) has a receipt such as
   `VG-80C7-1A55-DCF3-C768` and a QR code, made from the hash of its audit record. Anyone holding one checks it at
   `/#/receipt/...` without signing in, or offline against a copy of the log (`vaglio receipt -log FILE CODE`), and sees
   the decision, who made it (engine, reviewer or clinician, never a name), the policy and clause, any later decision on
   the same request, and where it sits in the chain. Nothing about the patient. Checks are limited to 30 a minute per
   address, so the log cannot be swept for receipts. The PAS answer carries the receipt.
-- **Policy map** (each policy's screen): the rules as a diagram, evidence on the left, decisions on the right, an arrow
-  for each "defeats" (click a box to light up what it touches), and every combination of its evidence as a grid of
-  outcomes, neighbouring cells one piece of evidence apart, readable with the arrow keys
-  (`GET /api/policies/{id}/map`).
 - **Plain-language letters** (each case, in English or Spanish, `GET /api/cases/{id}/letter?lang=en|es`): what was
   asked for, what was decided and by whom, the policy's words it rests on, what the record showed, what is needed or
   what would change it, the patient's rights, and the receipt with its QR code. Written from the decision by fixed
   templates, never by a model, so it says nothing the decision does not. The policy's own words stay in the language
   the plan wrote them in, and the Spanish letter says so: a machine translation of a coverage rule is not the rule. The
   appeal paragraph is generic; a plan's own deadlines and addresses are not in it yet.
-- **Draft from a coverage document** (the Drafts screen, `serve -edit-policies -draft-model-url URL [-draft-model M]
-  -draft-key-env VAR [-extract pdftotext]`): upload a plan's coverage policy, as text or PDF, and a language model drafts
-  it in the policy language, up to six rounds, each held to the drafting gates. You get the draft (saved for an author,
-  marked when it does not pass) and what the checker found, sorted: where the draft approves and denies at once, where
-  it decides nothing (both may be holes in the document, or misreadings), clauses not quoted word for word, codes the
-  document does not list, rules that change nothing. The document goes to the model's provider: published coverage
-  documents only, never patient records. A model's drafts often do not pass; the findings are still worth reading.
-- **Two readings compared** (`vaglio readings A.vaglio B.vaglio`): two policies drafted from one coverage document,
-  each quoting it word for word, decided on every record of their evidence; where they disagree, the groups of records,
-  the clauses each rests on, and the simplest example. A check proves a policy consistent, not that it means what the
-  document means; a second reading that disagrees is where a person should look. `library/readings/` holds a second
-  reading of the TKA LCD; what the two readings found is written up in
-  [docs/medicare-readings.md](docs/medicare-readings.md).
+- **What if** (every case, in the console): flip any piece of evidence between present, absent and not addressed, and
+  the decision and its proof redraw at once, with what changed lit up in the proof. Nothing is recorded; the case keeps
+  its decision.
+- **Policy map** (each policy's screen): the rules as a diagram, evidence on the left, decisions on the right, an arrow
+  for each "defeats" (click a box to light up what it touches), and every combination of its evidence as a grid of
+  outcomes, neighbouring cells one piece of evidence apart, readable with the arrow keys
+  (`GET /api/policies/{id}/map`).
+
+### The reviewers' day
+
+What a person decides, they decide with everything in front of them, in the right order.
 
 - **A work queue** (the Queue screen, `GET /api/queue`): every request waiting for a decision and every appeal waiting
   for its outcome, in the order to work them, by a stated rule: past its deadline first, then expedited, then the least
@@ -210,15 +258,22 @@ software a plan runs, not an outcome a vendor sells.
   the queue. It is decided by someone other than the person who denied, and a denial is upheld on appeal only by a
   clinician. The letter says when it was received and is due, then the appeal's reason, and after an upheld appeal
   points to the further, independent review. An outcome decided elsewhere still comes by the appeals feed.
-- **The member's coverage** (`serve -members FILE`, the plan's member file as CSV: `member_id`, `birth_date`, `plan`,
-  `line`, `start`, `end`, `excluded`): before a request is approved or denied, the member the Coverage names
-  (`subscriberId`) is looked up for the day of the service. Not found, not covered that day, or a benefit that leaves
-  the service out: the request pends for a person to check, with the policy's own decision kept on the case. A member
-  file is late or wrong often enough that it never denies. A birth date in the file must match the request's, so a
-  mistyped id is not taken for someone else. The file is read again when it changes. `POST /api/pas/eligibility`
-  answers a FHIR `CoverageEligibilityRequest` with a `CoverageEligibilityResponse`: in force on the day, the benefit
-  period, and per item whether the benefit leaves it out and whether prior authorization is required (a policy here
-  decides it). X12 270/271 is not spoken; a clearinghouse or Perfuse translates.
+- **An appeals feed** (`POST /api/feeds/appeals`, bearer token from `-appeals-token-env`): the appeals system sends
+  outcomes, matched to the denial by Claim identifier and item, recorded once by their reference.
+  `vaglio appeals import FILE.csv` sends a CSV export through it.
+- **Decision timeframe extensions** (`POST /api/cases/{id}/extend`): 7 days standard and 72 hours expedited (CMS-0057-F),
+  72 and 24 hours for drugs; a reviewer may extend once, by up to 14 days (`-extension-days`), for one of the three
+  reasons 42 CFR 422.568(b)(2) allows, with what the enrollee is told, before the deadline, never for a drug. The queue
+  shows what is due and overdue; the metrics count extensions, approvals after one, and late determinations.
+- **Requests by fax, phone, mail or portal** (the Intake screen; `serve -fax-token-env VAR` for the fax inbox): the plan's
+  fax service posts each fax to `/api/feeds/fax` with its bearer token; Vaglio keeps it, makes its text with `-extract`
+  when it can, and lists it in the inbox. A person opens it beside a form, keys in the patient, coverage, provider and
+  service, and answers the policy's own questions as the request shows them: yes, no, or not shown. It is then one more
+  PAS request: the same policy choice, evidence, proof, case, receipt and audit record, with the fax kept in the request
+  as a DocumentReference for the reviewer and the document reader. The case names its channel and who keyed it in, and
+  its answers are cited as their reading. "Not shown" is not addressed, so a request keyed in with gaps pends and asks
+  for them. No PAS server waits for these decisions: the provider is sent the letter. Calls and letters are keyed in the
+  same way. An account needs the reviewer role or the `intake` scope; a fax not to key in is set aside with a reason.
 - **A provider portal** (sign in with a provider account: `vaglio user add -role provider NAME`, then `vaglio user
   provider -npi NPI[,NPI] NAME`): a provider's office sends a request (the policy's questions, yes, no or not known,
   and its documents), and it is decided at once on the same path as a PAS request. It sees each request's status, the
@@ -226,15 +281,148 @@ software a plan runs, not an outcome a vendor sells.
   shown to the reviewer like any other); and appeals a denial. It sees the requests of its own NPIs only, and none of
   the plan's screens: a provider account is off the role ladder and takes no scope, whatever its file says. Another
   office's request is "no such request", not "forbidden".
-- **NCPDP SCRIPT electronic prior authorization** (`POST /api/pas/ncpdp`, behind the PAS token, from the plan's ePA
-  intermediary): a `PAInitiationRequest` for a drug a policy here decides (RxNorm, or NDC where a policy lists NDC
-  codes) is answered `Open` with the policy's questions; one for any other drug `Closed` with reason CC (not required).
-  A `PARequest` is decided on the same path as every other request, its answers and the prescriber's diagnoses read
-  as evidence: `Approved`, `Denied` with the reason in `PANote`, `Open` again with only the questions still unanswered,
-  or `InProcess` when it waits for a person. Other transactions get a SCRIPT `Error`. Written from public
-  descriptions (the Surescripts ePA companion guide), not the member-only NCPDP schema: the envelope, linkage and
-  statuses are as published; the element names inside a question set and an approval's dates are inferred, and say so
-  in `internal/ncpdp`. Not certified with any intermediary; check against the plan's before use.
+- **Reading documents at scale** (`serve -read-documents`, with `-document-model-url`): a pended request's documents,
+  and those received later, are read as soon as it pends, by a pool of workers (`-read-workers`, 2 by default), so a
+  reviewer opens the case with the proposals waiting. With `-approve-from-documents`, a request the policy approves on
+  the readings' findings, each quoted word for word from its document, is approved with no person, sent to the PAS
+  server, and its letter and receipt say the plan's policy was applied to the documents. Only approvals: a reading that
+  would deny or pend changes nothing, and a denial proposed to a clinician still waits for one. `-approve-sample`
+  (10% by default) sets automatic approvals aside for a reviewer to check after the fact; the Reports screen counts the
+  checks and the disagreements, which is what says whether to keep it on.
+- **Reads attached notes with a model, as proposals** (`serve -document-model-url`): each finding must quote the
+  document word for word or it is refused; what passes is nothing until a reviewer confirms it, and a confirmed finding
+  is evidence cited to the document and the words. Documents are patient records, so the model must be on this machine
+  unless `-document-model-remote` says the provider is covered by a business associate agreement.
+- **PDFs and scans for the document reader** (`serve -extract pdftotext,tesseract`): local programs make the text, which
+  goes through the same quote gate. The case marks such documents, and the reviewer confirms against the original,
+  served as a sandboxed download.
+
+### Writing and testing policies
+
+Short text files in the plan's own words, checked on every combination before they decide anything.
+
+- **Policies in a small language** (`.vaglio`), compiled to the model the engine solves, with errors at line and column,
+  `vaglio fmt`, lint warnings, and an exhaustive check over every combination of evidence before a policy may load.
+- **A policy library** (`library/`): policies drafted from published coverage documents, each held by a test to the
+  drafting gates against its source, which is kept beside it with where and when it was retrieved. The library is
+  built into the program and decides as published (`serve -library`, on by default; `-library=false` turns it off). Where
+  a plan reads a rule differently, it overrides the policy: **Override** on the policy's screen (with `-edit-policies`)
+  starts a draft of the next version, and once a clinician signs it off the plan's version decides instead of the
+  library's. **Remove the override**, a clinician's act too, puts the published one back. Both are in the audit log, and
+  the policy list marks each library policy "as published" or "overrides library vX". The AHIP/BCBSA documentation standards for 66 services are
+  published, but they set the most documentation a plan may ask for, not coverage criteria, and carry no licence to
+  include them, so the library is built from public coverage documents:
+
+  | Policy | Basis | Category |
+  |---|---|---|
+  | `cpap_osa` | Medicare LCD L33718 (E0601) | DME: sleep |
+  | `tka` | Medicare LCD L36575, total knee arthroplasty (27447) | Musculoskeletal |
+  | `facet_rfa` | Medicare LCD L38773, facet joint radiofrequency ablation (64633-64636) | Musculoskeletal: spine |
+  | `ccta` | Medicare LCD L35121, coronary CT angiography (75574) | Advanced imaging: cardiac |
+  | `lumbar_mri_wa` | Washington L&I lumbar spine MRI guideline (72148, 72149, 72158) | Advanced imaging: spine |
+  | `bariatric_ncd` | Medicare NCD 100.1 and Claims Processing Manual ch. 32 | Surgery: bariatric |
+  | `adalimumab_ra_ut` | Utah Medicaid adalimumab criteria, RA (J0135, step therapy) | Drugs: specialty |
+  | `esi` | Medicare LCD L39240, epidural steroid injections (62320-62323, 64479-64484) | Musculoskeletal: spine and pain |
+  | `varicose_ablation` | Medicare LCD L34536, radiofrequency and laser vein ablation (36475-36479) | Vascular |
+  | `blepharoplasty` | Medicare LCD L34411, functional upper blepharoplasty and ptosis repair | Potentially cosmetic |
+  | `pov` | Medicare LCD L33789, Group 1 power operated vehicles (K0800-K0802) | DME: mobility |
+  | `hbo` | Medicare NCD 20.29 and Claims Processing Manual ch. 32, hyperbaric oxygen (G0277, 99183) | Wound care |
+
+  `lumbar_mri_wa`, `bariatric_ncd` and `adalimumab_ra_ut` are the sourced counterparts of the illustrative policies in
+  `policies/`. Each policy's header says
+  which readings of its source a clinician should confirm.
+- **A policy editor in the console** (`serve -edit-policies`): drafts are written and checked as they are typed (parse
+  errors jump to the line; the exhaustive check and lint run beside it), saved to `-policies/drafts/`, and signed off by
+  a clinician's account - the signature is the account's name and credential, never typed. A signed policy is in force
+  at once (or on its effective date), replacing its earlier version, which keeps deciding until then. Sign-off refuses a
+  draft that fails its check, has warnings, reuses the version in force, or ties with another policy for a service. Every save and sign-off is in the audit
+  log by the source's SHA-256.
+- **Draft from a coverage document** (the Drafts screen, `serve -edit-policies -draft-model-url URL [-draft-model M]
+  -draft-key-env VAR [-extract pdftotext]`): upload a plan's coverage policy, as text or PDF, and a language model drafts
+  it in the policy language, up to six rounds, each held to the drafting gates. You get the draft (saved for an author,
+  marked when it does not pass) and what the checker found, sorted: where the draft approves and denies at once, where
+  it decides nothing (both may be holes in the document, or misreadings), clauses not quoted word for word, codes the
+  document does not list, rules that change nothing. The document goes to the model's provider: published coverage
+  documents only, never patient records. A model's drafts often do not pass; the findings are still worth reading.
+- **Drafts policies from coverage documents** with a language model, behind gates a draft must pass: it compiles, every
+  clause is quoted word for word, every code appears in the document, it passes the exhaustive check, and it has no lint
+  warnings. What passes is written with `status draft`, which the server refuses until a person signs it off.
+
+- **Two readings compared** (`vaglio readings A.vaglio B.vaglio`): two policies drafted from one coverage document,
+  each quoting it word for word, decided on every record of their evidence; where they disagree, the groups of records,
+  the clauses each rests on, and the simplest example. A check proves a policy consistent, not that it means what the
+  document means; a second reading that disagrees is where a person should look. `library/readings/` holds a second
+  reading of the TKA LCD; what the two readings found is written up in
+  [docs/medicare-readings.md](docs/medicare-readings.md).
+
+- **Makes the DTR questionnaire from the policy** (`vaglio questionnaire`, or the policy screen): exactly the questions
+  its decisions read, so the form and the policy cannot drift. `-put` stores it on the PAS server, which serves it to
+  DTR apps. The pend report says which missing evidence pends requests most, and whether a question asks for it.
+- **Replay** (`vaglio replay`, or edit a policy's source in the console): runs a new policy version over every stored
+  request it covers and lists the decisions it would change, flagging those that would overrule a reviewer. It changes
+  nothing, and is audited.
+- **Replay time machine** (each policy's screen): every version of a policy put in force is kept in `DATA/versions` by
+  its SHA-256 (at start and at sign-off). Slide across them to see how each would have decided every past request,
+  which decisions it would change, and, for any of them, the two proofs side by side. Versions in force before this
+  release were not kept; they start with the next start.
+
+### Reports
+
+Built from the log, so they cannot disagree with what was decided.
+
+- **CMS prior authorization metrics** from the log (`vaglio report metrics`, the Reports screen, CSV): standard and
+  expedited, counts and percentages, time to determination. Appeals and extensions are not seen by Vaglio and are
+  reported as not tracked, never as zero.
+- **Gold carding** (`serve -goldcard FILE`): providers whose recent record under a program (approval rate, look-back
+  window, minimum decisions, optionally a state and policies) qualifies are approved without review, with an answer
+  naming the program and the record, and the cases counted. Known by NPI only; exempt approvals never count toward the
+  next exemption.
+- **Override and appeal analytics** (`vaglio report overrides -by clause|provider|state`, the Reports screen): how often
+  the engine's denials were approved by a clinician instead, or overturned on appeal (`POST /api/cases/{id}/appeal`
+  records an appeal's outcome). Approved-after-appeal is now in the metrics.
+- **Which services still need prior authorization** (`vaglio report list`, the Reports screen, CSV): health plans have
+  committed to require prior authorization for fewer services. Per service, how often requests were approved in the end
+  (by the engine, a reviewer, a gold card or on appeal), how many at once, how often the engine's denials were reversed,
+  and the median time a person took. Each service gets a verdict by thresholds the plan sets and the report states
+  (`-min-requests`, `-min-approved`, `-min-reversed`; 30 requests, 95% approved, half of any denials reversed by
+  default): consider removing (review rarely changes the answer, and is mostly wrong when it does), keep, or not enough
+  requests. It recommends and changes nothing; services no policy here decides are not seen.
+- **Fairness** (`vaglio report fairness`, the Reports screen for reviewers): whether the engine's errors fall harder on
+  some patients. Approval rates differ between groups for good reasons (criteria treat ages differently on purpose), so
+  the measure is error, as in the method published as arXiv:2603.14631: of the engine's denials, how many a clinician or
+  an appeal reversed, and how often requests were pended to ask for more, by sex, age band, race and ethnicity (US Core),
+  state and line of business. A group that differs from the rest beyond chance (two-sided Fisher exact test, p < 0.01) is
+  flagged, in words, as a place to read cases, not a finding. The engine reads no demographics, so a difference comes
+  from the records sent, reviewers or appeals. Demographics are read from the stored requests when the report is made,
+  never copied into cases; groups under 11 requests are not shown; making the report is in the audit log. Income and
+  disability are not in a prior authorization request and are not reported.
+
+### Operating it
+
+One program on the plan's own servers.
+
+- **Several plans on one server** (`serve -plans FILE`, for a utilization management organization): each plan at its own
+  hostname with its own policies, data, audit chain, accounts, tokens and PAS server; nothing of one is reachable from
+  another. See [Running it](#several-health-plans-on-one-server).
+- **Single sign-on** (OpenID Connect, `serve -oidc-issuer ...`): code flow with PKCE, the ID token verified against the
+  provider's keys (RSA or ECDSA; `none` and HMAC refused), with issuer, audience, expiry and nonce checked, and
+  optionally a required group. The provider says who someone is; an account made with `vaglio user sso` says what they
+  may do. A name with no such account is refused, never created. An account name is the provider's name up to any @, so
+  Microsoft Entra ID's user principal name `kim@plan.example` signs in as `kim`. For Entra, give the tenant's own issuer
+  (`https://login.microsoftonline.com/TENANT-ID/v2.0`, not `common`), and a group by its object id, or an app role with
+  `-oidc-groups-claim roles` (Entra leaves groups out of a token for someone in over 200).
+- **SAML 2.0 sign-on** (`serve -saml-metadata URL|FILE -saml-entity-id ID -saml-acs-url https://HOST/api/sso/saml`),
+  instead of OpenID Connect, for Entra ID, Okta, ADFS or Keycloak. The package comes from Perfuse, whose verification
+  signed a real person in through a live Entra tenant and through Keycloak. The responses captured then are its test
+  fixtures here, and pass (the Entra one with the tenant's identifiers replaced and signed again with a test key, its
+  shape as Entra wrote it). Only the certificate in the provider's metadata is trusted, never one inside a response; a response
+  must answer a sign-in this server started, once, and its signature, audience, destination and validity window are
+  checked before anything in it is read. With no attribute named, the account name is an email, then the user principal
+  name (Entra sends no email, and an opaque NameID), then the NameID. Vaglio's own sign-in path has been tested against
+  Entra-shaped responses and that captured one, not yet by a person signing in to a live tenant.
+- **Narrower roles** (`vaglio user scopes`): `author` (write drafts), `audit` (read the log), `appeals` (record appeal
+  outcomes), `intake` (key in faxed and phoned requests), `policy:ID` (see and decide only that policy's cases; other
+  cases are not found). Changing an account's scopes ends its sessions.
 - **Feeds to the plan's systems** (claims, care management, a warehouse): `serve -webhook https://... -webhook-secret-env
   VAR` pushes every record about a case (decided, reviewed, assigned, appealed, delivered; not page views) as JSON
   events, in order and at least once, from a cursor kept on disk, retried with backoff while the receiver is down.
@@ -265,145 +453,6 @@ software a plan runs, not an outcome a vendor sells.
   records, so sealing changes no hash and no receipt. Data met without the key is refused with a message saying so.
   `vaglio data status` counts what is sealed. Not sealed, as they hold no patient data: accounts, policies and their
   versions, drafts, cursors; the TLS keys are protected by file mode. Losing the key loses the data: keep a copy offline.
-- **Says what would change it**: every pend and denial carries each smallest set of evidence whose documentation would
-  approve it, and says when a route needs the record to be wrong rather than more documentation. The provider is told
-  the routes that need only more documentation.
-- **Asks for documents the standard way**: evidence can name the LOINC attachment codes that would show it (`request
-  document loinc ...`). A pend names them and the questionnaire, and Perfuse asks the provider with a Da Vinci CDex Task
-  and CommunicationRequests. What the provider sends back through `$submit-attachment` is fetched into the case, and the
-  policy decides again on the request as it now stands, for the reviewer to weigh.
-- **Reads attached notes with a model, as proposals** (`serve -document-model-url`): each finding must quote the
-  document word for word or it is refused; what passes is nothing until a reviewer confirms it, and a confirmed finding
-  is evidence cited to the document and the words. Documents are patient records, so the model must be on this machine
-  unless `-document-model-remote` says the provider is covered by a business associate agreement.
-- **Drug prior authorization**: `drug` policies, `find medication rxnorm ... within N days lasting N days` over
-  MedicationDispenses and MedicationStatements (days of supply summed across fills, for step therapy), counted apart in
-  the CMS metrics. `policies/adalimumab_ra.vaglio` is an illustrative step-therapy policy.
-- **Override and appeal analytics** (`vaglio report overrides -by clause|provider|state`, the Reports screen): how often
-  the engine's denials were approved by a clinician instead, or overturned on appeal (`POST /api/cases/{id}/appeal`
-  records an appeal's outcome). Approved-after-appeal is now in the metrics.
-- **Which services still need prior authorization** (`vaglio report list`, the Reports screen, CSV): health plans have
-  committed to require prior authorization for fewer services. Per service, how often requests were approved in the end
-  (by the engine, a reviewer, a gold card or on appeal), how many at once, how often the engine's denials were reversed,
-  and the median time a person took. Each service gets a verdict by thresholds the plan sets and the report states
-  (`-min-requests`, `-min-approved`, `-min-reversed`; 30 requests, 95% approved, half of any denials reversed by
-  default): consider removing (review rarely changes the answer, and is mostly wrong when it does), keep, or not enough
-  requests. It recommends and changes nothing; services no policy here decides are not seen.
-- **Fairness** (`vaglio report fairness`, the Reports screen for reviewers): whether the engine's errors fall harder on
-  some patients. Approval rates differ between groups for good reasons (criteria treat ages differently on purpose), so
-  the measure is error, as in the method published as arXiv:2603.14631: of the engine's denials, how many a clinician or
-  an appeal reversed, and how often requests were pended to ask for more, by sex, age band, race and ethnicity (US Core),
-  state and line of business. A group that differs from the rest beyond chance (two-sided Fisher exact test, p < 0.01) is
-  flagged, in words, as a place to read cases, not a finding. The engine reads no demographics, so a difference comes
-  from the records sent, reviewers or appeals. Demographics are read from the stored requests when the report is made,
-  never copied into cases; groups under 11 requests are not shown; making the report is in the audit log. Income and
-  disability are not in a prior authorization request and are not reported.
-- **Several plans on one server** (`serve -plans FILE`, for a utilization management organization): each plan at its own
-  hostname with its own policies, data, audit chain, accounts, tokens and PAS server; nothing of one is reachable from
-  another. See [Running it](#several-health-plans-on-one-server).
-- **Requests by fax, phone, mail or portal** (the Intake screen; `serve -fax-token-env VAR` for the fax inbox): the plan's
-  fax service posts each fax to `/api/feeds/fax` with its bearer token; Vaglio keeps it, makes its text with `-extract`
-  when it can, and lists it in the inbox. A person opens it beside a form, keys in the patient, coverage, provider and
-  service, and answers the policy's own questions as the request shows them: yes, no, or not shown. It is then one more
-  PAS request: the same policy choice, evidence, proof, case, receipt and audit record, with the fax kept in the request
-  as a DocumentReference for the reviewer and the document reader. The case names its channel and who keyed it in, and
-  its answers are cited as their reading. "Not shown" is not addressed, so a request keyed in with gaps pends and asks
-  for them. No PAS server waits for these decisions: the provider is sent the letter. Calls and letters are keyed in the
-  same way. An account needs the reviewer role or the `intake` scope; a fax not to key in is set aside with a reason.
-- **A policy library** (`library/`): policies drafted from published coverage documents, each held by a test to the
-  drafting gates against its source, which is kept beside it with where and when it was retrieved. The library is
-  built into the program and decides as published (`serve -library`, on by default; `-library=false` turns it off). Where
-  a plan reads a rule differently, it overrides the policy: **Override** on the policy's screen (with `-edit-policies`)
-  starts a draft of the next version, and once a clinician signs it off the plan's version decides instead of the
-  library's. **Remove the override**, a clinician's act too, puts the published one back. Both are in the audit log, and
-  the policy list marks each library policy "as published" or "overrides library vX". The AHIP/BCBSA standard documentation set for 66 services is not public (only its
-  categories are), so the library is built from public documents:
-
-  | Policy | Basis | Category |
-  |---|---|---|
-  | `cpap_osa` | Medicare LCD L33718 (E0601) | DME: sleep |
-  | `tka` | Medicare LCD L36575, total knee arthroplasty (27447) | Musculoskeletal |
-  | `facet_rfa` | Medicare LCD L38773, facet joint radiofrequency ablation (64633-64636) | Musculoskeletal: spine |
-  | `ccta` | Medicare LCD L35121, coronary CT angiography (75574) | Advanced imaging: cardiac |
-  | `lumbar_mri_wa` | Washington L&I lumbar spine MRI guideline (72148, 72149, 72158) | Advanced imaging: spine |
-  | `bariatric_ncd` | Medicare NCD 100.1 and Claims Processing Manual ch. 32 | Surgery: bariatric |
-  | `adalimumab_ra_ut` | Utah Medicaid adalimumab criteria, RA (J0135, step therapy) | Drugs: specialty |
-  | `esi` | Medicare LCD L39240, epidural steroid injections (62320-62323, 64479-64484) | Musculoskeletal: spine and pain |
-  | `varicose_ablation` | Medicare LCD L34536, radiofrequency and laser vein ablation (36475-36479) | Vascular |
-  | `blepharoplasty` | Medicare LCD L34411, functional upper blepharoplasty and ptosis repair | Potentially cosmetic |
-  | `pov` | Medicare LCD L33789, Group 1 power operated vehicles (K0800-K0802) | DME: mobility |
-  | `hbo` | Medicare NCD 20.29 and Claims Processing Manual ch. 32, hyperbaric oxygen (G0277, 99183) | Wound care |
-
-  `lumbar_mri_wa`, `bariatric_ncd` and `adalimumab_ra_ut` are the sourced counterparts of the illustrative policies in
-  `policies/`. Each policy's header says
-  which readings of its source a clinician should confirm.
-- **A policy editor in the console** (`serve -edit-policies`): drafts are written and checked as they are typed (parse
-  errors jump to the line; the exhaustive check and lint run beside it), saved to `-policies/drafts/`, and signed off by
-  a clinician's account - the signature is the account's name and credential, never typed. A signed policy is in force
-  at once (or on its effective date), replacing its earlier version, which keeps deciding until then. Sign-off refuses a
-  draft that fails its check, has warnings, reuses the version in force, or ties with another policy for a service. Every save and sign-off is in the audit
-  log by the source's SHA-256.
-- **Effective dates and which policy wins** (`effective`, `ends`, `authority ncd|lcd|state|plan`, `lines`, `states` in a
-  policy's header): a policy signed off before its effective date waits in `-policies/scheduled/`, and the version it
-  replaces keeps deciding until the first request of that day, which the audit log records. When several policies are
-  for one service, the one deciding a request is in effect that day, covers the member's line of business (from the
-  request's Coverage type) and the patient's state, and has the highest authority: a national coverage determination
-  over a local one or a state's criteria, over the plan's own policy. The case says why that one, and why not each of
-  the others. Two policies of one rank that could both reach a request are refused at load and at sign-off, so the
-  choice is never a tie. When a higher policy may apply but the request does not say (no Coverage type, no address), the
-  lower one may approve, never deny: the request is pended and the missing coverage or address asked for.
-- **Richer date rules**: `find condition ... onset at least N days` (how long a condition has lasted), and
-  `find procedure ... within N days times N apart N days` (two blocks at least 14 days apart; two RFA sessions in a
-  year). Fewer procedures, or ones that cannot be dated apart, document nothing either way.
-- **Evidence from outside the request**: a criteria service the plan runs or licenses (`find criteria NAME CRITERION`,
-  `serve -criteria NAME=URL [-criteria-token-env NAME=VAR]`), the plan's provider network (`find provider in-network`,
-  `serve -network npis.csv`), and providers' specialties from the federal NPI registry (`find provider specialty
-  207X00000X`, `serve -npi-registry nppes` for the public API, which is sent only the provider's NPI and kept for a day,
-  or a CSV extract of its download). Each finding is cited in the proof like the record's own: the criterion and the
-  service's reason, the network file and its date, the registry's listing. Every source fails safe: no answer in five
-  seconds, an error, "unknown", or an NPI the registry does not know is not addressed, which never denies; a "not met"
-  without its reason is not used. A policy naming a source the server lacks is refused at start. A stored case is
-  decided again (replays, confirmed readings) on what the sources said then, not asked again. The criteria service is
-  sent `{"criterion", "policy", "policyVersion", "service", "bundle"}` and answers `{"result": "met" | "not-met" |
-  "unknown", "reason", "reference"}`. `examples/criteria-service` is a small service in that form to copy: one invented
-  criterion, and the place where a plan calls its own licensed engine instead.
-- **Reading documents at scale** (`serve -read-documents`, with `-document-model-url`): a pended request's documents,
-  and those received later, are read as soon as it pends, by a pool of workers (`-read-workers`, 2 by default), so a
-  reviewer opens the case with the proposals waiting. With `-approve-from-documents`, a request the policy approves on
-  the readings' findings, each quoted word for word from its document, is approved with no person, sent to the PAS
-  server, and its letter and receipt say the plan's policy was applied to the documents. Only approvals: a reading that
-  would deny or pend changes nothing, and a denial proposed to a clinician still waits for one. `-approve-sample`
-  (10% by default) sets automatic approvals aside for a reviewer to check after the fact; the Reports screen counts the
-  checks and the disagreements, which is what says whether to keep it on.
-- **PDFs and scans for the document reader** (`serve -extract pdftotext,tesseract`): local programs make the text, which
-  goes through the same quote gate. The case marks such documents, and the reviewer confirms against the original,
-  served as a sandboxed download.
-- **Narrower roles** (`vaglio user scopes`): `author` (write drafts), `audit` (read the log), `appeals` (record appeal
-  outcomes), `intake` (key in faxed and phoned requests), `policy:ID` (see and decide only that policy's cases; other
-  cases are not found). Changing an account's scopes ends its sessions.
-- **Single sign-on** (OpenID Connect, `serve -oidc-issuer ...`): code flow with PKCE, the ID token verified against the
-  provider's keys (RSA or ECDSA; `none` and HMAC refused), with issuer, audience, expiry and nonce checked, and
-  optionally a required group. The provider says who someone is; an account made with `vaglio user sso` says what they
-  may do. A name with no such account is refused, never created. An account name is the provider's name up to any @, so
-  Microsoft Entra ID's user principal name `kim@plan.example` signs in as `kim`. For Entra, give the tenant's own issuer
-  (`https://login.microsoftonline.com/TENANT-ID/v2.0`, not `common`), and a group by its object id, or an app role with
-  `-oidc-groups-claim roles` (Entra leaves groups out of a token for someone in over 200).
-- **SAML 2.0 sign-on** (`serve -saml-metadata URL|FILE -saml-entity-id ID -saml-acs-url https://HOST/api/sso/saml`),
-  instead of OpenID Connect, for Entra ID, Okta, ADFS or Keycloak. The package comes from Perfuse, whose verification
-  signed a real person in through a live Entra tenant and through Keycloak. The responses captured then are its test
-  fixtures here, and pass (the Entra one with the tenant's identifiers replaced and signed again with a test key, its
-  shape as Entra wrote it). Only the certificate in the provider's metadata is trusted, never one inside a response; a response
-  must answer a sign-in this server started, once, and its signature, audience, destination and validity window are
-  checked before anything in it is read. With no attribute named, the account name is an email, then the user principal
-  name (Entra sends no email, and an opaque NameID), then the NameID. Vaglio's own sign-in path has been tested against
-  Entra-shaped responses and that captured one, not yet by a person signing in to a live tenant.
-- **Decision timeframe extensions** (`POST /api/cases/{id}/extend`): 7 days standard and 72 hours expedited (CMS-0057-F),
-  72 and 24 hours for drugs; a reviewer may extend once, by up to 14 days (`-extension-days`), for one of the three
-  reasons 42 CFR 422.568(b)(2) allows, with what the enrollee is told, before the deadline, never for a drug. The queue
-  shows what is due and overdue; the metrics count extensions, approvals after one, and late determinations.
-- **An appeals feed** (`POST /api/feeds/appeals`, bearer token from `-appeals-token-env`): the appeals system sends
-  outcomes, matched to the denial by Claim identifier and item, recorded once by their reference.
-  `vaglio appeals import FILE.csv` sends a CSV export through it.
 
 ## Status
 
@@ -444,11 +493,12 @@ How the code is laid out:
 - `testdata/pas/`: synthetic PAS requests, run through a real Perfuse during development and pinned by a test.
   `testdata/drafts/`: a policy the drafting loop produced from `testdata/documents/`, pinned the same way.
 
-Not yet: notices to the enrollee are the plan's (Vaglio records an extension's reason; it does not mail it); single
-sign-on is tested against a test provider only, not a real one; Let's Encrypt is tested against Pebble, its test
+Not yet: notices to the enrollee are the plan's (Vaglio records an extension's reason; it does not mail it); OpenID Connect
+sign-on is tested against a test provider only, not a real one, and SAML against Entra-shaped responses and one captured
+from Microsoft Entra ID, not yet by a person signing in to a live tenant; Let's Encrypt is tested against Pebble, its test
 authority, not yet against Let's Encrypt itself; reading scanned images needs `tesseract` installed;
 there is no release build yet; the letters' appeal paragraph is generic, not a plan's own deadlines and addresses;
-advice before submitting shows in Perfuse only from its `crd-advisor` branch, not yet merged. The criteria-service
+advice before submitting is on Perfuse's main branch, not yet in a Perfuse release. The criteria-service
 protocol is Vaglio's own: no licensed criteria vendor is known to speak it yet, so a plan's licence needs a small adapter
 (`examples/criteria-service` is where to start one).
 Automatic approval from documents is tested with a stand-in model only; how often a real model's approvals survive the
@@ -467,27 +517,36 @@ letter in English or Spanish, check its receipt, and look at the policy map. How
 
 <table>
 <tr>
-<td width="50%"><img src="docs/assets/screens/cases.png" alt="The cases queue: waiting requests with their policy, service, claim, the engine's answer and the time left before each is due."><br><sub><b>The queue.</b> Waiting cases with what the engine said and how long each has left.</sub></td>
-<td width="50%"><img src="docs/assets/screens/denial.png" alt="A denied case: what the provider was told, quoting the policy clause, and the evidence found in the request with the record it came from."><br><sub><b>A denial with its proof.</b> The clause quoted, the absences documented, each finding cited to the record.</sub></td>
+<td width="50%"><img src="docs/assets/screens/queue.png" alt="The work queue: open requests and appeals in the order to work them, who has each, which wait for a physician, and the time left."><br><sub><b>The work queue.</b> Past the deadline first, then expedited, then the least time left. It orders; it never decides.</sub></td>
+<td width="50%"><img src="docs/assets/screens/cases.png" alt="The cases list: requests decided by policy, each with its claim, the engine's approve or deny, and its status."><br><sub><b>Cases.</b> Every request, what the engine said, and what waits for a person.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/assets/screens/pend.png" alt="A pended case: the information needed, the questionnaire it was asked through, the due date and the reviewer's decision form."><br><sub><b>A pend.</b> What is needed, how it was asked for, the deadline, and the reviewer's decision.</sub></td>
-<td width="50%"><img src="docs/assets/screens/editor.png" alt="The policy editor: a draft's source, its check over every combination of evidence, and the clinician's sign-off button."><br><sub><b>The policy editor.</b> Checked on every combination as it is written; a clinician signs it into force.</sub></td>
+<td width="50%"><img src="docs/assets/screens/denial.png" alt="A denied case: what the provider was told, quoting the policy clause, which policy decided and why, an appeal that overturned it, and each finding cited to the record."><br><sub><b>A denial with its proof.</b> The clause quoted, the absences documented, each finding cited to the record, and the appeal that overturned it.</sub></td>
+<td width="50%"><img src="docs/assets/screens/pend.png" alt="A pended case: the information needed, the questionnaire and documents it was asked through, which policy decided and why it outranks the other, and who has the case."><br><sub><b>A pend.</b> Exactly what is needed and how it was asked for, which policy decided, and who has the case.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/assets/screens/whatif.png" alt="The what-if sandbox: each piece of evidence set to present, absent or not addressed; one change turns the denial into an approval, and the changed evidence is lit up in the proof."><br><sub><b>What if.</b> Flip any evidence and the decision and its proof redraw, with the change lit up.</sub></td>
-<td width="50%"><img src="docs/assets/screens/map.png" alt="The policy map: evidence on the left, criteria in the middle, decisions on the right, with arrows for what defeats what; the red-flag finding is selected and its arrows are lit."><br><sub><b>The policy map.</b> The rules as a diagram, and every combination of evidence as a grid.</sub></td>
+<td width="50%"><img src="docs/assets/screens/whatif.png" alt="The what-if sandbox: six weeks of conservative therapy switched to present turns the denial into an approval, and the changed evidence is lit in the proof."><br><sub><b>What if.</b> One change turns a denial into an approval; the proof redraws with the change lit up.</sub></td>
+<td width="50%"><img src="docs/assets/screens/map.png" alt="The policy map: evidence on the left, criteria in the middle, decisions on the right, arrows for what defeats what."><br><sub><b>The policy map.</b> The rules as a diagram, and every combination of evidence as a grid.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/assets/screens/letter.png" alt="A plain-language letter for a denial: what was asked, why, the policy's words, what the record showed, what would change it, and a QR code with its receipt."><br><sub><b>The letter.</b> Written from the decision by template, in English or Spanish, with its receipt.</sub></td>
-<td width="50%"><img src="docs/assets/screens/receipt.png" alt="The public receipt page: a genuine receipt for a denial, who made it, the policy and clause it rests on, and its place in the audit log's chain."><br><sub><b>Check a receipt.</b> Anyone can, without signing in and without seeing the patient.</sub></td>
+<td width="50%"><img src="docs/assets/screens/letter.png" alt="A plain-language letter: what was asked, why it was not approved, the policy's words, what the record showed, the appeal's reason, and a QR code with its receipt."><br><sub><b>The letter.</b> Written from the decision by template, in English or Spanish, with its receipt.</sub></td>
+<td width="50%"><img src="docs/assets/screens/receipt.png" alt="The public receipt page: a genuine receipt for a denial, the policy and clause it rests on, its place in the audit log's chain, and the appeal that replaced it."><br><sub><b>Check a receipt.</b> Anyone can, without signing in and without seeing the patient.</sub></td>
 </tr>
 <tr>
-<td colspan="2"><img src="docs/assets/screens/reports.png" alt="The reports screen: CMS prior authorization metrics, standard and expedited, with extensions and late determinations." width="100%"><br><sub><b>Reports.</b> The CMS prior authorization metrics, from the log, on screen or as CSV.</sub></td>
+<td width="50%"><img src="docs/assets/screens/override.png" alt="A library policy's screen: deciding as published, with the Override button, its version history and its source."><br><sub><b>The library, as published.</b> Each library policy decides as published; a plan that reads it differently overrides it here.</sub></td>
+<td width="50%"><img src="docs/assets/screens/editor.png" alt="The policy editor: an override of a library policy as a draft, passing its check on every combination, and the clinician's sign-off."><br><sub><b>The policy editor.</b> Checked on every combination as it is written; a clinician signs it into force.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/screens/fairness.png" alt="The fairness report: reversal and pend rates by sex, age and race, with small groups not shown."><br><sub><b>Fairness.</b> Do the engine's errors fall harder on some patients? Groups under 11 are never shown.</sub></td>
+<td width="50%"><img src="docs/assets/screens/reports.png" alt="The reports screen: CMS prior authorization metrics, how requests ended, standard and expedited."><br><sub><b>Reports.</b> The CMS prior authorization metrics, from the log, on screen or as CSV.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/screens/intake.png" alt="The intake screen: a fax inbox with four faxes waiting, beside the form a request is keyed in on."><br><sub><b>Intake.</b> Faxes, calls and letters keyed in and decided exactly like a PAS request.</sub></td>
+<td width="50%"><img src="docs/assets/screens/portal.png" alt="The provider portal: a clinic's own requests and where each stands."><br><sub><b>The provider portal.</b> A provider sends requests and documents, sees decisions and letters, and appeals. Its own NPIs only.</sub></td>
 </tr>
 </table>
 
-<sub>Screens from a test server with synthetic requests and the illustrative policies.</sub>
+<sub>Screens from a test server with invented requests, people and faxes, in the default midnight theme.</sub>
 
 ## Running it
 
