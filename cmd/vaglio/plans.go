@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -28,6 +29,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/outside"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/reader"
+	"github.com/biodream-llc/vaglio/internal/saml"
 	"github.com/biodream-llc/vaglio/internal/seal"
 	"github.com/biodream-llc/vaglio/internal/server"
 	"github.com/biodream-llc/vaglio/internal/tlsserve"
@@ -68,6 +70,8 @@ type planSpec struct {
 	EditPolicies bool `json:"editPolicies,omitempty"`
 	// SSO is the plan's single sign-on: its own identity provider, client and callback on its own hostname.
 	SSO *ssoSpec `json:"sso,omitempty"`
+	// SAML is the plan's single sign-on through a SAML 2.0 identity provider instead (one of sso and saml).
+	SAML *samlSpec `json:"saml,omitempty"`
 	// Criteria are the plan's criteria services, by the name its policies give them: {"url": ..., "tokenEnv": ...}.
 	Criteria map[string]criteriaSpec `json:"criteria,omitempty"`
 	// Network is the plan's provider network file (NPIs); NPIRegistry is "nppes" for the public registry, or a file.
@@ -87,6 +91,7 @@ type ssoSpec struct {
 	RedirectURL     string `json:"redirectUrl"`
 	NameClaim       string `json:"nameClaim,omitempty"` // default preferred_username
 	Group           string `json:"group,omitempty"`
+	GroupsClaim     string `json:"groupsClaim,omitempty"` // default groups; roles for Entra ID app roles
 	Label           string `json:"label,omitempty"`
 }
 
@@ -115,11 +120,74 @@ func openSSO(ctx context.Context, sp planSpec, several bool) (server.SSO, error)
 	dctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	prov, err := oidc.Discover(dctx, oidc.Config{Issuer: s.Issuer, ClientID: s.ClientID, ClientSecret: secret,
-		RedirectURL: s.RedirectURL, NameClaim: claim, Group: s.Group})
+		RedirectURL: s.RedirectURL, NameClaim: claim, Group: s.Group, GroupsClaim: s.GroupsClaim})
 	if err != nil {
 		return server.SSO{}, fmt.Errorf("single sign-on: %w", err)
 	}
 	return server.NewSSO(prov, s.Label), nil
+}
+
+// samlSpec is a plan's SAML 2.0 sign-in. The provider's metadata (a URL, fetched at start, or a file) gives its sign-on
+// address and signing certificates; Vaglio trusts no other certificate.
+type samlSpec struct {
+	Metadata        string `json:"metadata"` // https URL or file of the identity provider's metadata
+	EntityID        string `json:"entityId"` // this server's identifier, as registered (Entra ID: Identifier)
+	ACSURL          string `json:"acsUrl"`   // https://HOST/api/sso/saml, as registered (Entra ID: Reply URL)
+	NameAttribute   string `json:"nameAttribute,omitempty"`
+	Group           string `json:"group,omitempty"`
+	GroupsAttribute string `json:"groupsAttribute,omitempty"`
+	Label           string `json:"label,omitempty"`
+}
+
+// openSAML reads a plan's identity provider metadata and makes its service provider.
+func openSAML(ctx context.Context, sp planSpec, several bool) (server.SSO, error) {
+	s := sp.SAML
+	if sp.SSO != nil {
+		return server.SSO{}, errors.New("single sign-on: give sso (OpenID Connect) or saml, not both")
+	}
+	if s.Metadata == "" || s.EntityID == "" || s.ACSURL == "" {
+		return server.SSO{}, errors.New("SAML sign-on needs the provider's metadata, this server's entity id and its ACS URL")
+	}
+	u, err := url.Parse(s.ACSURL)
+	if err != nil || u.Scheme != "https" || u.Path != "/api/sso/saml" {
+		return server.SSO{}, fmt.Errorf("SAML sign-on: the ACS URL is https://HOST/api/sso/saml, not %q", s.ACSURL)
+	}
+	if several && !strings.EqualFold(u.Hostname(), sp.Hostname) {
+		return server.SSO{}, fmt.Errorf("SAML sign-on: the ACS URL's host %s is not the plan's hostname %s", u.Hostname(), sp.Hostname)
+	}
+	var doc []byte
+	if strings.HasPrefix(s.Metadata, "https://") {
+		dctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		defer cancel()
+		req, err := http.NewRequestWithContext(dctx, http.MethodGet, s.Metadata, nil)
+		if err != nil {
+			return server.SSO{}, err
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return server.SSO{}, fmt.Errorf("SAML sign-on: fetching the metadata: %w", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return server.SSO{}, fmt.Errorf("SAML sign-on: the metadata URL answered %s", resp.Status)
+		}
+		if doc, err = io.ReadAll(io.LimitReader(resp.Body, 1<<20)); err != nil {
+			return server.SSO{}, err
+		}
+	} else if strings.Contains(s.Metadata, "://") {
+		return server.SSO{}, fmt.Errorf("SAML sign-on: the metadata URL must be https, not %q", s.Metadata)
+	} else if doc, err = os.ReadFile(s.Metadata); err != nil {
+		return server.SSO{}, fmt.Errorf("SAML sign-on: %w", err)
+	}
+	md, err := saml.ParseIDPMetadata(doc)
+	if err != nil {
+		return server.SSO{}, fmt.Errorf("SAML sign-on: %w", err)
+	}
+	prov, err := saml.New(saml.Config{EntityID: s.EntityID, ACSPath: s.ACSURL, IdPSSOURL: md.SSOURL, IdPCertPEM: md.CertPEM()})
+	if err != nil {
+		return server.SSO{}, err
+	}
+	return server.NewSAML(prov, s.NameAttribute, s.Group, s.GroupsAttribute, s.Label), nil
 }
 
 // criteriaSpec is one criteria service.

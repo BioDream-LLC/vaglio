@@ -14,7 +14,8 @@ import (
 // is refused, never created: an identity provider is not a list of who may decide prior authorizations.
 type SSO struct {
 	Provider *oidc.Provider
-	Label    string // what the sign-in button says: "Sign in with Example Health"
+	SAML     *SAMLSignOn // a SAML provider instead of an OpenID Connect one
+	Label    string      // what the sign-in button says: "Sign in with Example Health"
 	pending  *pendingSignIns
 }
 
@@ -61,12 +62,16 @@ const ssoCookie = "vaglio_sso"
 
 // ssoInfo tells the sign-in screen whether to offer single sign-on.
 func (cfg Config) ssoInfo(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"enabled": cfg.SSO.Provider != nil, "label": cfg.SSO.Label})
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": cfg.SSO.Provider != nil || cfg.SSO.SAML != nil, "label": cfg.SSO.Label})
 }
 
 // ssoStart sends the browser to the provider. The state is also set in a cookie, so the callback is accepted only in the
 // browser that started it.
 func (cfg Config) ssoStart(w http.ResponseWriter, r *http.Request) {
+	if cfg.SSO.SAML != nil {
+		cfg.samlStart(w, r)
+		return
+	}
 	if cfg.SSO.Provider == nil {
 		writeError(w, http.StatusNotFound, "single sign-on is not configured")
 		return

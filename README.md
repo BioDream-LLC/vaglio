@@ -384,7 +384,19 @@ software a plan runs, not an outcome a vendor sells.
 - **Single sign-on** (OpenID Connect, `serve -oidc-issuer ...`): code flow with PKCE, the ID token verified against the
   provider's keys (RSA or ECDSA; `none` and HMAC refused), with issuer, audience, expiry and nonce checked, and
   optionally a required group. The provider says who someone is; an account made with `vaglio user sso` says what they
-  may do. A name with no such account is refused, never created.
+  may do. A name with no such account is refused, never created. An account name is the provider's name up to any @, so
+  Microsoft Entra ID's user principal name `kim@plan.example` signs in as `kim`. For Entra, give the tenant's own issuer
+  (`https://login.microsoftonline.com/TENANT-ID/v2.0`, not `common`), and a group by its object id, or an app role with
+  `-oidc-groups-claim roles` (Entra leaves groups out of a token for someone in over 200).
+- **SAML 2.0 sign-on** (`serve -saml-metadata URL|FILE -saml-entity-id ID -saml-acs-url https://HOST/api/sso/saml`),
+  instead of OpenID Connect, for Entra ID, Okta, ADFS or Keycloak. The package comes from Perfuse, whose verification
+  signed a real person in through a live Entra tenant and through Keycloak. The responses captured then are its test
+  fixtures here, and pass (the Entra one with the tenant's identifiers replaced and signed again with a test key, its
+  shape as Entra wrote it). Only the certificate in the provider's metadata is trusted, never one inside a response; a response
+  must answer a sign-in this server started, once, and its signature, audience, destination and validity window are
+  checked before anything in it is read. With no attribute named, the account name is an email, then the user principal
+  name (Entra sends no email, and an opaque NameID), then the NameID. Vaglio's own sign-in path has been tested against
+  Entra-shaped responses and that captured one, not yet by a person signing in to a live tenant.
 - **Decision timeframe extensions** (`POST /api/cases/{id}/extend`): 7 days standard and 72 hours expedited (CMS-0057-F),
   72 and 24 hours for drugs; a reviewer may extend once, by up to 14 days (`-extension-days`), for one of the three
   reasons 42 CFR 422.568(b)(2) allows, with what the enrollee is told, before the deadline, never for a drug. The queue
@@ -395,7 +407,7 @@ software a plan runs, not an outcome a vendor sells.
 
 ## Status
 
-**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (185 Go test functions, the
+**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (253 Go test functions, the
 console's tests, and every policy checked on every combination of evidence), and the whole path has been run end to end
 through a real Perfuse. The policies in `policies/` are **illustrative only**: not any payer's policy and not clinical
 guidance.
@@ -410,7 +422,7 @@ How the code is laid out:
 - `internal/evidence`: PAS request Bundle in, cited findings out, through Perfuse's published `pas` and `fhir` packages.
 - `internal/audit`, `internal/cases`, `internal/deliver`: the log, the cases derived from it, delivery to `Claim/$decide`.
 - `internal/auth`: accounts and sessions. `internal/draft`: the drafting loop and its gates.
-- `internal/editor`: drafts, sign-off and putting a policy in force. `internal/oidc`: single sign-on.
+- `internal/editor`: drafts, sign-off and putting a policy in force. `internal/oidc` and `internal/saml`: single sign-on.
 - `internal/dtr`, `internal/goldcard`, `internal/report`, `internal/replay`: questionnaires, exemptions, metrics, pend
   causes and reversals, replays. `internal/reader`: documents read by a model behind the quote gate.
 - `internal/tlsserve`, `internal/acme`: https only, Vaglio's own authority, and Let's Encrypt (RFC 8555, http-01 and
@@ -539,7 +551,8 @@ fax inbox and appeals feed, and whether only clinicians deny. A session or a tok
 a Host header no plan has is refused, and the file is refused if two plans share an id, hostname, data or policy
 directory, or token variable. The certificate covers every plan's hostname (Vaglio's own authority, or `-acme` for all
 of them). Reports and `vaglio user`, `report` and `audit` commands take each plan's data directory. Each plan may have
-its own single sign-on (`sso`, the same settings as the `-oidc-*` flags); its callback must be on the plan's own
+its own single sign-on (`sso`, the same settings as the `-oidc-*` flags, or `saml`, as the `-saml-*` flags: `metadata`,
+`entityId`, `acsUrl`, `nameAttribute`, `group`, `groupsAttribute`, `label`); its callback must be on the plan's own
 hostname, and a sign-in started at one plan cannot be finished at another, even with one identity provider for both.
 The demonstration account is for a one-plan server.
 
@@ -639,7 +652,9 @@ decides at a time.
 - The log needs a file lock, so it runs on Linux and macOS; a Windows build refuses to write it.
 - `/api/feeds/appeals` takes only its own bearer token, and is off unless `-appeals-token-env` is set.
 - Single sign-on needs https for the provider and the callback (plain http only to this machine). The sign-in state is
-  bound to the browser that started it, good once, and expires in 10 minutes; every refused sign-in is logged.
+  bound to the browser that started it, good once, and expires in 10 minutes; every refused sign-in is logged. A SAML
+  response is the provider's cross-site form POST, so no cookie of ours comes with it: it must answer an AuthnRequest
+  this server sent in the last 10 minutes, once. Unsolicited (provider-started) sign-ins are refused.
 - Extractors run with no shell, a near-empty environment, a time limit and bounded output; the document stays on this
   machine.
 - `vaglio draft` sends the document to the model's provider: use it for published coverage policies only, never anything
@@ -767,7 +782,7 @@ policies here are not medical advice and not any health plan's coverage policy.
 
 <sub><b>Prior authorization:</b> prior authorization engine · utilization management · medical necessity · coverage policy · decision engine · prior auth automation · step therapy · drug prior authorization · gold carding · clinician review · appeals · peer review</sub><br><br>
 <sub><b>Standards and rules:</b> CMS-0057-F · CMS-0062-P · Da Vinci PAS · Da Vinci DTR · Da Vinci CDex · FHIR R4 · X12 278 · Questionnaire · Medicare LCD · NCD · SB 1120 · Texas gold card · 42 CFR 422.568</sub><br><br>
-<sub><b>Engine:</b> explainable decisions · argumentation · grounded semantics · proofs · evidence citation · exhaustive policy testing · audit log · hash chain · policy replay · Go · single binary · OpenID Connect · Perfuse</sub>
+<sub><b>Engine:</b> explainable decisions · argumentation · grounded semantics · proofs · evidence citation · exhaustive policy testing · audit log · hash chain · policy replay · Go · single binary · OpenID Connect · SAML · Perfuse</sub>
 </details>
 
 </div>

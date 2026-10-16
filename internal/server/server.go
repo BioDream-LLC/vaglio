@@ -196,6 +196,7 @@ func New(cfg Config) http.Handler {
 	mux.HandleFunc("GET /api/sso", cfg.ssoInfo)
 	mux.HandleFunc("GET /api/sso/start", cfg.ssoStart)
 	mux.HandleFunc("GET /api/sso/callback", cfg.ssoCallback)
+	mux.HandleFunc("POST /api/sso/saml", cfg.samlACS)
 	mux.HandleFunc("GET /api/receipts/{code}", cfg.checkReceipt)
 	mux.HandleFunc("GET /api/demo", cfg.demoInfo)
 	mux.HandleFunc("GET /api/me", cfg.anySession(cfg.me))
@@ -318,6 +319,8 @@ func (cfg Config) guard(next http.Handler) http.Handler {
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/feeds/") {
 			// A machine's feed, by its own bearer token, checked by its handler: not a browser's, so no origin check.
+		} else if r.URL.Path == "/api/sso/saml" {
+			// The identity provider's form POST, cross-site by design; its signature and InResponseTo check stand in for one.
 		} else if strings.HasPrefix(r.URL.Path, "/api/pas/") {
 			if cfg.Token != "" {
 				got, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")

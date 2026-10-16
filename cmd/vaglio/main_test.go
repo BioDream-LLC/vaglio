@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -259,5 +260,26 @@ func TestLoadWithLibrary(t *testing.T) {
 	live, _, err := loadPolicies(dir, lib)
 	if err != nil || live["cpap_osa"].Version != "0.2.0" || live["esi"] != lib["esi"] {
 		t.Fatalf("an override: %v %+v", err, live["cpap_osa"])
+	}
+}
+
+// A plan's SAML sign-on from a metadata file (Entra ID's, as Perfuse captured it): set up, and refused with OIDC beside
+// it or an ACS URL that is not this server's.
+func TestOpenSAML(t *testing.T) {
+	sp := planSpec{Hostname: "plan.example", SAML: &samlSpec{Metadata: "../../internal/saml/testdata/entra-metadata.xml",
+		EntityID: "urn:vaglio:plan", ACSURL: "https://plan.example/api/sso/saml"}}
+	sso, err := openSAML(context.Background(), sp, true)
+	if err != nil || sso.SAML == nil {
+		t.Fatalf("%v", err)
+	}
+	bad := sp
+	bad.SAML = &samlSpec{Metadata: sp.SAML.Metadata, EntityID: "x", ACSURL: "https://other.example/api/sso/saml"}
+	if _, err := openSAML(context.Background(), bad, true); err == nil {
+		t.Error("an ACS URL on another plan's host")
+	}
+	bad = sp
+	bad.SSO = &ssoSpec{Issuer: "https://idp.example"}
+	if _, err := openSAML(context.Background(), bad, false); err == nil {
+		t.Error("both OIDC and SAML")
 	}
 }

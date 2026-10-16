@@ -108,6 +108,12 @@ func Discover(ctx context.Context, cfg Config) (*Provider, error) {
 		return nil, fmt.Errorf("discovering %s: %w", cfg.Issuer, err)
 	}
 	if p.meta.Issuer != cfg.Issuer {
+		if strings.Contains(p.meta.Issuer, "{tenantid}") {
+			// Microsoft Entra ID's shared endpoints (common, organizations, consumers) publish a template, not an issuer:
+			// tokens name the tenant, so none would verify.
+			return nil, fmt.Errorf("the provider at %s is Microsoft Entra ID's shared endpoint, whose issuer is the template %q: "+
+				"use your tenant's own, https://login.microsoftonline.com/TENANT-ID/v2.0", cfg.Issuer, p.meta.Issuer)
+		}
 		return nil, fmt.Errorf("the provider at %s says its issuer is %q", cfg.Issuer, p.meta.Issuer)
 	}
 	for _, u := range []string{p.meta.Authorization, p.meta.Token, p.meta.JWKS} {
@@ -270,6 +276,12 @@ func audience(c Claims, client string) bool {
 // Name is the account name the token vouches for, and whether the person is in the required group.
 func (p *Provider) Name(c Claims) (string, error) {
 	if p.cfg.Group != "" {
+		if names, _ := c["_claim_names"].(map[string]any); names != nil && names[p.cfg.GroupsClaim] != nil && c[p.cfg.GroupsClaim] == nil {
+			// Entra ID leaves the groups out of the token when the person is in too many (over 200), and names where to fetch
+			// them instead. Vaglio does not fetch them: an app role in the roles claim is the way round it.
+			return "", fmt.Errorf("the provider left the %s claim out (too many groups for a token); "+
+				"give the group as an app role and read the roles claim instead", p.cfg.GroupsClaim)
+		}
 		in := false
 		switch g := c[p.cfg.GroupsClaim].(type) {
 		case []any:
@@ -285,11 +297,23 @@ func (p *Provider) Name(c Claims) (string, error) {
 			return "", fmt.Errorf("not a member of %s", p.cfg.Group)
 		}
 	}
-	name := strings.ToLower(strings.TrimSpace(c.str(p.cfg.NameClaim)))
+	name := AccountName(c.str(p.cfg.NameClaim))
 	if name == "" {
 		return "", fmt.Errorf("the ID token has no %s claim", p.cfg.NameClaim)
 	}
 	return name, nil
+}
+
+// AccountName is the account name here for a name a provider vouches for: lower cased, and the part before an @, since
+// account names hold no @ and Microsoft Entra ID's preferred_username is the user principal name (kim@plan.example
+// signs in as the account kim). A guest's UPN (kim_other.example#EXT#@...) fits no account name and is refused. A
+// tenant whose domains share a local part should name another claim.
+func AccountName(v string) string {
+	v = strings.ToLower(strings.TrimSpace(v))
+	if at := strings.IndexByte(v, '@'); at > 0 {
+		v = v[:at]
+	}
+	return v
 }
 
 func decodePart(s string, v any) error {

@@ -7,7 +7,9 @@ to decide their own prior authorization requests, but not to provide a product
 that competes with Vaglio or with a product BioDream LLC provides using it. For
 any other use, ask BioDream LLC for a commercial licence.
 
-Vaglio includes the fhir and pas packages of Perfuse v0.1.15
+Vaglio includes the fhir and pas packages of Perfuse v0.1.15, and its saml
+package (internal/saml, with its test captures from Microsoft Entra ID and
+Keycloak), from Perfuse's main branch
 (https://github.com/biodream-llc/perfuse), Copyright 2026 BioDream LLC,
 licensed under the Apache License, Version 2.0. Perfuse's licence and notice
 are in licenses/perfuse-LICENSE and licenses/perfuse-NOTICE. Perfuse itself

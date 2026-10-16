@@ -135,6 +135,7 @@ func usage(w io.Writer) {
                 [-document-model-url URL -document-model M [-document-model-key-env VAR] [-document-model-remote]]
                 [-edit-policies] [-oidc-issuer URL -oidc-client-id ID -oidc-client-secret-env VAR
                  -oidc-redirect-url URL [-oidc-name-claim C] [-oidc-group G] [-oidc-label TEXT]]
+                [-saml-metadata URL|FILE -saml-entity-id ID -saml-acs-url URL [-saml-name-attribute A] [-saml-group G]]
                 [-extension-days N] [-appeals-token-env VAR] [-extract pdftotext,tesseract]
                 [-draft-model-url URL [-draft-model M] [-draft-key-env VAR]] [-demo-account NAME:PASSWORD]
                 [-fax-token-env VAR] [-acme [-acme-email ADDR] [-acme-directory URL]] [-plans FILE]
@@ -222,7 +223,19 @@ func serve(args []string) error {
 	oidcSecretEnv := fs.String("oidc-client-secret-env", "", "single sign-on: name of an environment variable holding the client secret")
 	oidcRedirect := fs.String("oidc-redirect-url", "", "single sign-on: this server's callback, https://HOST/api/sso/callback, as registered")
 	oidcClaim := fs.String("oidc-name-claim", "preferred_username", "single sign-on: the ID token claim naming the account here")
-	oidcGroup := fs.String("oidc-group", "", "single sign-on: a group the person must be in (read from the groups claim)")
+	oidcGroup := fs.String("oidc-group", "", "single sign-on: a group the person must be in (read from the groups claim; "+
+		"Microsoft Entra ID sends groups by object id, not name, and only when the application is set to send them)")
+	oidcGroupsClaim := fs.String("oidc-groups-claim", "", "single sign-on: the claim -oidc-group is read from, groups by default "+
+		"(roles for an Entra ID app role)")
+	samlMetadata := fs.String("saml-metadata", "", "SAML sign-on: the identity provider's metadata, an https URL or a file "+
+		"(Entra ID: the App Federation Metadata Url); instead of -oidc-*")
+	samlEntity := fs.String("saml-entity-id", "", "SAML sign-on: this server's entity id, as registered (Entra ID: Identifier)")
+	samlACS := fs.String("saml-acs-url", "", "SAML sign-on: https://HOST/api/sso/saml, as registered (Entra ID: Reply URL)")
+	samlNameAttr := fs.String("saml-name-attribute", "", "SAML sign-on: the attribute naming the account here; default an email, "+
+		"then the user principal name (Entra ID's), then the NameID")
+	samlGroup := fs.String("saml-group", "", "SAML sign-on: a group the person must be in (Entra ID: its object id)")
+	samlGroupsAttr := fs.String("saml-groups-attribute", "", "SAML sign-on: the attribute -saml-group is read from, groups by default")
+	samlLabel := fs.String("saml-label", "", "SAML sign-on: the sign-in button's words")
 	oidcLabel := fs.String("oidc-label", "", `single sign-on: the sign-in button's words, such as "Sign in with Example Health"`)
 	extract := fs.String("extract", "", "programs on this machine that make text of documents for the document model: "+
 		"pdftotext (PDFs), tesseract (scanned images), comma-separated")
@@ -263,7 +276,7 @@ func serve(args []string) error {
 	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
 	if *plansFile != "" {
 		for _, f := range []string{"policies", "hostname", "token-env", "pas-url", "pas-token-env", "pas-ca", "pas-api-url",
-			"goldcard", "fax-token-env", "appeals-token-env", "demo-account", "oidc-issuer", "oidc-client-id", "oidc-client-secret-env", "oidc-redirect-url", "oidc-group", "oidc-label", "criteria", "criteria-token-env",
+			"goldcard", "fax-token-env", "appeals-token-env", "demo-account", "oidc-issuer", "oidc-client-id", "oidc-client-secret-env", "oidc-redirect-url", "oidc-group", "oidc-groups-claim", "oidc-label", "saml-metadata", "saml-entity-id", "saml-acs-url", "saml-name-attribute", "saml-group", "saml-groups-attribute", "saml-label", "criteria", "criteria-token-env",
 			"network", "npi-registry", "members", "webhook", "webhook-secret-env", "fax-connectors", "replica-token-env"} {
 			if set[f] {
 				return fmt.Errorf("-%s is set per plan in the -plans file (the demonstration is for one plan only)", f)
@@ -308,7 +321,12 @@ func serve(args []string) error {
 			NPIRegistry:     *npiRegistry}}
 		if *oidcIssuer != "" {
 			plans[0].SSO = &ssoSpec{Issuer: *oidcIssuer, ClientID: *oidcClient, ClientSecretEnv: *oidcSecretEnv,
-				RedirectURL: *oidcRedirect, NameClaim: *oidcClaim, Group: *oidcGroup, Label: *oidcLabel}
+				RedirectURL: *oidcRedirect, NameClaim: *oidcClaim, Group: *oidcGroup, GroupsClaim: *oidcGroupsClaim,
+				Label: *oidcLabel}
+		}
+		if *samlMetadata != "" {
+			plans[0].SAML = &samlSpec{Metadata: *samlMetadata, EntityID: *samlEntity, ACSURL: *samlACS,
+				NameAttribute: *samlNameAttr, Group: *samlGroup, GroupsAttribute: *samlGroupsAttr, Label: *samlLabel}
 		}
 	}
 	names := planNames(plans)
@@ -432,6 +450,15 @@ func serve(args []string) error {
 		opened = append(opened, op)
 	}
 	for _, op := range opened {
+		if op.spec.SAML != nil {
+			sso, err := openSAML(ctx, op.spec, len(opened) > 1)
+			if err != nil {
+				return fmt.Errorf("%s%w", planPrefix(op, len(opened) > 1), err)
+			}
+			op.cfg.SSO = sso
+			log.Printf("%sSAML sign-on: %s", planPrefix(op, len(opened) > 1), op.spec.SAML.Metadata)
+			continue
+		}
 		if op.spec.SSO == nil {
 			continue
 		}
