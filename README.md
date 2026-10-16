@@ -193,7 +193,8 @@ software a plan runs, not an outcome a vendor sells.
   each quoting it word for word, decided on every record of their evidence; where they disagree, the groups of records,
   the clauses each rests on, and the simplest example. A check proves a policy consistent, not that it means what the
   document means; a second reading that disagrees is where a person should look. `library/readings/` holds a second
-  reading of the TKA LCD.
+  reading of the TKA LCD; what the two readings found is written up in
+  [docs/medicare-readings.md](docs/medicare-readings.md).
 
 - **A work queue** (the Queue screen, `GET /api/queue`): every request waiting for a decision and every appeal waiting
   for its outcome, in the order to work them, by a stated rule: past its deadline first, then expedited, then the least
