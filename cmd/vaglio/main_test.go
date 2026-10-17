@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -89,6 +90,9 @@ func TestPASURL(t *testing.T) {
 }
 
 func TestDataDirectoryMustBePrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows keeps no Unix modes: the directory's ACL is the operator's to set")
+	}
 	dir := t.TempDir()
 	os.Chmod(dir, 0o755)
 	if _, err := openData(dir); err == nil || !strings.Contains(err.Error(), "readable by others") {

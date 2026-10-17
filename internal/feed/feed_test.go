@@ -58,7 +58,8 @@ func TestWebhook(t *testing.T) {
 		mu.Lock()
 		n := len(got)
 		mu.Unlock()
-		if n >= 2 || time.Now().After(deadline) {
+		// Wait for the cursor as well as the receiver: the receiver has the events a moment before the sender hears so.
+		if (n >= 2 && w.Status().Delivered == 5) || time.Now().After(deadline) {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)

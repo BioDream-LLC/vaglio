@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -117,7 +118,7 @@ func TestPlanSSO(t *testing.T) {
 func TestFaxConnectorsFile(t *testing.T) {
 	data, scans := t.TempDir(), t.TempDir()
 	t.Setenv("SINCH_PW", "sinch-password")
-	f := writePlans(t, `{"sinch":{"passwordEnv":"SINCH_PW"},"folder":{"dir":"`+scans+`","every":"5s"}}`)
+	f := writePlans(t, `{"sinch":{"passwordEnv":"SINCH_PW"},"folder":{"dir":`+jsonString(scans)+`,"every":"5s"}}`)
 	var cfg server.Config
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -138,4 +139,10 @@ func TestFaxConnectorsFile(t *testing.T) {
 			t.Errorf("%s: accepted", name)
 		}
 	}
+}
+
+// jsonString is s as a JSON string: a Windows path's backslashes escaped.
+func jsonString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
 }
