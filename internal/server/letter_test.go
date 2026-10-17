@@ -2,8 +2,10 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/biodream-llc/vaglio/internal/letter"
 )
@@ -75,5 +77,62 @@ func TestLetters(t *testing.T) {
 	l, _ = get(d.Case, "en")
 	if body := text(l); !strings.Contains(body, "The appeal's reason") || !strings.Contains(body, "independent organization") {
 		t.Errorf("the letter after the appeal:\n%s", body)
+	}
+}
+
+// With the plan's letter settings, a denial gives the plan's own appeal deadline as a date (the line of business's when
+// it has one), its addresses and numbers, a fast appeal's hours, member services and the receipt page; an extension
+// says how long and why.
+func TestLettersWithThePlansSettings(t *testing.T) {
+	plan := &letter.Plan{Name: "Example Health Plan", Phone: "1-800-555-0100", TTY: "711", Hours: "8 a.m. to 8 p.m.",
+		CheckURL: "https://plan.example/#/receipt",
+		Appeal: letter.Appeal{Days: 60, ExpeditedHours: 72, Mail: []string{"Appeals, PO Box 1", "Springfield, IL 62701"},
+			Fax: "1-800-555-0101", Portal: "https://plan.example/appeals",
+			External: map[string]string{"en": "You can ask the state for a fair hearing within 120 days."}},
+		Lines: map[string]letter.Appeal{"medicare-advantage": {Days: 65}}}
+	e := newEnvWith(t, "", func(c *Config) { c.Letters = plan; c.ExtensionDays = 14 })
+	viewer := e.signedIn(t, "viewer")
+	get := func(id, lang string) string {
+		w := do(viewer, "GET", "/api/cases/"+id+"/letter?lang="+lang, "")
+		var l letter.Letter
+		json.Unmarshal(w.Body.Bytes(), &l)
+		var b strings.Builder
+		for _, s := range l.Sections {
+			b.WriteString(s.Heading + "\n" + strings.Join(s.Paragraphs, "\n") + "\n" + strings.Join(s.Items, "\n") + "\n" +
+				strings.Join(s.After, "\n") + "\n")
+		}
+		return b.String()
+	}
+	in := func(days int) string {
+		d := time.Now().AddDate(0, 0, days)
+		return fmt.Sprintf("%s %d, %d", d.Month(), d.Day(), d.Year())
+	}
+	d := submit(t, e, request("", "", "", denies...))
+	body := get(d.Case, "en")
+	for _, want := range []string{"ask Example Health Plan for an appeal", "Ask by " + in(60), "(60 days from the date",
+		"By mail: Appeals, PO Box 1, Springfield, IL 62701", "By fax: 1-800-555-0101", "Online: https://plan.example/appeals",
+		"within 72 hours", "Call Example Health Plan at 1-800-555-0100 (TTY 711), 8 a.m. to 8 p.m.",
+		"enter the receipt at https://plan.example/#/receipt"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("lacks %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "member materials say how") {
+		t.Error("the generic words are still there")
+	}
+	if es := get(d.Case, "es"); !strings.Contains(es, "Pídala a más tardar el") || !strings.Contains(es, "Por fax: 1-800-555-0101") {
+		t.Errorf("Spanish:\n%s", es)
+	}
+	ma := submit(t, e, withCoverage(request("", "", "", denies...), "111"))
+	if body := get(ma.Case, "en"); !strings.Contains(body, "Ask by "+in(65)) {
+		t.Errorf("Medicare Advantage's own deadline:\n%s", body)
+	}
+	p := submit(t, e, request(testNPI, "", "", pends...))
+	rev := e.signedIn(t, "reviewer")
+	if w := do(rev, "POST", "/api/cases/"+p.Case+"/extend", `{"days":14,"reason":"evidence","note":"Waiting for the outside MRI report."}`); w.Code != 200 {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+	if body := get(p.Case, "en"); !strings.Contains(body, "up to 14 more days") || !strings.Contains(body, "Why: Waiting for the outside MRI report.") {
+		t.Errorf("extension:\n%s", body)
 	}
 }

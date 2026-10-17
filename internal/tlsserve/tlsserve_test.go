@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ func TestAuthorityIsMadeOnceAndReused(t *testing.T) {
 	if err != nil || b.Created || b.Fingerprint() != a.Fingerprint() {
 		t.Fatalf("second open made a new authority: %v", err)
 	}
-	if fi, _ := os.Stat(filepath.Join(dir, caKey)); fi.Mode().Perm() != 0o600 {
+	if fi, _ := os.Stat(filepath.Join(dir, caKey)); runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 { // Windows keeps no Unix modes
 		t.Fatalf("authority key mode %v", fi.Mode().Perm())
 	}
 }

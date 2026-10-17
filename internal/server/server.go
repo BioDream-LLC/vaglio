@@ -36,6 +36,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/feed"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/intake"
+	"github.com/biodream-llc/vaglio/internal/letter"
 	"github.com/biodream-llc/vaglio/internal/outside"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/reader"
@@ -108,6 +109,8 @@ type Config struct {
 	// Members is the plan's member file (serve -members): a request is approved or denied only for a member covered
 	// on the day; otherwise it pends for a person to check.
 	Members *eligibility.Members
+	// Letters is the plan's own appeal deadline, addresses and numbers (serve -letters); nil writes the generic words.
+	Letters *letter.Plan
 	// Webhook, when set, pushes every record about a case to the plan's systems; GET /api/export/status shows it.
 	Webhook *feed.Webhook
 	// FaxHooks are fax services' own webhooks (sinch, documo), at POST /api/feeds/fax/{service}; each checks its own

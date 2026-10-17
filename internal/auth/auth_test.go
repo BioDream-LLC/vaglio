@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ func TestAccounts(t *testing.T) {
 		t.Error("unknown role accepted")
 	}
 	info, _ := os.Stat(path)
-	if info.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 { // Windows keeps no Unix modes
 		t.Errorf("users file mode %v", info.Mode().Perm())
 	}
 	list, _ := u.List()

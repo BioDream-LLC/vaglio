@@ -26,6 +26,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/biodream-llc/vaglio/internal/fsx"
 )
 
 // Role is what a user may do. Each includes the ones before it.
@@ -210,7 +212,7 @@ func (u *Users) save() error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(tmp.Name(), u.path); err != nil {
+	if err := fsx.Replace(tmp.Name(), u.path); err != nil {
 		return err
 	}
 	u.byID = nil // reread, picking up the new mtime

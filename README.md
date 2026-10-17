@@ -230,8 +230,12 @@ The proof, written for whoever needs it: the provider, the patient, a regulator.
   asked for, what was decided and by whom, the policy's words it rests on, what the record showed, what is needed or
   what would change it, the patient's rights, and the receipt with its QR code. Written from the decision by fixed
   templates, never by a model, so it says nothing the decision does not. The policy's own words stay in the language
-  the plan wrote them in, and the Spanish letter says so: a machine translation of a coverage rule is not the rule. The
-  appeal paragraph is generic; a plan's own deadlines and addresses are not in it yet.
+  the plan wrote them in, and the Spanish letter says so: a machine translation of a coverage rule is not the rule. With
+  the plan's letter settings (`serve -letters FILE`, or `letters` per plan; see `examples/letters.json`), a denial gives
+  the plan's own appeal deadline as a date, per line of business when they differ, its appeals address, fax, phone and
+  portal, a fast appeal's hours, member services and its receipt page; after an upheld appeal, the plan's own words on
+  independent review or a fair hearing. Vaglio knows no deadline itself: without the settings the paragraph stays
+  generic. An extension says how many more days and why.
 - **What if** (every case, in the console): flip any piece of evidence between present, absent and not addressed, and
   the decision and its proof redraw at once, with what changed lit up in the proof. Nothing is recorded; the case keeps
   its decision.
@@ -497,7 +501,7 @@ Not yet: notices to the enrollee are the plan's (Vaglio records an extension's r
 sign-on is tested against a test provider only, not a real one, and SAML against Entra-shaped responses and one captured
 from Microsoft Entra ID, not yet by a person signing in to a live tenant; Let's Encrypt is tested against Pebble, its test
 authority, not yet against Let's Encrypt itself; reading scanned images needs `tesseract` installed;
-there is no release build yet; the letters' appeal paragraph is generic, not a plan's own deadlines and addresses;
+there is no release build yet;
 advice before submitting is on Perfuse's main branch, not yet in a Perfuse release. The criteria-service
 protocol is Vaglio's own: no licensed criteria vendor is known to speak it yet, so a plan's licence needs a small adapter
 (`examples/criteria-service` is where to start one).

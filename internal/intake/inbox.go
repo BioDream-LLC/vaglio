@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/biodream-llc/vaglio/internal/fsx"
 	"github.com/biodream-llc/vaglio/internal/seal"
 	"os"
 	"path/filepath"
@@ -98,7 +99,7 @@ func (b *Inbox) save(f Fax) error {
 	if err := seal.WriteFile(tmp, "fax", raw, 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, b.path(f.ID, ".json"))
+	return fsx.Replace(tmp, b.path(f.ID, ".json"))
 }
 
 func (b *Inbox) get(id string) (Fax, error) {

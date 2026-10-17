@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/biodream-llc/vaglio/internal/decide"
+	"github.com/biodream-llc/vaglio/internal/fsx"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/precedence"
 )
@@ -301,7 +302,7 @@ func (d Dir) Activate(day string) ([]*policy.Policy, error) {
 		if Scheduled(p, day) {
 			continue
 		}
-		if err := os.Rename(d.ScheduledFile(id), d.LiveFile(id)); err != nil {
+		if err := fsx.Replace(d.ScheduledFile(id), d.LiveFile(id)); err != nil {
 			return out, err
 		}
 		out = append(out, p)
@@ -346,5 +347,5 @@ func writeAtomic(path string, data []byte) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp.Name(), path)
+	return fsx.Replace(tmp.Name(), path)
 }

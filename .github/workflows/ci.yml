@@ -21,6 +21,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Document readers (optional; their tests run when present)
+        if: matrix.os != 'windows-latest'
+        run: ${{ matrix.os == 'ubuntu-latest' && 'sudo apt-get install -y poppler-utils' || 'brew install poppler' }}
       - name: Vet
         run: go vet ./...
       - name: Test

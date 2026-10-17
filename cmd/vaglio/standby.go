@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/biodream-llc/vaglio/internal/audit"
+	"github.com/biodream-llc/vaglio/internal/fsx"
 	"github.com/biodream-llc/vaglio/internal/seal"
 	"github.com/biodream-llc/vaglio/internal/tlsserve"
 )
@@ -186,7 +187,7 @@ func (s *standby) copyBundle(ctx context.Context, name string) error {
 	if err := seal.WriteFileSync(tmp, "bundle", raw, 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	return fsx.Replace(tmp, path)
 }
 
 func (s *standby) copyUsers(ctx context.Context) error {
@@ -208,7 +209,7 @@ func (s *standby) copyUsers(ctx context.Context) error {
 		if err := os.WriteFile(path+".new", raw, 0o600); err != nil {
 			return err
 		}
-		if err := os.Rename(path+".new", path); err != nil {
+		if err := fsx.Replace(path+".new", path); err != nil {
 			return err
 		}
 		s.usersSeen = h

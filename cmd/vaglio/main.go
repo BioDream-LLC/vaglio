@@ -262,6 +262,8 @@ func serve(args []string) error {
 		"copies this server's data with (vaglio standby)")
 	webhook := fs.String("webhook", "", "push every record about a case, as signed JSON events, to this https URL")
 	webhookSecretEnv := fs.String("webhook-secret-env", "", "name of an environment variable holding the webhook's signing secret (16+ bytes)")
+	letters := fs.String("letters", "", "the plan's letter settings (JSON): its own appeal deadline as a date, appeals address, fax, "+
+		"phone and portal, member services, and its receipt page; without it letters give the generic words")
 	members := fs.String("members", "", "the plan's member file (CSV: member_id, birth_date, plan, line, start, end, excluded): "+
 		"a request is approved or denied only for a member covered on the day; otherwise it pends")
 	network := fs.String("network", "", "the plan's provider network: a file of NPIs (one per line, or a CSV's first column)")
@@ -278,7 +280,7 @@ func serve(args []string) error {
 	if *plansFile != "" {
 		for _, f := range []string{"policies", "hostname", "token-env", "pas-url", "pas-token-env", "pas-ca", "pas-api-url",
 			"goldcard", "fax-token-env", "appeals-token-env", "demo-account", "oidc-issuer", "oidc-client-id", "oidc-client-secret-env", "oidc-redirect-url", "oidc-group", "oidc-groups-claim", "oidc-label", "saml-metadata", "saml-entity-id", "saml-acs-url", "saml-name-attribute", "saml-group", "saml-groups-attribute", "saml-label", "criteria", "criteria-token-env",
-			"network", "npi-registry", "members", "webhook", "webhook-secret-env", "fax-connectors", "replica-token-env"} {
+			"network", "npi-registry", "members", "letters", "webhook", "webhook-secret-env", "fax-connectors", "replica-token-env"} {
 			if set[f] {
 				return fmt.Errorf("-%s is set per plan in the -plans file (the demonstration is for one plan only)", f)
 			}
@@ -316,7 +318,7 @@ func serve(args []string) error {
 		}
 		plans = []planSpec{{Hostname: strings.ToLower(*hostname), Policies: *dir, Data: *data, TokenEnv: *tokenEnv,
 			PASURL: *pasURL, PASAPI: *pasAPI, PASTokenEnv: *pasTokenEnv, PASCA: *pasCA, GoldCard: *goldCardFile,
-			FaxTokenEnv: *faxTokenEnv, AppealsTokenEnv: *appealsTokenEnv, Criteria: crit, Network: *network, Members: *members,
+			FaxTokenEnv: *faxTokenEnv, AppealsTokenEnv: *appealsTokenEnv, Criteria: crit, Network: *network, Members: *members, Letters: *letters,
 			Webhook: *webhook, WebhookSecretEnv: *webhookSecretEnv, FaxConnectors: *faxConnectorsFile,
 			ReplicaTokenEnv: *replicaTokenEnv,
 			NPIRegistry:     *npiRegistry}}

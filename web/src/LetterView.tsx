@@ -70,6 +70,7 @@ export function LetterView({ id, portal = false }: { id: string; portal?: boolea
                   ))}
                 </ul>
               )}
+              {s.after?.map((p, j) => <p key={`a${j}`}>{p}</p>)}
             </section>
           ))}
           {data.quoted && <p className="letter-note">{data.quoted}</p>}

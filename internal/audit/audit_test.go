@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -51,7 +52,7 @@ func TestAppendAndReopen(t *testing.T) {
 		t.Fatalf("verify: %d %q %v", vn, vh, err)
 	}
 	info, _ := os.Stat(path)
-	if info.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 { // Windows keeps no Unix modes
 		t.Errorf("mode %v: the log holds patient data and is the owner's alone", info.Mode().Perm())
 	}
 }

@@ -30,6 +30,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/biodream-llc/vaglio/internal/fsx"
 )
 
 // File names in the authority's directory (DATA/tls). ca.crt is public: it is the file reviewers' computers trust.
@@ -148,7 +150,7 @@ func Open(dir string, names Names) (*Authority, error) {
 		return a, nil
 	case err == nil:
 		old := fmt.Sprintf("ca-replaced-%s.crt", time.Now().UTC().Format("20060102T150405Z"))
-		if err := os.Rename(filepath.Join(dir, CAFile), filepath.Join(dir, old)); err != nil {
+		if err := fsx.Replace(filepath.Join(dir, CAFile), filepath.Join(dir, old)); err != nil {
 			return nil, err
 		}
 		os.Remove(filepath.Join(dir, caKey))
@@ -392,5 +394,5 @@ func writeFile(path string, data []byte, mode os.FileMode) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp.Name(), path)
+	return fsx.Replace(tmp.Name(), path)
 }

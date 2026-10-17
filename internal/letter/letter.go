@@ -39,6 +39,8 @@ type Section struct {
 	Items      []string `json:"items,omitempty"`
 	// Quote is the policy's own words, shown apart.
 	Quote string `json:"quote,omitempty"`
+	// After are paragraphs that follow the list.
+	After []string `json:"after,omitempty"`
 }
 
 // words are the templates of one language.
@@ -51,6 +53,7 @@ type words struct {
 	changeNone, contradicts, reviewerSaid, rights, rightsDenied, rightsOther       string
 	check, checkText, quoted, dateLayout                                           string
 	appealReceived, appealReason, rightsUpheld                                     string
+	extended, extendedWhy, contact                                                 string
 	months                                                                         [12]string
 }
 
@@ -90,6 +93,9 @@ var lang = map[string]words{
 		rightsOther:      "You can ask your health plan for a copy of the policy this decision used, free of charge.",
 		appealReceived:   "Your appeal was received on %s. A decision is due by %s, from people who did not make the first decision.",
 		appealReason:     "The appeal's reason",
+		extended:         "Your health plan is taking up to %d more days to decide. A decision is now due by %s.",
+		extendedWhy:      "Why: %s",
+		contact:          "Questions",
 		rightsUpheld:     "You may be able to ask for a further review by an independent organization outside your health plan; for some plans it is sent there for you. Your plan's member materials say how, and by when. You can ask your plan for a copy of the policy this decision used, free of charge.",
 		check:            "Check this letter",
 		checkText:        "Anyone can check that this decision is genuine and unchanged, without seeing any of your health information: scan the code, or enter the receipt at your health plan's decision-check page.",
@@ -132,6 +138,9 @@ var lang = map[string]words{
 		rightsOther:      "Puede pedir a su plan de salud, sin costo, una copia de la póliza que se usó en esta decisión.",
 		appealReceived:   "Su apelación se recibió el %s. Debe decidirse a más tardar el %s, por personas que no tomaron la primera decisión.",
 		appealReason:     "El motivo de la decisión de la apelación",
+		extended:         "Su plan de salud tomará hasta %d días más para decidir. Ahora debe decidirse a más tardar el %s.",
+		extendedWhy:      "Motivo: %s",
+		contact:          "Preguntas",
 		rightsUpheld:     "Es posible que pueda pedir otra revisión a una organización independiente, fuera de su plan de salud; en algunos planes se envía allí por usted. Los materiales para miembros de su plan explican cómo y en qué plazo. Puede pedir a su plan, sin costo, una copia de la póliza que se usó en esta decisión.",
 		check:            "Verifique esta carta",
 		checkText:        "Cualquier persona puede verificar que esta decisión es auténtica y no ha cambiado, sin ver nada de su información de salud: escanee el código o escriba el recibo en la página de verificación de decisiones de su plan de salud.",
@@ -148,8 +157,13 @@ func (w words) date(t time.Time) string {
 	return fmt.Sprintf(w.dateLayout, t.Day(), w.months[t.Month()-1], t.Year())
 }
 
-// Write writes the letter for a case's current decision, dated now, with its receipt.
+// Write writes the letter for a case's current decision, dated now, with its receipt, in the generic words.
 func Write(c cases.Case, l, receipt string, now time.Time) (*Letter, error) {
+	return WriteFor(c, l, receipt, now, nil)
+}
+
+// WriteFor writes it with the plan's own appeal deadline, addresses and numbers, when plan is set.
+func WriteFor(c cases.Case, l, receipt string, now time.Time, plan *Plan) (*Letter, error) {
 	w, ok := lang[l]
 	if !ok {
 		return nil, fmt.Errorf("letter: no letters in %q; there are letters in %s", l, strings.Join(Languages, ", "))
@@ -200,6 +214,14 @@ func Write(c cases.Case, l, receipt string, now time.Time) (*Letter, error) {
 		got, _ := time.Parse(time.RFC3339, t.Received)
 		due, _ := time.Parse(time.RFC3339, t.Due)
 		head.Paragraphs = append(head.Paragraphs, fmt.Sprintf(w.appealReceived, w.date(got), w.date(due)))
+	}
+	if x := c.Extension; x != nil && (decision == "pend" || clinicianPend) {
+		due, _ := time.Parse(time.RFC3339Nano, x.Due)
+		p := fmt.Sprintf(w.extended, x.Days, w.date(due))
+		if x.Note != "" {
+			p += " " + fmt.Sprintf(w.extendedWhy, x.Note)
+		}
+		head.Paragraphs = append(head.Paragraphs, p)
 	}
 	if c.Appeal != nil {
 		if c.Appeal.Outcome == "overturned" {
@@ -267,16 +289,40 @@ func Write(c cases.Case, l, receipt string, now time.Time) (*Letter, error) {
 	if c.Appeal != nil && c.Appeal.Reason != "" {
 		out.Sections = append(out.Sections, Section{Heading: w.appealReason, Paragraphs: []string{c.Appeal.Reason}})
 	}
-	rights := w.rightsOther
+	rights := Section{Heading: w.rights, Paragraphs: []string{w.rightsOther}}
+	pw := planLang[l]
 	switch {
 	case decision == "deny" && c.Appeal != nil && c.Appeal.Outcome == "upheld":
-		rights = w.rightsUpheld
+		rights.Paragraphs = []string{w.rightsUpheld}
+		if plan != nil {
+			if t := plan.appealFor(c.Line).External[l]; t != "" {
+				rights.Paragraphs = []string{t, w.rightsOther}
+			}
+		}
 	case decision == "deny" && c.Appeal == nil && c.AppealTaken == nil:
-		rights = w.rightsDenied
+		rights.Paragraphs = []string{w.rightsDenied}
+		if plan != nil {
+			if paras, items, ok := plan.rightsDenied(w, pw, c.Line, now); ok {
+				rights.Paragraphs, rights.Items = paras, items
+				if h := plan.appealFor(c.Line).ExpeditedHours; h > 0 {
+					rights.After = append(rights.After, fmt.Sprintf(pw.fast, h))
+				}
+				rights.After = append(rights.After, w.rightsOther)
+			}
+		}
 	}
-	out.Sections = append(out.Sections, Section{Heading: w.rights, Paragraphs: []string{rights}})
+	out.Sections = append(out.Sections, rights)
+	if plan != nil {
+		if s := plan.contact(pw); s != "" {
+			out.Sections = append(out.Sections, Section{Heading: w.contact, Paragraphs: []string{s}})
+		}
+	}
 	if receipt != "" {
-		out.Sections = append(out.Sections, Section{Heading: w.check, Paragraphs: []string{w.checkText}})
+		text := w.checkText
+		if plan != nil && plan.CheckURL != "" {
+			text = fmt.Sprintf(pw.check, plan.CheckURL)
+		}
+		out.Sections = append(out.Sections, Section{Heading: w.check, Paragraphs: []string{text}})
 	}
 	return out, nil
 }

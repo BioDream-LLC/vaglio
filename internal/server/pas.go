@@ -115,7 +115,7 @@ func (cfg Config) decideBundle(raw []byte, seq, requestID, channel, keyedBy stri
 		Policy: p.ID, PolicyVersion: p.Version, PolicyTitle: p.Title, Item: seq, Service: service,
 		Claim: claimKey(req), Patient: pas.Str(pas.Map(req.Claim["patient"])["reference"]),
 		Provider: pas.Str(pas.Map(req.Claim["provider"])["reference"]), Request: requestID,
-		Priority: priority(req), ProviderNPI: providerNPI(req), PatientState: patientState(req), Drug: p.Drug,
+		Priority: priority(req), ProviderNPI: providerNPI(req), PatientState: patientState(req), Line: precedence.LineOfBusiness(req), Drug: p.Drug,
 		Result: res, Evidence: x, Channel: channel, KeyedBy: keyedBy,
 	}
 	if res.Outcome != decide.Approved && cfg.GoldCard != nil {

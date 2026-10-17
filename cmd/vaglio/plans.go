@@ -25,6 +25,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/feed"
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/intake"
+	"github.com/biodream-llc/vaglio/internal/letter"
 	"github.com/biodream-llc/vaglio/internal/oidc"
 	"github.com/biodream-llc/vaglio/internal/outside"
 	"github.com/biodream-llc/vaglio/internal/policy"
@@ -77,7 +78,9 @@ type planSpec struct {
 	// Network is the plan's provider network file (NPIs); NPIRegistry is "nppes" for the public registry, or a file.
 	Network string `json:"network,omitempty"`
 	// Members is the plan's member file (CSV): coverage is checked before a request is approved or denied.
-	Members     string `json:"members,omitempty"`
+	Members string `json:"members,omitempty"`
+	// Letters is the plan's letter settings (JSON): its appeal deadline, addresses and numbers, for letters and notices.
+	Letters     string `json:"letters,omitempty"`
 	NPIRegistry string `json:"npiRegistry,omitempty"`
 
 	allowed []string // Host header values it answers to
@@ -386,6 +389,12 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 		}
 		members = m
 	}
+	var letters *letter.Plan
+	if sp.Letters != "" {
+		if letters, err = letter.LoadPlan(sp.Letters); err != nil {
+			return fail(fmt.Errorf("-letters: %w", err))
+		}
+	}
 	src, err := openOutside(sp, policies)
 	if err != nil {
 		return fail(err)
@@ -445,6 +454,7 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 		PolicyRoot:       sp.Policies,
 		Outside:          src,
 		Members:          members,
+		Letters:          letters,
 	}
 	if sp.FaxTokenEnv != "" {
 		if cfg.FaxToken, err = secretFrom(sp.FaxTokenEnv); err != nil {

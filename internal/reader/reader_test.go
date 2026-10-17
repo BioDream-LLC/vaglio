@@ -3,7 +3,9 @@ package reader
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -105,8 +107,8 @@ func TestExtractors(t *testing.T) {
 	if docs, skipped := Documents(req); len(docs) != 0 || len(skipped) != 3 {
 		t.Fatalf("%v %v", docs, skipped)
 	}
-	stand := Extractor{Name: "stand-in-ocr", Path: "/bin/sh", Args: []string{"-c", "cat >/dev/null; echo 'She completed eight weeks of physical therapy without relief.'"},
-		Types: []string{"image/png"}}
+	stand := helper("stand-in-ocr", "echo", "{file}")
+	stand.Types = []string{"image/png"}
 	xs := Extractors{stand}
 	if x, err := Lookup("pdftotext"); err == nil {
 		xs = append(xs, x)
@@ -140,16 +142,46 @@ func TestExtractors(t *testing.T) {
 			t.Errorf("%+v", r)
 		}
 	}
+	if len(xs) == 1 {
+		skipped = skipped[1:] // the PDF, which nothing here reads
+	}
 	if len(skipped) != 1 || !strings.Contains(skipped[0], "image/gif") {
 		t.Errorf("skipped %v", skipped)
 	}
 	// A failing or slow program is a skipped document, never text.
-	bad := Extractors{{Name: "broken", Path: "/bin/sh", Args: []string{"-c", "exit 3"}, Types: []string{"image/png"}},
-		{Name: "slow", Path: "/bin/sh", Args: []string{"-c", "sleep 5"}, Types: []string{"application/pdf"}, Timeout: 200 * time.Millisecond}}
+	broken, slow := helper("broken", "fail"), helper("slow", "sleep")
+	broken.Types, slow.Types, slow.Timeout = []string{"image/png"}, []string{"application/pdf"}, 200*time.Millisecond
+	bad := Extractors{broken, slow}
 	docs, skipped = DocumentsWith(context.Background(), req, bad, true)
 	if len(docs) != 0 || len(skipped) != 3 || !strings.Contains(strings.Join(skipped, " "), "took longer") {
 		t.Errorf("%v %v", docs, skipped)
 	}
+}
+
+// helper is an extractor that is this test binary run again (TestHelperExtractor), so the test needs no shell: echo
+// prints a sentence after reading the file it is given, fail exits 3, sleep outlasts any time limit.
+func helper(name string, mode ...string) Extractor {
+	return Extractor{Name: name, Path: os.Args[0], Args: append([]string{"-test.run=^TestHelperExtractor$", "--"}, mode...)}
+}
+
+func TestHelperExtractor(t *testing.T) {
+	i := slices.Index(os.Args, "--")
+	if i < 0 {
+		return
+	}
+	switch os.Args[i+1] {
+	case "echo":
+		if _, err := os.ReadFile(os.Args[i+2]); err != nil {
+			os.Exit(2)
+		}
+		fmt.Println("She completed eight weeks of physical therapy without relief.")
+		os.Exit(0)
+	case "fail":
+		os.Exit(3)
+	case "sleep":
+		time.Sleep(5 * time.Second)
+	}
+	os.Exit(0)
 }
 
 func docWith(id, ct string, raw []byte) map[string]any {

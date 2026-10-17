@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/biodream-llc/vaglio/internal/audit"
+	"github.com/biodream-llc/vaglio/internal/fsx"
 	"github.com/biodream-llc/vaglio/internal/seal"
 )
 
@@ -75,7 +76,7 @@ func dataCmd(args []string, w io.Writer) error {
 			os.Remove(tmp)
 			return fmt.Errorf("%s: sealed copy does not read back; nothing changed", f)
 		}
-		if err := os.Rename(tmp, f); err != nil {
+		if err := fsx.Replace(tmp, f); err != nil {
 			return err
 		}
 	}
@@ -119,7 +120,7 @@ func sealLog(path string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer in.Close() // and closed before the rename below: Windows will not replace a file that is open
 	tmp := path + ".sealing"
 	out, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
@@ -145,5 +146,6 @@ func sealLog(path string) error {
 		os.Remove(tmp)
 		return fmt.Errorf("the sealed log does not match the plain one (%d %s / %d %s, %v); nothing changed", n2, head2, n, head, err)
 	}
-	return os.Rename(tmp, path)
+	in.Close()
+	return fsx.Replace(tmp, path)
 }

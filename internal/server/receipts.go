@@ -119,7 +119,7 @@ func (cfg Config) caseLetter(w http.ResponseWriter, r *http.Request, s auth.Sess
 	if rs := receiptsFor(cfg.Cases.History(c.ID)); len(rs) > 0 {
 		code = rs[len(rs)-1].Receipt
 	}
-	out, err := letter.Write(*c, l, code, time.Now())
+	out, err := letter.WriteFor(*c, l, code, time.Now(), cfg.Letters)
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return

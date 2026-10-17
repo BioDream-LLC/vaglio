@@ -671,7 +671,7 @@ export interface Letter {
   lang: 'en' | 'es'
   title: string
   date: string
-  sections: { heading: string; paragraphs?: string[]; items?: string[]; quote?: string }[]
+  sections: { heading: string; paragraphs?: string[]; items?: string[]; quote?: string; after?: string[] }[]
   quoted?: string
   receipt?: string
 }

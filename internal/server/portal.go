@@ -158,7 +158,7 @@ func (cfg Config) portalLetter(w http.ResponseWriter, r *http.Request, acct auth
 		writeError(w, http.StatusBadRequest, "letters are written in en or es")
 		return
 	}
-	out, err := letter.Write(*c, l, cfg.portalView(c).Receipt, time.Now())
+	out, err := letter.WriteFor(*c, l, cfg.portalView(c).Receipt, time.Now(), cfg.Letters)
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return

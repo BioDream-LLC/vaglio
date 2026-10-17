@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/biodream-llc/vaglio/internal/audit"
@@ -15,6 +16,7 @@ func open(t *testing.T, dir string) (*Store, *audit.Log) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { l.Close() }) // before the directory is removed: Windows cannot remove an open file
 	s, err := Open(l, filepath.Join(dir, "bundles"))
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +115,7 @@ func TestTheBundleMustMatch(t *testing.T) {
 		t.Fatalf("%s %v", raw, err)
 	}
 	info, _ := os.Stat(filepath.Join(dir, "bundles", c.Bundle+".json"))
-	if info.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 { // Windows keeps no Unix modes
 		t.Errorf("bundle mode %v", info.Mode().Perm())
 	}
 	os.WriteFile(filepath.Join(dir, "bundles", c.Bundle+".json"), []byte(`{"resourceType":"Bundle","edited":true}`), 0o600)

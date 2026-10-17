@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/biodream-llc/vaglio/internal/acme"
+	"github.com/biodream-llc/vaglio/internal/fsx"
 	"github.com/biodream-llc/vaglio/internal/tlsserve"
 )
 
@@ -142,7 +143,7 @@ func writeAtomic(path string, b []byte) error {
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	return fsx.Replace(tmp, path)
 }
 
 // runACME keeps the certificate until ctx ends, and says at start what it is waiting for.

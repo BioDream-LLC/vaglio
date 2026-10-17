@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/biodream-llc/vaglio/internal/audit"
+	"github.com/biodream-llc/vaglio/internal/fsx"
 )
 
 // Event is one record about a case, as sent.
@@ -182,7 +183,7 @@ func (w *Webhook) save() error {
 	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, w.Cursor)
+	return fsx.Replace(tmp, w.Cursor)
 }
 
 func (w *Webhook) run(ctx context.Context) {

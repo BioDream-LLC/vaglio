@@ -1,0 +1,24 @@
+{
+  "name": "Example Health Plan",
+  "phone": "1-800-555-0100",
+  "tty": "711",
+  "hours": "8 a.m. to 8 p.m., seven days a week",
+  "website": "https://plan.example",
+  "checkUrl": "https://vaglio.plan.example/#/receipt",
+  "appeal": {
+    "days": 60,
+    "expeditedHours": 72,
+    "mail": ["Example Health Plan Appeals", "PO Box 1000", "Springfield, IL 62701"],
+    "fax": "1-800-555-0101",
+    "portal": "https://plan.example/appeals"
+  },
+  "lines": {
+    "medicare-advantage": {
+      "days": 65,
+      "external": {
+        "en": "If the plan keeps its decision, your appeal is sent to an independent review organization for you.",
+        "es": "Si el plan mantiene su decisión, su apelación se envía por usted a una organización de revisión independiente."
+      }
+    }
+  }
+}

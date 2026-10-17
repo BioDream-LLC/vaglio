@@ -71,6 +71,9 @@ type Opening struct {
 	ProviderNPI string `json:"providerNpi,omitempty"`
 	// PatientState is the state of the patient's address: the region overrides and appeals are counted by.
 	PatientState string `json:"patientState,omitempty"`
+	// Line is the member's line of business, from the request's Coverage (precedence.LineOfBusiness): which of the
+	// plan's appeal deadlines its letters give.
+	Line string `json:"line,omitempty"`
 	// Drug is a request decided by a drug policy. CMS counts drugs apart from other items and services.
 	Drug     bool                `json:"drug,omitempty"`
 	Answer   Answer              `json:"answer"`
@@ -464,7 +467,13 @@ func (s *Store) Open(o Opening, bundle []byte) (*Case, error) {
 			return nil, err
 		}
 		if err := os.Rename(tmp, path); err != nil {
-			return nil, err
+			// The file is named by its content, so a copy another request put there first is this one. Windows refuses
+			// to replace a file someone has open, where Unix would replace it silently.
+			if _, serr := os.Stat(path); serr != nil {
+				os.Remove(tmp)
+				return nil, err
+			}
+			os.Remove(tmp)
 		}
 	}
 	c, wait, err := func() (*Case, func() error, error) {

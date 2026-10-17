@@ -1,0 +1,9 @@
+# Checked out with LF everywhere, Windows included: policy files are hashed into the audit log, and signed test
+# fixtures (internal/saml/testdata) break on any change of a byte.
+* text=auto eol=lf
+*.png binary
+*.pdf binary
+*.pptx binary
+*.gz binary
+*.tif binary
+*.tiff binary

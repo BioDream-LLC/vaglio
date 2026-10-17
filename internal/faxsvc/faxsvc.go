@@ -28,6 +28,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/biodream-llc/vaglio/internal/fsx"
 )
 
 // Store keeps one fax in the inbox; source names where it came from in the audit log.
@@ -552,7 +554,7 @@ func (f *Folder) Poll(ctx context.Context) (int, error) {
 			if why != "" {
 				_ = os.WriteFile(filepath.Join(dir, e.Name()+".why"), []byte(why+"\n"), 0o600)
 			}
-			return os.Rename(path, filepath.Join(dir, e.Name()))
+			return fsx.Replace(path, filepath.Join(dir, e.Name()))
 		}
 		if info.Size() > MaxFax {
 			if err := move("refused", "over 8 MB"); err != nil {
