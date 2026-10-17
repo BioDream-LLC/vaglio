@@ -279,7 +279,7 @@ func TestTesseractReadsAFax(t *testing.T) {
 		paths = append(paths, path)
 	}
 	dir := t.TempDir()
-	content := "BT /F1 28 Tf 72 640 Td (She completed eight weeks of physical therapy.) Tj ET"
+	content := "BT /F1 24 Tf 72 640 Td (She completed eight weeks of therapy.) Tj ET"
 	pdf := fmt.Sprintf("%%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n"+
 		"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj\n"+
 		"4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n5 0 obj << /Length %d >> stream\n%s\nendstream endobj\n"+
@@ -299,7 +299,7 @@ func TestTesseractReadsAFax(t *testing.T) {
 		t.Fatal(err)
 	}
 	text, err := x.ExtractType(context.Background(), "image/tiff", fax)
-	if err != nil || !strings.Contains(strings.Join(strings.Fields(text), " "), "eight weeks of physical therapy") {
+	if err != nil || !strings.Contains(strings.Join(strings.Fields(text), " "), "eight weeks of therapy") {
 		t.Fatalf("%q %v", text, err)
 	}
 }
