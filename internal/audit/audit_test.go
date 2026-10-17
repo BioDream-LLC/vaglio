@@ -3,6 +3,7 @@ package audit
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -193,5 +194,48 @@ func TestCopy(t *testing.T) {
 	}
 	if _, ha := a.Head(); func() string { _, hb := b.Head(); return hb }() != ha {
 		t.Error("heads differ")
+	}
+}
+
+// Two processes appending to one log at once: the file lock keeps every record numbered once and the chain whole. The
+// second process is this test binary run again (VAGLIO_TEST_LOG_WRITER names the log).
+func TestTwoProcessesAppend(t *testing.T) {
+	if path := os.Getenv("VAGLIO_TEST_LOG_WRITER"); path != "" {
+		l, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < 200; i++ {
+			if _, err := l.Append("child", "test.append", "", nil); err != nil {
+				t.Fatal(err)
+			}
+		}
+		l.Close()
+		return
+	}
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	l, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := exec.Command(os.Args[0], "-test.run=^TestTwoProcessesAppend$")
+	child.Env = append(os.Environ(), "VAGLIO_TEST_LOG_WRITER="+path)
+	out := &strings.Builder{}
+	child.Stdout, child.Stderr = out, out
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 200; i++ {
+		if _, err := l.Append("parent", "test.append", "", nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := child.Wait(); err != nil {
+		t.Fatalf("the second writer: %v\n%s", err, out)
+	}
+	l.Close()
+	n, _, err := Verify(path)
+	if err != nil || n != 400 {
+		t.Fatalf("%d records, %v; want 400 in one unbroken chain", n, err)
 	}
 }

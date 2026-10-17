@@ -32,6 +32,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -623,7 +624,9 @@ func openData(dir string) (*data, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	if info, err := os.Stat(dir); err == nil && info.Mode().Perm()&0o077 != 0 {
+	// Windows reports every directory as mode 0777: its access is by ACL, which the operator sets (the service account
+	// only). There is nothing here to check it against.
+	if info, err := os.Stat(dir); err == nil && runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
 		return nil, fmt.Errorf("%s is readable by others (mode %v); it holds patient data: chmod 700 %s", dir, info.Mode().Perm(), dir)
 	}
 	path := filepath.Join(dir, "audit.jsonl")

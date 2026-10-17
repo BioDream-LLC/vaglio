@@ -16,7 +16,7 @@ reports and audit log are built in; it decides Da Vinci PAS requests behind
 [Perfuse](https://github.com/BioDream-LLC/perfuse) or any PAS server that calls its decision hook, and takes faxes,
 calls and portal requests too.
 
-[![License](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-8b5cf6.svg)](LICENSE.md) [![Go](https://img.shields.io/badge/Go-1.27%2B-00ADD8.svg?logo=go&logoColor=white)](https://go.dev) [![Version](https://img.shields.io/badge/version-v0.0.1-orange.svg)](#status) [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS-lightgrey.svg)](#build) [![Works with](https://img.shields.io/badge/works%20with-Perfuse-3b82f6.svg)](https://github.com/BioDream-LLC/perfuse)
+[![License](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-8b5cf6.svg)](LICENSE.md) [![Go](https://img.shields.io/badge/Go-1.27%2B-00ADD8.svg?logo=go&logoColor=white)](https://go.dev) [![Version](https://img.shields.io/badge/version-v0.0.1-orange.svg)](#status) [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)](#build) [![Works with](https://img.shields.io/badge/works%20with-Perfuse-3b82f6.svg)](https://github.com/BioDream-LLC/perfuse)
 
 <a href="https://vaglio.perfuse.health:8443"><img src="docs/assets/buttons/try.svg" alt="Try Vaglio now: the live demonstration, no install" width="300"></a>
 
@@ -708,7 +708,9 @@ decides at a time.
 - The audit log is tamper-evident, not tamper-proof: an edit, deletion or reordering is detected and the server will not
   start on it, but whoever can rewrite the whole file can rewrite it consistently. Keeping the hash `vaglio audit verify`
   prints somewhere else closes that for the log up to that point.
-- The log needs a file lock, so it runs on Linux and macOS; a Windows build refuses to write it.
+- Two processes never write the log at once: it is locked with flock on Linux and macOS and LockFileEx on Windows. On
+  Windows, Vaglio cannot check who may read the data directory (access there is by ACL): give it to the service account
+  alone.
 - `/api/feeds/appeals` takes only its own bearer token, and is off unless `-appeals-token-env` is set.
 - Single sign-on needs https for the provider and the callback (plain http only to this machine). The sign-in state is
   bound to the browser that started it, good once, and expires in 10 minutes; every refused sign-in is logged. A SAML
@@ -734,8 +736,8 @@ The language is described at the top of `internal/policy/lang.go`; `policies/` h
 ## Build
 
 Needs Go 1.27 (Perfuse's published `fhir` and `pas` packages come from Perfuse v0.1.15), and Node 20 or later only to
-rebuild the console (`internal/web/dist` is committed, so `go build` works without it). Runs on Linux and macOS; the
-audit log needs a file lock, so a Windows build refuses to write it.
+rebuild the console (`internal/web/dist` is committed, so `go build` works without it). Runs on Linux, macOS and Windows; CI
+tests all three.
 
 ```
 git clone https://github.com/BioDream-LLC/vaglio && cd vaglio
