@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -285,5 +286,42 @@ func TestOpenSAML(t *testing.T) {
 	bad.SSO = &ssoSpec{Issuer: "https://idp.example"}
 	if _, err := openSAML(context.Background(), bad, false); err == nil {
 		t.Error("both OIDC and SAML")
+	}
+}
+
+// A shadow pilot over the synthetic requests, beside invented outcomes: the report puts the disagreements first, the
+// CSV has a row for each, and nothing of the requests is left behind.
+func TestShadow(t *testing.T) {
+	dir := t.TempDir()
+	outcomes := filepath.Join(dir, "outcomes.csv")
+	os.WriteFile(outcomes, []byte("claim,item,decision,by,appeal\n"+
+		"http://provider.example/trace|approve,1,deny,nurse reviewer,overturned\n"+
+		"deny,1,approve,medical director,\n"+
+		"pend,1,approve,,\n"), 0o600)
+	before, _ := filepath.Glob(filepath.Join(os.TempDir(), "vaglio-shadow-*"))
+	var out strings.Builder
+	csvPath := filepath.Join(dir, "rows.csv")
+	if err := shadowCmd([]string{"-library=false", "-policies", "../../policies", "-requests", "../../testdata/pas",
+		"-outcomes", outcomes, "-csv", csvPath}, &out); err != nil {
+		t.Fatal(err)
+	}
+	r := out.String()
+	for _, want := range []string{"4 request files, 4 items", "| approve | 0 | 1 |", "| deny | 1 | 0 |",
+		"Vaglio would have approved what the plan denied (1)", "nurse reviewer", "overturned",
+		"Vaglio would have denied what the plan approved (1)", "medical director", "they agreed on 0 of 2",
+		"What Vaglio would have asked for instead of deciding"} {
+		if !strings.Contains(r, want) {
+			t.Errorf("the report lacks %q:\n%s", want, r)
+		}
+	}
+	rows, _ := os.ReadFile(csvPath)
+	if strings.Count(string(rows), "\n") != 5 {
+		t.Errorf("CSV:\n%s", rows)
+	}
+	if after, _ := filepath.Glob(filepath.Join(os.TempDir(), "vaglio-shadow-*")); len(after) != len(before) {
+		t.Error("the temporary data was left behind")
+	}
+	if err := shadowCmd([]string{"-requests", "../../testdata/pas", "-outcomes", csvPath}, io.Discard); err == nil {
+		t.Error("an outcomes file without a decision column was read")
 	}
 }

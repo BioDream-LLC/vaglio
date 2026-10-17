@@ -395,6 +395,13 @@ Short text files in the plan's own words, checked on every combination before th
 
 Built from the log, so they cannot disagree with what was decided.
 
+- **A shadow pilot** (`vaglio shadow -requests DIR -outcomes FILE.csv`), before Vaglio decides anything for real: the
+  plan's past PAS requests, each decided as serve would have on the day it was made, beside what the plan decided
+  (`claim,item,decision,by,appeal`). The report puts first where Vaglio would have approved what the plan denied (and
+  whether an appeal overturned it), then where it would have denied what the plan approved, then what it would have
+  asked for instead of deciding, with a CSV row per item. Everything runs in a temporary directory removed at the
+  end; nothing is sent anywhere. It is how a plan can see Vaglio on its own cases without a production site, which
+  Vaglio does not have yet.
 - **CMS prior authorization metrics** from the log (`vaglio report metrics`, the Reports screen, CSV): standard and
   expedited, counts and percentages, time to determination. Appeals and extensions are not seen by Vaglio and are
   reported as not tracked, never as zero.
@@ -489,7 +496,7 @@ One program on the plan's own servers.
 
 ## Status
 
-**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (272 Go test functions, the
+**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (273 Go test functions, the
 console's tests, and every policy checked on every combination of evidence), and the whole path has been run end to end
 through a real Perfuse. The policies in `policies/` are **illustrative only**: not any payer's policy and not clinical
 guidance.

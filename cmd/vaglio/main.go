@@ -114,6 +114,8 @@ func main() {
 		err = readingsCmd(os.Args[2:], os.Stdout)
 	case "bench":
 		err = benchCmd(os.Args[2:], os.Stdout)
+	case "shadow":
+		err = shadowCmd(os.Args[2:], os.Stdout)
 	case "version":
 		fmt.Println("vaglio", version)
 	case "help", "-h", "--help":
@@ -162,6 +164,8 @@ func usage(w io.Writer) {
   vaglio goldcard -data DIR -config FILE
   vaglio replay -data DIR FILE.vaglio
   vaglio bench  [-policies DIR] [-n N] [-workers W]   how fast this machine decides (temporary data, invented requests)
+  vaglio shadow -requests DIR [-outcomes FILE.csv] [-policies DIR] [-csv OUT.csv]
+                                  a shadow pilot: past requests decided beside what the plan decided
   vaglio readings [-json] A.vaglio B.vaglio    where two readings of one coverage document decide a record differently
   vaglio signoff -by "NAME, CREDENTIAL" [-date YYYY-MM-DD] FILE.vaglio
   vaglio appeals import -url SERVER -token-env VAR [-ca FILE] FILE.csv    appeal outcomes, to the server's appeals feed
