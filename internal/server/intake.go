@@ -179,11 +179,11 @@ func (cfg Config) StoreFax(ctx context.Context, raw []byte, ct, from string, pag
 		from = from[:32]
 	}
 	text := ""
-	if x := cfg.Extractors.For(ct); x != nil {
-		if t, err := x.Extract(ctx, raw); err == nil {
+	if cfg.Extractors.For(ct) != nil {
+		if t, _, err := cfg.Extractors.Extract(ctx, ct, raw); err == nil {
 			text = t
 		} else {
-			log.Printf("fax: %s could not make text of it: %v", x.Name, err)
+			log.Printf("fax: no text made of it: %v", err)
 		}
 	}
 	f, isNew, err := cfg.inbox().AddNew(raw, ct, from, pages, text, time.Now())

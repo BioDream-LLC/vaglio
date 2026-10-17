@@ -137,7 +137,7 @@ func usage(w io.Writer) {
                 [-edit-policies] [-oidc-issuer URL -oidc-client-id ID -oidc-client-secret-env VAR
                  -oidc-redirect-url URL [-oidc-name-claim C] [-oidc-group G] [-oidc-label TEXT]]
                 [-saml-metadata URL|FILE -saml-entity-id ID -saml-acs-url URL [-saml-name-attribute A] [-saml-group G]]
-                [-extension-days N] [-appeals-token-env VAR] [-extract pdftotext,tesseract]
+                [-extension-days N] [-appeals-token-env VAR] [-extract pdftotext,tesseract,model [-extract-model M]]
                 [-draft-model-url URL [-draft-model M] [-draft-key-env VAR]] [-demo-account NAME:PASSWORD]
                 [-fax-token-env VAR] [-acme [-acme-email ADDR] [-acme-directory URL]] [-plans FILE]
                 [-read-documents [-approve-from-documents [-approve-sample PCT]] [-read-workers N]]
@@ -238,8 +238,10 @@ func serve(args []string) error {
 	samlGroupsAttr := fs.String("saml-groups-attribute", "", "SAML sign-on: the attribute -saml-group is read from, groups by default")
 	samlLabel := fs.String("saml-label", "", "SAML sign-on: the sign-in button's words")
 	oidcLabel := fs.String("oidc-label", "", `single sign-on: the sign-in button's words, such as "Sign in with Example Health"`)
-	extract := fs.String("extract", "", "programs on this machine that make text of documents for the document model: "+
-		"pdftotext (PDFs), tesseract (scanned images), comma-separated")
+	extract := fs.String("extract", "", "what makes text of documents that are not text, tried in this order: pdftotext "+
+		"(PDFs with text in them), tesseract (scans and faxes: images, TIFF and PDF), model (the document model reads each "+
+		"page's picture: no program to install), comma-separated")
+	extractModel := fs.String("extract-model", "", "for -extract model: a model that reads images, when -document-model does not")
 	extensionDays := fs.Int("extension-days", 14, "the longest extension of a decision timeframe a reviewer may record (1 to 14)")
 	faxTokenEnv := fs.String("fax-token-env", "", "name of an environment variable holding the bearer token the plan's "+
 		"fax service sends with each fax it posts to /api/feeds/fax; set, the console's fax inbox is on (faxes kept in DATA/faxes)")
@@ -417,7 +419,25 @@ func serve(args []string) error {
 				"-document-model-url, -draft-model-url or -fax-token-env")
 		}
 		for _, name := range strings.Split(*extract, ",") {
-			x, err := reader.Lookup(strings.TrimSpace(name))
+			name = strings.TrimSpace(name)
+			if name == "model" {
+				// Pages read by the document model's own API, as pictures: the same endpoint, and the same rule that
+				// patient records go off this machine only with -document-model-remote.
+				if *docURL == "" {
+					return errors.New("-extract model reads pages with the document model: it needs -document-model-url")
+				}
+				vm := *extractModel
+				if vm == "" {
+					vm = *docModel
+				}
+				key, err := secretFrom(*docKeyEnv)
+				if err != nil {
+					return fmt.Errorf("-document-model-key-env: %w", err)
+				}
+				sh.extractors = append(sh.extractors, reader.Vision(*docURL, key, vm))
+				continue
+			}
+			x, err := reader.Lookup(name)
 			if err != nil {
 				return fmt.Errorf("-extract: %w", err)
 			}

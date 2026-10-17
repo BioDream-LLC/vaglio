@@ -190,3 +190,37 @@ func TestFolder(t *testing.T) {
 	}
 	_ = url.Values{}
 }
+
+// eFax Developer's inbound post: the XML in the form's "xml" field, answered "Post Successful".
+func TestEFax(t *testing.T) {
+	var k kept
+	h := &EFax{User: "vaglio", Password: "posting-pw", Store: k.store}
+	post := func(user, pw, kind, contents string) *httptest.ResponseRecorder {
+		x := `<?xml version="1.0"?><InboundPostRequest><AccessControl><UserName>` + user + `</UserName><Password>` + pw +
+			`</Password></AccessControl><RequestControl><RequestDate>08/18/2026 12:02:25</RequestDate><RequestType>` + kind +
+			`</RequestType></RequestControl><FaxControl><AccountID>1234567890</AccountID><DateReceived>08/18/2026 12:02:13</DateReceived>` +
+			`<FaxName>SampleOut</FaxName><FileType>pdf</FileType><PageCount>3</PageCount><CSID>8587123600</CSID><ANI>8587123600</ANI>` +
+			`<Status>0</Status><MCFID>12345678</MCFID><FileContents>` + contents + `</FileContents></FaxControl></InboundPostRequest>`
+		r := httptest.NewRequest("POST", "/api/feeds/fax/efax", strings.NewReader(url.Values{"xml": {x}}.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	b64 := base64.StdEncoding.EncodeToString(pdf)
+	if w := post("vaglio", "posting-pw", "New Inbound", b64[:10]+"\n"+b64[10:]); w.Code != 200 || w.Body.String() != "Post Successful" {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+	if len(k.items) != 1 || k.items[0] != "application/pdf 8587123600 fax-service:efax 3" {
+		t.Fatalf("%v", k.items)
+	}
+	if w := post("vaglio", "wrong", "New Inbound", b64); w.Code != 401 {
+		t.Errorf("a wrong password: %d", w.Code)
+	}
+	if w := post("vaglio", "posting-pw", "New Inbound", "not base64!"); w.Code != 400 {
+		t.Errorf("bad contents: %d", w.Code)
+	}
+	if w := post("vaglio", "posting-pw", "Status Disposition", ""); w.Code != 200 || len(k.items) != 1 {
+		t.Errorf("another kind of post: %d %v", w.Code, k.items)
+	}
+}

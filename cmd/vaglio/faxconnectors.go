@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/biodream-llc/vaglio/internal/faxmodem"
 	"github.com/biodream-llc/vaglio/internal/faxsvc"
 	"github.com/biodream-llc/vaglio/internal/intake"
 	"github.com/biodream-llc/vaglio/internal/server"
@@ -22,6 +23,10 @@ type faxConnectors struct {
 	Sinch *struct {
 		PasswordEnv string `json:"passwordEnv"`
 	} `json:"sinch,omitempty"`
+	EFax *struct {
+		User        string `json:"user"`
+		PasswordEnv string `json:"passwordEnv"`
+	} `json:"efax,omitempty"`
 	Documo *struct {
 		PasswordEnv string `json:"passwordEnv"`
 		APIKeyEnv   string `json:"apiKeyEnv"`
@@ -39,6 +44,14 @@ type faxConnectors struct {
 		JWTEnv          string `json:"jwtEnv"`
 		Every           string `json:"every,omitempty"`
 	} `json:"ringcentral,omitempty"`
+	Modem *struct {
+		Device    string `json:"device"`              // /dev/ttyACM0, /dev/cu.usbmodem1101
+		Baud      int    `json:"baud,omitempty"`      // 115200 by default
+		Class     string `json:"class,omitempty"`     // 2.0 (default) or 2
+		ID        string `json:"id,omitempty"`        // this fax's number as callers see it
+		Rings     int    `json:"rings,omitempty"`     // rings before answering, 1 by default
+		FillOrder string `json:"fillOrder,omitempty"` // auto (default), lsb or msb
+	} `json:"modem,omitempty"`
 	Folder *struct {
 		Dir   string `json:"dir"`
 		Every string `json:"every,omitempty"` // default 10s
@@ -97,6 +110,17 @@ func openFaxConnectors(ctx context.Context, path string, cfg *server.Config, dat
 		cfg.FaxHooks["sinch"] = &faxsvc.Sinch{Password: pw, Store: store}
 		started = append(started, "Sinch webhook at /api/feeds/fax/sinch")
 	}
+	if e := fc.EFax; e != nil {
+		pw, err := need(e.PasswordEnv)
+		if err != nil {
+			return nil, fmt.Errorf("efax: %w", err)
+		}
+		if e.User == "" {
+			return nil, errors.New("efax: user is the posting user name set in the eFax account")
+		}
+		cfg.FaxHooks["efax"] = &faxsvc.EFax{User: e.User, Password: pw, Store: store}
+		started = append(started, "eFax inbound posts at /api/feeds/fax/efax")
+	}
 	if d := fc.Documo; d != nil {
 		pw, err := need(d.PasswordEnv)
 		if err != nil {
@@ -139,6 +163,30 @@ func openFaxConnectors(ctx context.Context, path string, cfg *server.Config, dat
 			Seen: &faxsvc.Seen{Path: filepath.Join(data, "faxes", "ringcentral.seen")}}
 		go faxsvc.Run(ctx, p, d)
 		started = append(started, "RingCentral, polled every "+d.String())
+	}
+	if m := fc.Modem; m != nil {
+		if m.Device == "" {
+			return nil, errors.New("modem: device is the modem's serial port")
+		}
+		switch m.Class {
+		case "", "2", "2.0":
+		default:
+			return nil, fmt.Errorf("modem: class %q: 2.0 or 2", m.Class)
+		}
+		switch m.FillOrder {
+		case "", "auto", "lsb", "msb":
+		default:
+			return nil, fmt.Errorf("modem: fillOrder %q: auto, lsb or msb", m.FillOrder)
+		}
+		baud := m.Baud
+		if baud == 0 {
+			baud = 115200
+		}
+		mc := faxmodem.Config{Class: m.Class, ID: m.ID, Rings: m.Rings, FillOrder: m.FillOrder}
+		go faxmodem.Run(ctx, m.Device, baud, mc, func(ctx context.Context, pdf []byte, from string, pages int) error {
+			return store(ctx, pdf, "application/pdf", from, pages, "fax-modem")
+		})
+		started = append(started, "fax modem on "+m.Device)
 	}
 	if f := fc.Folder; f != nil {
 		if info, err := os.Stat(f.Dir); err != nil || !info.IsDir() {

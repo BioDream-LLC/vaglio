@@ -102,12 +102,11 @@ func (cfg Config) draftFromDocument(w http.ResponseWriter, r *http.Request, s au
 	case body.ContentType == "text/plain" || strings.HasSuffix(strings.ToLower(body.Name), ".txt"):
 		text = string(raw)
 	default:
-		x := cfg.Extractors.For(body.ContentType)
-		if x == nil {
+		if cfg.Extractors.For(body.ContentType) == nil {
 			writeError(w, http.StatusUnsupportedMediaType, "this server reads text, and PDFs only with serve -extract pdftotext")
 			return
 		}
-		if text, err = x.Extract(r.Context(), raw); err != nil {
+		if text, _, err = cfg.Extractors.Extract(r.Context(), body.ContentType, raw); err != nil {
 			writeError(w, http.StatusUnprocessableEntity, "the document could not be read: "+err.Error())
 			return
 		}

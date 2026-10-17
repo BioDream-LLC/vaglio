@@ -306,9 +306,21 @@ What a person decides, they decide with everything in front of them, in the righ
   document word for word or it is refused; what passes is nothing until a reviewer confirms it, and a confirmed finding
   is evidence cited to the document and the words. Documents are patient records, so the model must be on this machine
   unless `-document-model-remote` says the provider is covered by a business associate agreement.
-- **PDFs and scans for the document reader** (`serve -extract pdftotext,tesseract`): local programs make the text, which
-  goes through the same quote gate. The case marks such documents, and the reviewer confirms against the original,
-  served as a sandboxed download.
+- **PDFs, scans and faxes for the document reader** (`serve -extract pdftotext,tesseract,model`): each named reader is
+  tried in turn until one finds text, so a PDF that is a scan falls through from pdftotext to tesseract. Tesseract reads
+  each page's picture, which Vaglio takes out of the document itself: TIFF as fax services and scanners write it (CCITT
+  Group 3 and 4, PackBits) and the images inside a PDF (CCITT, JPEG, Flate), decoded in Go (`internal/ccitt`, checked
+  pixel for pixel against libtiff's encodings), so faxes are read that tesseract cannot open. With `model`, nothing need
+  be installed: the document model reads each page's picture (`-extract-model` names a model that reads images), under
+  the same rule as the model itself, that patient records leave this machine only with `-document-model-remote`. Its
+  text is a transcription and is marked so. Whatever made the text, it goes through the same quote gate, the case
+  says which reader made it, and the reviewer confirms against the original, served as a sandboxed download. JBIG2 and
+  JPEG 2000 images, and encrypted PDFs, are not read.
+
+  | To install | Linux (Debian, Ubuntu) | macOS | Windows |
+  |---|---|---|---|
+  | pdftotext | `apt install poppler-utils` | `brew install poppler` | `winget install oschwartz10612.Poppler` or xpdf's tools |
+  | tesseract | `apt install tesseract-ocr` | `brew install tesseract` | the UB Mannheim installer (`winget install UB-Mannheim.TesseractOCR`) |
 
 ### Writing and testing policies
 
@@ -450,12 +462,20 @@ One program on the plan's own servers.
   key; SRFax, polled (it pushes nothing), each fax marked viewed once kept; RingCentral's message store, polled,
   signed in with the JWT grant; and a folder a scanner or fax server writes to, each file moved to `kept/` or to
   `refused/` with the reason. A fax already in the inbox is not kept or recorded twice. Each is written from its
-  service's public documentation and tested against a stand-in built from it, not against the service; eFax
-  Corporate's inbound API is documented to customers only, so it is not here.
+  service's public documentation and tested against a stand-in built from it, not against the service. eFax: its
+  Developer inbound posts (the fax as XML in a form field, answered "Post Successful"), at `/api/feeds/fax/efax`, as
+  eFax's public pages describe them and an open-source client library reproduces them; eFax Corporate's newer Enterprise
+  API is not here. A fax line: a Class 2 or 2.0 fax modem on a serial port (`modem`, Linux and macOS), answered after
+  the rings set; the modem does the fax protocol, Vaglio offers it T.4 pages only, counts each page's lines from its
+  end-of-line codes, finds the modem's bit order, and keeps the fax as a PDF of the pages' images. Tested against a
+  stand-in modem sending pages libtiff encoded, drawn back by Poppler, Class 2 and 2.0, one- and two-dimensional; not
+  with a modem on a phone line.
 
   ```
   {"sinch": {"passwordEnv": "SINCH_HOOK_PASSWORD"},
    "srfax": {"accessId": "12345", "passwordEnv": "SRFAX_PASSWORD", "every": "1m"},
+   "efax": {"user": "vaglio", "passwordEnv": "EFAX_POST_PASSWORD"},
+   "modem": {"device": "/dev/ttyACM0", "class": "2.0", "id": "+1 555 010 0100"},
    "folder": {"dir": "/srv/scans"}}
   ```
 - **Encryption at rest** (`VAGLIO_DATA_KEY`, 32 bytes as base64 or hex, held outside the data directory): every
@@ -469,7 +489,7 @@ One program on the plan's own servers.
 
 ## Status
 
-**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (253 Go test functions, the
+**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (272 Go test functions, the
 console's tests, and every policy checked on every combination of evidence), and the whole path has been run end to end
 through a real Perfuse. The policies in `policies/` are **illustrative only**: not any payer's policy and not clinical
 guidance.
@@ -497,7 +517,9 @@ How the code is laid out:
   by group, with Fisher's exact test.
 - `internal/cases/work.go` and `internal/server/work.go`: the work queue, assignment, physicians, peer-to-peer calls,
   appeals. `internal/eligibility`: the member file. `internal/ncpdp`: NCPDP SCRIPT ePA messages. `internal/feed`: the
-  signed webhook and export. `internal/faxsvc`: fax service connectors and the scan folder. `internal/seal`: encryption
+  signed webhook and export. `internal/faxsvc`: fax service connectors and the scan folder. `internal/faxmodem`: a fax line on a Class 2 or
+  2.0 modem. `internal/ccitt` and `internal/pageimg`: fax images decoded, and page pictures out of TIFF and PDF files.
+  `internal/notice`: letters mailed to members. `internal/fsx`: replacing files the same way on Unix and Windows. `internal/seal`: encryption
   at rest. `cmd/vaglio/standby.go`: the standby.
 - `deploy/demo/`: how the public demonstration at vaglio.perfuse.health:8443 is run.
 - `library/`: drafted policies, their sources and `library.json`; `library/drafts/` keeps the machine's own drafts.
@@ -509,14 +531,13 @@ How the code is laid out:
 Not yet: OpenID Connect
 sign-on is tested against a test provider only, not a real one, and SAML against Entra-shaped responses and one captured
 from Microsoft Entra ID, not yet by a person signing in to a live tenant; Let's Encrypt is tested against Pebble, its test
-authority, not yet against Let's Encrypt itself; reading scanned images needs `tesseract` installed;
-there is no release build yet;
+authority, not yet against Let's Encrypt itself; there is no release build yet;
 advice before submitting is on Perfuse's main branch, not yet in a Perfuse release. The criteria-service
 protocol is Vaglio's own: no licensed criteria vendor is known to speak it yet, so a plan's licence needs a small adapter
 (`examples/criteria-service` is where to start one).
 Automatic approval from documents is tested with a stand-in model only; how often a real model's approvals survive the
-checks is what the sampled checks will show. Faxes arrive through a fax service (its webhook or its API) or a scan folder; there is no fax line or modem
-support.
+checks is what the sampled checks will show. The fax modem has been run against a stand-in only, and reading pages
+with a model against a stand-in model only.
 
 
 ## Try it

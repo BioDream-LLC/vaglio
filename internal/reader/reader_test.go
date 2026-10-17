@@ -1,10 +1,17 @@
 package reader
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -189,4 +196,110 @@ func docWith(id, ct string, raw []byte) map[string]any {
 		"resourceType": "DocumentReference", "id": id, "status": "current", "description": "a scanned note",
 		"content": []any{map[string]any{"attachment": map[string]any{"contentType": ct,
 			"data": base64.StdEncoding.EncodeToString(raw)}}}}}
+}
+
+// A two-page fax as TIFF (Group 4, written here without libtiff: PackBits pages are enough for the page split), read
+// page by page by a stand-in tesseract and by a stand-in model; and readers tried in turn when the first finds nothing.
+func TestPageReaders(t *testing.T) {
+	page := func() []byte {
+		// A tiny uncompressed bilevel TIFF page, 16x16, white.
+		var b bytes.Buffer
+		b.WriteString("II*\x00\x08\x00\x00\x00")
+		tags := [][3]uint32{{256, 4, 16}, {257, 4, 16}, {258, 3, 1}, {259, 3, 1}, {262, 3, 0}, {273, 4, 8 + 2 + 9*12 + 4}, {277, 3, 1}, {278, 4, 16}, {279, 4, 32}}
+		binary.Write(&b, binary.LittleEndian, uint16(len(tags)))
+		for _, tg := range tags {
+			binary.Write(&b, binary.LittleEndian, uint16(tg[0]))
+			binary.Write(&b, binary.LittleEndian, uint16(tg[1]))
+			binary.Write(&b, binary.LittleEndian, uint32(1))
+			binary.Write(&b, binary.LittleEndian, tg[2])
+		}
+		binary.Write(&b, binary.LittleEndian, uint32(0))
+		b.Write(make([]byte, 32))
+		return b.Bytes()
+	}()
+	// Two pages: the second directory is the first's copy, after it.
+	two := append([]byte(nil), page...)
+	second := append([]byte(nil), page[8:]...)
+	off := uint32(len(two))
+	binary.LittleEndian.PutUint32(two[8+2+9*12:], off)                     // the first page's next directory
+	binary.LittleEndian.PutUint32(second[2+5*12+8:], off+uint32(2+9*12+4)) // the second page's strip
+	two = append(two, second...)
+
+	tess := tesseractPages(helper("tesseract", "echo", "{file}"))
+	text, err := tess.ExtractType(context.Background(), "image/tiff", two)
+	if err != nil || strings.Count(text, "eight weeks") != 2 || !strings.Contains(text, "--- page 2 ---") {
+		t.Fatalf("tesseract by pages: %q %v", text, err)
+	}
+
+	var images []string
+	model := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Model    string
+			Messages []struct {
+				Content []struct {
+					Type     string
+					Text     string
+					ImageURL struct{ URL string } `json:"image_url"`
+				}
+			}
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		c := req.Messages[0].Content
+		if r.Header.Get("Authorization") != "Bearer k" || req.Model != "vision-1" || len(c) != 2 || !strings.Contains(c[0].Text, "Transcribe") {
+			w.WriteHeader(400)
+			return
+		}
+		images = append(images, c[1].ImageURL.URL[:22])
+		fmt.Fprintf(w, `{"choices":[{"message":{"content":"Page %d: no saddle anaesthesia."}}]}`, len(images))
+	}))
+	defer model.Close()
+	v := Vision(model.URL, "k", "vision-1")
+	text, err = v.ExtractType(context.Background(), "image/tiff", two)
+	if err != nil || !strings.Contains(text, "Page 2: no saddle") || len(images) != 2 || images[0] != "data:image/png;base64," {
+		t.Fatalf("model by pages: %q %v %v", text, err, images)
+	}
+
+	broken := helper("pdftotext", "fail")
+	broken.Types = []string{"image/tiff"}
+	text, by, err := Extractors{broken, v}.Extract(context.Background(), "image/tiff", two)
+	if err != nil || by != "model:vision-1" || text == "" {
+		t.Errorf("in turn: %q %s %v", text, by, err)
+	}
+}
+
+// The real thing, where the programs are installed (CI installs them on Linux): a typed note drawn by Poppler, made a
+// Group 4 fax by libtiff, and read back by tesseract page by page.
+func TestTesseractReadsAFax(t *testing.T) {
+	var paths []string
+	for _, p := range []string{"tesseract", "pdftoppm", "ppm2tiff", "tiffcp"} {
+		path, err := exec.LookPath(p)
+		if err != nil {
+			t.Skipf("%s is not installed", p)
+		}
+		paths = append(paths, path)
+	}
+	dir := t.TempDir()
+	content := "BT /F1 28 Tf 72 640 Td (She completed eight weeks of physical therapy.) Tj ET"
+	pdf := fmt.Sprintf("%%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n"+
+		"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj\n"+
+		"4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n5 0 obj << /Length %d >> stream\n%s\nendstream endobj\n"+
+		"trailer << /Root 1 0 R >>\n%%%%EOF\n", len(content), content)
+	os.WriteFile(filepath.Join(dir, "note.pdf"), []byte(pdf), 0o600)
+	run := func(args ...string) {
+		if b, err := exec.Command(args[0], args[1:]...).CombinedOutput(); err != nil {
+			t.Fatalf("%v: %v %s", args, err, b)
+		}
+	}
+	run(paths[1], "-mono", "-r", "200", "-singlefile", filepath.Join(dir, "note.pdf"), filepath.Join(dir, "note"))
+	run(paths[2], filepath.Join(dir, "note.pbm"), filepath.Join(dir, "note.tif"))
+	run(paths[3], "-c", "g4", filepath.Join(dir, "note.tif"), filepath.Join(dir, "fax.tif"))
+	fax, _ := os.ReadFile(filepath.Join(dir, "fax.tif"))
+	x, err := Lookup("tesseract")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := x.ExtractType(context.Background(), "image/tiff", fax)
+	if err != nil || !strings.Contains(strings.Join(strings.Fields(text), " "), "eight weeks of physical therapy") {
+		t.Fatalf("%q %v", text, err)
+	}
 }

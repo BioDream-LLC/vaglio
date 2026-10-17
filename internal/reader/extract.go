@@ -9,8 +9,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
+
+	"github.com/biodream-llc/vaglio/internal/pageimg"
 )
 
 // Extractor turns a document that is not text - a PDF, a scanned image - into text, by a program on this machine:
@@ -28,6 +31,9 @@ type Extractor struct {
 	Args    []string // its arguments: {file} is the document, written to a private temporary file; without it, stdin
 	Types   []string // the content types it reads: application/pdf, image/png ...
 	Timeout time.Duration
+	// Run, when set, reads the document in Go instead of running Path: tesseract over each page's picture
+	// (internal/pageimg), or a model that reads images.
+	Run func(ctx context.Context, contentType string, raw []byte) (string, error)
 }
 
 // Extractors are the programs a server has, tried in order for a document's content type.
@@ -35,6 +41,27 @@ type Extractors []Extractor
 
 // MaxInput bounds a document handed to an extractor.
 const MaxInput = 20 << 20
+
+// Extract makes text of a document with the first extractor for its type that finds any, trying the next when one
+// fails or finds none (pdftotext then tesseract, for a PDF that is a scan), and says which made it.
+func (xs Extractors) Extract(ctx context.Context, contentType string, raw []byte) (text, by string, err error) {
+	var errs []string
+	for i := range xs {
+		x := &xs[i]
+		if !slices.Contains(x.Types, contentType) {
+			continue
+		}
+		t, err := x.ExtractType(ctx, contentType, raw)
+		if err == nil {
+			return t, x.Name, nil
+		}
+		errs = append(errs, err.Error())
+	}
+	if len(errs) == 0 {
+		return "", "", fmt.Errorf("%s is not text this server can read", contentType)
+	}
+	return "", "", errors.New(strings.Join(errs, "; "))
+}
 
 // For is the extractor for a content type, if any.
 func (xs Extractors) For(contentType string) *Extractor {
@@ -48,17 +75,42 @@ func (xs Extractors) For(contentType string) *Extractor {
 	return nil
 }
 
-// Extract runs the extractor over a document.
+// Extract runs the extractor over a document of its first type.
 func (x *Extractor) Extract(ctx context.Context, raw []byte) (string, error) {
+	ct := ""
+	if len(x.Types) > 0 {
+		ct = x.Types[0]
+	}
+	return x.ExtractType(ctx, ct, raw)
+}
+
+// ExtractType runs the extractor over a document of the given type.
+func (x *Extractor) ExtractType(ctx context.Context, contentType string, raw []byte) (string, error) {
 	if len(raw) > MaxInput {
 		return "", fmt.Errorf("the document is over %d MB", MaxInput>>20)
 	}
 	t := x.Timeout
 	if t <= 0 {
 		t = 60 * time.Second
+		if x.Run != nil {
+			t = 10 * time.Minute // page by page, a model or OCR over a long fax
+		}
 	}
 	ctx, cancel := context.WithTimeout(ctx, t)
 	defer cancel()
+	if x.Run != nil {
+		text, err := x.Run(ctx, contentType, raw)
+		if err != nil {
+			if ctx.Err() != nil {
+				return "", fmt.Errorf("%s took longer than %s", x.Name, t)
+			}
+			return "", fmt.Errorf("%s: %w", x.Name, err)
+		}
+		if text = strings.TrimSpace(text); text == "" {
+			return "", errors.New(x.Name + " found no text in it")
+		}
+		return text, nil
+	}
 	args := append([]string(nil), x.Args...)
 	file := false
 	for i, a := range args {
@@ -141,9 +193,11 @@ func (l *limited) Write(p []byte) (int, error) {
 // stdout.
 var Known = map[string]Extractor{
 	"pdftotext": {Name: "pdftotext", Args: []string{"-layout", "-enc", "UTF-8", "{file}", "-"}, Types: []string{"application/pdf"}},
-	"tesseract": {Name: "tesseract", Args: []string{"{file}", "stdout", "-l", "eng"},
-		Types: []string{"image/png", "image/jpeg", "image/tiff", "image/gif", "image/bmp"}},
+	"tesseract": {Name: "tesseract", Args: []string{"{file}", "stdout", "-l", "eng"}, Types: pictureTypes},
 }
+
+// pictureTypes are what a picture reader reads: images, and PDFs that are scans (their page images).
+var pictureTypes = []string{"image/png", "image/jpeg", "image/tiff", "image/gif", "application/pdf"}
 
 // Lookup resolves a known extractor's program on this machine.
 func Lookup(name string) (Extractor, error) {
@@ -156,5 +210,43 @@ func Lookup(name string) (Extractor, error) {
 		return Extractor{}, fmt.Errorf("%s is not installed here: %w", name, err)
 	}
 	x.Path = p
+	if name == "tesseract" {
+		x = tesseractPages(x)
+	}
 	return x, nil
+}
+
+// tesseractPages has tesseract read a document page by page: each page's picture (internal/pageimg), so it reads
+// TIFF and PDF faxes in the codings fax services use, which it cannot open itself.
+func tesseractPages(x Extractor) Extractor {
+	prog := x
+	x.Run = func(ctx context.Context, ct string, raw []byte) (string, error) {
+		pages, err := pageimg.Pages(ct, raw)
+		if err != nil {
+			return "", err
+		}
+		var out []string
+		for i, p := range pages {
+			t, err := prog.ExtractType(ctx, p.ContentType, p.Data)
+			if err != nil {
+				out = append(out, fmt.Sprintf("[page %d: %v]", i+1, err))
+				continue
+			}
+			out = append(out, t)
+		}
+		return joinPages(out), nil
+	}
+	return x
+}
+
+// joinPages puts pages' text together, each after a page mark when there are several.
+func joinPages(pages []string) string {
+	if len(pages) == 1 {
+		return pages[0]
+	}
+	var b strings.Builder
+	for i, t := range pages {
+		fmt.Fprintf(&b, "--- page %d ---\n%s\n", i+1, t)
+	}
+	return b.String()
 }

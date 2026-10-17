@@ -95,12 +95,12 @@ func DocumentsWith(ctx context.Context, req *pas.Request, xs Extractors, run boo
 			}
 			d := Document{Reference: ref, What: what, ContentType: ct, ExtractedBy: x.Name, Raw: raw}
 			if run {
-				extracted, err := x.Extract(ctx, raw)
+				extracted, by, err := xs.Extract(ctx, ct, raw)
 				if err != nil {
 					skipped = append(skipped, fmt.Sprintf("%s: %s", ref, err))
 					return
 				}
-				d.Text = extracted
+				d.Text, d.ExtractedBy = extracted, by
 			}
 			if len(d.Text) > MaxText {
 				d.Text, d.Truncated = d.Text[:MaxText], true
