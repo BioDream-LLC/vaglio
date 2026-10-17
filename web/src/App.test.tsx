@@ -110,6 +110,17 @@ describe('App', () => {
     expect(screen.queryByText('Audit log')).toBeNull() // not an admin
   })
 
+  it('lists the letters mailed to the member, and the one that could not be', async () => {
+    window.location.hash = '#/case/c1'
+    respond({ '/api/me': { user: 'v', role: 'viewer' }, '/api/cases/c1': { ...pendedCase, notices: [
+      { time: '2026-10-02T10:00:00Z', event: 'extended', for: 4, service: 'lob', id: 'ltr_1', lang: 'es' },
+      { time: '2026-10-03T10:00:00Z', event: 'denied', for: 9, service: 'lob', error: 'not mailed: the Patient has no current address' }] } })
+    renderApp()
+    expect(await screen.findByRole('heading', { name: 'Letters mailed to the member' })).toBeTruthy()
+    expect(screen.getByText(/the extension, by lob \(in Spanish\)/)).toBeTruthy()
+    expect(screen.getByText(/Not mailed, the denial: the Patient has no current address/)).toBeTruthy()
+  })
+
   it('does not offer a viewer the review form', async () => {
     window.location.hash = '#/case/c1'
     respond({ '/api/me': { user: 'v', role: 'viewer' }, '/api/cases/c1': pendedCase })

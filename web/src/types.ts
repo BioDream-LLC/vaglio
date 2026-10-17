@@ -329,6 +329,7 @@ export interface CaseDetail {
   escalated?: { by: string; time: string; note: string }
   peerToPeer?: PeerToPeer[]
   extension?: Extension
+  notices?: Notice[]
   due: string
   maxExtensionDays: number
   readings?: Reading[]
@@ -667,6 +668,18 @@ export interface DecisionMap {
 }
 
 /** A decision's letter, in plain words, as sections of text. */
+/** A letter mailed to the member about a case, or why it was not. */
+export interface Notice {
+  time: string
+  event: 'denied' | 'approved' | 'extended' | 'appeal'
+  for: number
+  service: string
+  id?: string
+  lang?: string
+  error?: string
+  receipt?: string
+}
+
 export interface Letter {
   lang: 'en' | 'es'
   title: string

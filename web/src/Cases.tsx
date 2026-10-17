@@ -405,6 +405,7 @@ function CaseBody({ c, me }: { c: CaseDetail; me: Me }) {
       <DecisionTabs c={c} />
       <LetterView id={c.id} />
       <CaseReceipts c={c} />
+      <Notices c={c} />
       <History c={c} />
     </>
   )
@@ -859,6 +860,41 @@ const actionText: Record<string, string> = {
   'case.reviewed': 'Reviewed',
   'case.superseded': 'Superseded',
   'case.delivered': 'Delivery attempt',
+  'case.noticed': 'Letter to the member',
+}
+
+const noticeEvent: Record<string, string> = {
+  denied: 'the denial',
+  approved: 'the approval',
+  extended: 'the extension',
+  appeal: "the appeal's outcome",
+}
+
+/** The letters mailed to the member, and the ones that could not be. */
+function Notices({ c }: { c: CaseDetail }) {
+  if (!c.notices?.length) return null
+  return (
+    <>
+      <h3>Letters mailed to the member</h3>
+      <ul className="history">
+        {c.notices.map((n) => (
+          <li key={n.for}>
+            <span className="meta">{when(n.time)}</span>{' '}
+            {n.error ? (
+              <span className="text-bad">
+                Not mailed, {noticeEvent[n.event] ?? n.event}: {n.error.replace(/^not mailed: /, '')}
+              </span>
+            ) : (
+              <span>
+                <span className="text-ok">Mailed</span>, {noticeEvent[n.event] ?? n.event}, by {n.service}
+                {n.lang === 'es' ? ' (in Spanish)' : ''} <span className="meta">{n.id}</span>
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </>
+  )
 }
 
 function History({ c }: { c: CaseDetail }) {

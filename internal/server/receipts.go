@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/biodream-llc/vaglio/internal/audit"
+	"github.com/biodream-llc/vaglio/internal/cases"
 	"github.com/biodream-llc/vaglio/internal/receipt"
 )
 
@@ -23,6 +24,14 @@ type Receipt struct {
 }
 
 // receiptsFor lists the receipts of a case's decisions, oldest first.
+// ReceiptOf is the receipt of the decision that stands on a case, "" when it has none: what a mailed letter carries.
+func ReceiptOf(cs *cases.Store, id string) string {
+	if rs := receiptsFor(cs.History(id)); len(rs) > 0 {
+		return rs[len(rs)-1].Receipt
+	}
+	return ""
+}
+
 func receiptsFor(history []audit.Record) []Receipt {
 	out := []Receipt{}
 	for _, r := range history {

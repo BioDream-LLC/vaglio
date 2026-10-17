@@ -37,6 +37,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/intake"
 	"github.com/biodream-llc/vaglio/internal/letter"
+	"github.com/biodream-llc/vaglio/internal/notice"
 	"github.com/biodream-llc/vaglio/internal/outside"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/reader"
@@ -113,6 +114,8 @@ type Config struct {
 	Letters *letter.Plan
 	// Webhook, when set, pushes every record about a case to the plan's systems; GET /api/export/status shows it.
 	Webhook *feed.Webhook
+	// Notices mails the member their letters (serve -notices); nil mails nothing.
+	Notices *notice.Mailer
 	// FaxHooks are fax services' own webhooks (sinch, documo), at POST /api/feeds/fax/{service}; each checks its own
 	// credentials.
 	FaxHooks map[string]http.Handler

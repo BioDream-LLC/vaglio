@@ -268,6 +268,20 @@ type Case struct {
 	Escalated   *Escalation    `json:"escalated,omitempty"`
 	PeerToPeer  []PeerToPeer   `json:"peerToPeer,omitempty"`
 	AppealTaken *AppealRequest `json:"appealTaken,omitempty"`
+	// Notices are the letters mailed to the member about this case (internal/notice), and the ones that could not be.
+	Notices []Notice `json:"notices,omitempty"`
+}
+
+// Notice is one letter to the member: sent, or why not.
+type Notice struct {
+	Time    string `json:"time"`
+	Event   string `json:"event"`             // denied, approved, extended, appeal
+	For     int64  `json:"for"`               // the audit record it is the notice of
+	Service string `json:"service"`           // folder, lob
+	ID      string `json:"id,omitempty"`      // the service's id for the mail piece, or the file written
+	Lang    string `json:"lang,omitempty"`    // the letter's language
+	Error   string `json:"error,omitempty"`   // why it was not sent
+	Receipt string `json:"receipt,omitempty"` // the receipt the letter carries
 }
 
 // Audit actions this package writes and replays.
@@ -283,6 +297,7 @@ const (
 	ActReceived   = "case.received"
 	ActExtended   = "case.extended"
 	ActQA         = "case.qa"
+	ActNoticed    = "case.noticed"
 )
 
 // ErrAlreadyRecorded is an appeal delivered again by its feed: nothing is recorded, and nothing is wrong.
@@ -424,6 +439,17 @@ func (s *Store) apply(r audit.Record) error {
 			return err
 		}
 		c.Updated = r.Time
+	case ActNoticed:
+		c, ok := s.cases[r.Case]
+		if !ok {
+			return fmt.Errorf("notice of unknown case %s", r.Case)
+		}
+		var n Notice
+		if err := json.Unmarshal(r.Data, &n); err != nil {
+			return err
+		}
+		n.Time = r.Time
+		c.Notices = append(c.Notices, n)
 	case ActDelivered:
 		c, ok := s.cases[r.Case]
 		if !ok {
@@ -813,6 +839,17 @@ func (s *Store) Delivered(id string, err error, final bool) error {
 	defer s.mu.Unlock()
 	_, werr := s.write("system", ActDelivered, id, d)
 	return werr
+}
+
+// Noticed records a letter mailed to the member, or why it could not be.
+func (s *Store) Noticed(id string, n Notice) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.cases[id]; !ok {
+		return fmt.Errorf("no case %s", id)
+	}
+	_, err := s.write("notices", ActNoticed, id, n)
+	return err
 }
 
 // Viewed records that a user read a case: a case holds patient data, and reading it is audited as changing it is.

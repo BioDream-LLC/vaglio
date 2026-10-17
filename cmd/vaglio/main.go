@@ -260,6 +260,8 @@ func serve(args []string) error {
 		"(webhooks), srfax, ringcentral (polled), folder (a scan folder)")
 	replicaTokenEnv := fs.String("replica-token-env", "", "name of an environment variable holding the token a standby "+
 		"copies this server's data with (vaglio standby)")
+	notices := fs.String("notices", "", "the plan's notices file (JSON): mail the member their letter of a denial, an approval, an "+
+		"extension or an appeal's outcome, as PDFs into a folder for a mail house or through Lob")
 	webhook := fs.String("webhook", "", "push every record about a case, as signed JSON events, to this https URL")
 	webhookSecretEnv := fs.String("webhook-secret-env", "", "name of an environment variable holding the webhook's signing secret (16+ bytes)")
 	letters := fs.String("letters", "", "the plan's letter settings (JSON): its own appeal deadline as a date, appeals address, fax, "+
@@ -280,7 +282,7 @@ func serve(args []string) error {
 	if *plansFile != "" {
 		for _, f := range []string{"policies", "hostname", "token-env", "pas-url", "pas-token-env", "pas-ca", "pas-api-url",
 			"goldcard", "fax-token-env", "appeals-token-env", "demo-account", "oidc-issuer", "oidc-client-id", "oidc-client-secret-env", "oidc-redirect-url", "oidc-group", "oidc-groups-claim", "oidc-label", "saml-metadata", "saml-entity-id", "saml-acs-url", "saml-name-attribute", "saml-group", "saml-groups-attribute", "saml-label", "criteria", "criteria-token-env",
-			"network", "npi-registry", "members", "letters", "webhook", "webhook-secret-env", "fax-connectors", "replica-token-env"} {
+			"network", "npi-registry", "members", "letters", "notices", "webhook", "webhook-secret-env", "fax-connectors", "replica-token-env"} {
 			if set[f] {
 				return fmt.Errorf("-%s is set per plan in the -plans file (the demonstration is for one plan only)", f)
 			}
@@ -319,7 +321,7 @@ func serve(args []string) error {
 		plans = []planSpec{{Hostname: strings.ToLower(*hostname), Policies: *dir, Data: *data, TokenEnv: *tokenEnv,
 			PASURL: *pasURL, PASAPI: *pasAPI, PASTokenEnv: *pasTokenEnv, PASCA: *pasCA, GoldCard: *goldCardFile,
 			FaxTokenEnv: *faxTokenEnv, AppealsTokenEnv: *appealsTokenEnv, Criteria: crit, Network: *network, Members: *members, Letters: *letters,
-			Webhook: *webhook, WebhookSecretEnv: *webhookSecretEnv, FaxConnectors: *faxConnectorsFile,
+			Webhook: *webhook, Notices: *notices, WebhookSecretEnv: *webhookSecretEnv, FaxConnectors: *faxConnectorsFile,
 			ReplicaTokenEnv: *replicaTokenEnv,
 			NPIRegistry:     *npiRegistry}}
 		if *oidcIssuer != "" {

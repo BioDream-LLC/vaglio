@@ -1,0 +1,12 @@
+{
+  "events": ["denied", "approved", "extended", "appeal"],
+  "service": "folder",
+  "folder": "/var/lib/vaglio/mail-out",
+  "from": {
+    "name": "Example Health Plan",
+    "lines": ["Utilization Management", "PO Box 1000"],
+    "city": "Springfield",
+    "state": "IL",
+    "zip": "62701"
+  }
+}

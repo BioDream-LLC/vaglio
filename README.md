@@ -236,6 +236,15 @@ The proof, written for whoever needs it: the provider, the patient, a regulator.
   portal, a fast appeal's hours, member services and its receipt page; after an upheld appeal, the plan's own words on
   independent review or a fair hearing. Vaglio knows no deadline itself: without the settings the paragraph stays
   generic. An extension says how many more days and why.
+- **Letters mailed to the member** (`serve -notices FILE`, or `notices` per plan; see `examples/notices.json`): the
+  letter of a denial, a person's approval (or every approval), an extension or an appeal's outcome, in the member's own
+  language when the request says it is Spanish, laid out as a PDF (US Letter, standard fonts, nothing embedded) and
+  either written into a folder for a mail house, with the address placed for a #10 double-window envelope and a
+  `manifest.csv`, or sent through Lob's Print & Mail API. The address is the request's Patient's current US postal
+  address; a request without one is recorded on the case as not mailed, with why. Each letter is recorded on the case,
+  with the service's id, and is mailed once: the case remembers which records it has answered, and Lob is given an
+  idempotency key from the record's hash. Lob is tested against a stand-in built from Lob's own OpenAPI description,
+  not against Lob itself.
 - **What if** (every case, in the console): flip any piece of evidence between present, absent and not addressed, and
   the decision and its proof redraw at once, with what changed lit up in the proof. Nothing is recorded; the case keeps
   its decision.
@@ -497,7 +506,7 @@ How the code is laid out:
 - `testdata/pas/`: synthetic PAS requests, run through a real Perfuse during development and pinned by a test.
   `testdata/drafts/`: a policy the drafting loop produced from `testdata/documents/`, pinned the same way.
 
-Not yet: notices to the enrollee are the plan's (Vaglio records an extension's reason; it does not mail it); OpenID Connect
+Not yet: OpenID Connect
 sign-on is tested against a test provider only, not a real one, and SAML against Entra-shaped responses and one captured
 from Microsoft Entra ID, not yet by a person signing in to a live tenant; Let's Encrypt is tested against Pebble, its test
 authority, not yet against Let's Encrypt itself; reading scanned images needs `tesseract` installed;

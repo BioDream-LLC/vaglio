@@ -26,6 +26,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/goldcard"
 	"github.com/biodream-llc/vaglio/internal/intake"
 	"github.com/biodream-llc/vaglio/internal/letter"
+	"github.com/biodream-llc/vaglio/internal/notice"
 	"github.com/biodream-llc/vaglio/internal/oidc"
 	"github.com/biodream-llc/vaglio/internal/outside"
 	"github.com/biodream-llc/vaglio/internal/policy"
@@ -63,7 +64,9 @@ type planSpec struct {
 	// ReplicaTokenEnv names the token a standby copies this plan's data with (vaglio standby).
 	ReplicaTokenEnv string `json:"replicaTokenEnv,omitempty"`
 	// Webhook is where every record about a case is pushed, signed with the secret in WebhookSecretEnv.
-	Webhook          string `json:"webhook,omitempty"`
+	Webhook string `json:"webhook,omitempty"`
+	// Notices is the plan's notices file (JSON): which letters are mailed to the member, and how.
+	Notices          string `json:"notices,omitempty"`
 	WebhookSecretEnv string `json:"webhookSecretEnv,omitempty"`
 	// ClinicianDenials: only clinicians deny this plan's requests (serve -clinician-denials turns it on for every plan).
 	ClinicianDenials bool `json:"clinicianDenials,omitempty"`
@@ -484,6 +487,20 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 			return fail(fmt.Errorf("webhook: %w", err))
 		}
 		cfg.Webhook = hook
+	}
+	if sp.Notices != "" {
+		nc, sender, err := notice.LoadConfig(sp.Notices, secretFrom)
+		if err != nil {
+			return fail(fmt.Errorf("-notices: %w", err))
+		}
+		store := st.cases
+		m := &notice.Mailer{Log: st.log, Cases: store, Plan: letters, Sender: sender, From: nc.From, Events: nc.Events,
+			Cursor: filepath.Join(sp.Data, "notices.cursor"), Receipt: func(id string) string { return server.ReceiptOf(store, id) }}
+		if err := m.Start(ctx); err != nil {
+			return fail(fmt.Errorf("-notices: %w", err))
+		}
+		cfg.Notices = m
+		log.Printf("notices to members of %s: %v, by %s", sp.Hostname, nc.Events, sender.Name())
 	}
 	if sh.demo != "" {
 		name, pw, ok := strings.Cut(sh.demo, ":")
