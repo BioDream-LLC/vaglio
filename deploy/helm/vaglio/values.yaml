@@ -1,0 +1,26 @@
+# One replica only: Vaglio writes one tamper-evident audit log, and one process holds it. For a standby, run
+# `vaglio standby` elsewhere (README, "Operating it").
+image:
+  repository: ghcr.io/biodream-llc/vaglio
+  tag: ""            # the chart's appVersion when empty
+  pullPolicy: IfNotPresent
+# The name browsers and the PAS server reach Vaglio by (required off loopback).
+hostname: vaglio.example.org
+# Extra serve flags, one per item: ["-clinician-denials", "-token-env", "VAGLIO_TOKEN"].
+args: []
+# Environment for the flags that name variables (-token-env, -appeals-token-env ...), from existing Secrets:
+#   - name: VAGLIO_TOKEN
+#     valueFrom: {secretKeyRef: {name: vaglio, key: token}}
+env: []
+# The plan's policies: the name of a ConfigMap holding the .vaglio files, mounted read-only at /policies. Empty: the
+# built-in library only.
+policiesConfigMap: ""
+storage:
+  size: 10Gi
+  storageClassName: ""
+service:
+  type: ClusterIP
+  port: 8740
+resources:
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {memory: 1Gi}

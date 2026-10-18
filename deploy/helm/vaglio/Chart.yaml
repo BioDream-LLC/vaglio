@@ -1,0 +1,6 @@
+apiVersion: v2
+name: vaglio
+description: Vaglio, prior authorization decisions with a proof for each (source-available, PolyForm Shield 1.0.0)
+type: application
+version: 0.1.0
+appVersion: "v0.1.0"

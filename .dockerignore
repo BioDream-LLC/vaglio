@@ -1,0 +1,6 @@
+.git
+web/node_modules
+bin
+dist
+data
+conformance/inferno/.work
