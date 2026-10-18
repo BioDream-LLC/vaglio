@@ -36,6 +36,7 @@ var (
 	bundle  = flag.String("request", "testdata/pas/approve.json", "the PAS request sent, again and again")
 	clients = flag.Int("clients", 8, "requests in flight at once")
 	before  = flag.Int("before", 300, "decisions answered before the kill")
+	steady  = flag.Duration("steady", 5*time.Second, "for the standby: how long the load runs before the kill")
 )
 
 func main() {
@@ -165,7 +166,7 @@ func verify(data string) string {
 	return "verifies"
 }
 
-func killUnderLoad(s *server, raw []byte) (answered []string, killedAt time.Time) {
+func killUnderLoad(s *server, raw []byte, after time.Duration) (answered []string, killedAt time.Time) {
 	var stop atomic.Bool
 	var n atomic.Int64
 	done := make(chan []string)
@@ -173,6 +174,7 @@ func killUnderLoad(s *server, raw []byte) (answered []string, killedAt time.Time
 	for n.Load() < int64(*before) {
 		time.Sleep(time.Millisecond)
 	}
+	time.Sleep(after)
 	s.cmd.Process.Kill() // SIGKILL: no shutdown, no flush
 	killedAt = time.Now()
 	s.cmd.Wait()
@@ -184,7 +186,7 @@ func crash(root string, raw []byte) {
 	data := filepath.Join(root, "crash", "data")
 	s := start(data, "127.0.0.1:18791")
 	s.ready(30 * time.Second)
-	answered, _ := killUnderLoad(s, raw)
+	answered, _ := killUnderLoad(s, raw, 0)
 	t0 := time.Now()
 	s2 := start(data, "127.0.0.1:18791")
 	s2.cli = s.cli
@@ -225,7 +227,7 @@ func standby(root string, raw []byte) {
 	if err := sb.Start(); err != nil {
 		log.Fatal(err)
 	}
-	answered, killedAt := killUnderLoad(p, raw)
+	answered, killedAt := killUnderLoad(p, raw, *steady)
 	time.Sleep(time.Second) // the standby's last poll fails: the primary is gone
 	sb.Process.Signal(os.Interrupt)
 	sb.Wait()
@@ -240,9 +242,9 @@ func standby(root string, raw []byte) {
 	n.ready(30 * time.Second)
 	first := n.decide(raw, "after-failover")
 	rto := time.Since(killedAt)
-	fmt.Printf("2. Primary killed under load, a server started on the standby's data (polling every 200 ms)\n")
+	fmt.Printf("2. Primary killed after %v of steady load, a server started on the standby's data (polling every 200 ms)\n", *steady)
 	fmt.Printf("   decisions the primary answered       %d\n", len(answered))
-	fmt.Printf("   of them the standby did not have     %d (recovery point: the last poll's worth)\n", lost)
+	fmt.Printf("   of them the standby did not have     %d (recovery point: the standby is asynchronous)\n", lost)
 	fmt.Printf("   standby's log hash chain             %s\n", verify(sdata))
 	fmt.Printf("   kill to first decision answered      %v (recovery time; includes the 1 s wait and stopping the standby)  [%v]\n",
 		rto.Round(time.Millisecond), first != "")

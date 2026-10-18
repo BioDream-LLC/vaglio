@@ -66,10 +66,14 @@ func standbyCmd(args []string) error {
 		case got > 0:
 			log.Printf("standby: copied %d records, %d behind", got, behind)
 		}
+		wait := *every
+		if err == nil && behind > 0 {
+			wait = 0 // behind: the next page at once
+		}
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-time.After(*every):
+		case <-time.After(wait):
 		}
 	}
 }
@@ -144,23 +148,28 @@ func (s *standby) Once(ctx context.Context) (int, int, error) {
 	fmt.Sscan(resp.Header.Get("Vaglio-Head-Seq"), &head)
 	sc := bufio.NewScanner(resp.Body)
 	sc.Buffer(make([]byte, 64<<10), 8<<20)
-	copied := 0
+	// A page of records: their request Bundles first (a record never arrives before what it names), then the records,
+	// checked and written together with one sync.
+	var page []audit.Record
 	for sc.Scan() {
 		var rec audit.Record
 		if err := json.Unmarshal(sc.Bytes(), &rec); err != nil {
-			return copied, head - n - copied, fmt.Errorf("an unreadable record: %w", err)
+			return 0, head - n, fmt.Errorf("an unreadable record: %w", err)
 		}
 		for _, b := range bundlesOf(rec) {
 			if err := s.copyBundle(ctx, b); err != nil {
-				return copied, head - n - copied, err
+				return 0, head - n, err
 			}
 		}
-		if err := s.log.Copy(rec); err != nil {
-			return copied, head - n - copied, fmt.Errorf("record %d: %w (the primary's log and this copy disagree: stop and look)", rec.Seq, err)
-		}
-		copied++
+		page = append(page, rec)
 	}
-	return copied, max(0, head-n-copied), sc.Err()
+	if err := sc.Err(); err != nil {
+		return 0, head - n, err
+	}
+	if err := s.log.CopyAll(page); err != nil {
+		return 0, head - n, fmt.Errorf("%w (the primary's log and this copy disagree: stop and look)", err)
+	}
+	return len(page), max(0, head-n-len(page)), nil
 }
 
 func (s *standby) copyBundle(ctx context.Context, name string) error {

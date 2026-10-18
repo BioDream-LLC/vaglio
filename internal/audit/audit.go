@@ -327,7 +327,15 @@ func (l *Log) put(rec Record) (int64, error) {
 
 // Copy appends a record made by another log - a standby's copy of its primary's - keeping its number, time and hash:
 // it must be the next record of this log's chain, and its hash must be its own.
-func (l *Log) Copy(rec Record) error {
+func (l *Log) Copy(rec Record) error { return l.CopyAll([]Record{rec}) }
+
+// CopyAll appends records copied from another log, in order, each checked to follow the one before it and to be
+// unaltered, and syncs once for all of them: a standby catching up writes a page of records with one sync, not one each.
+// Nothing is written unless every record checks.
+func (l *Log) CopyAll(recs []Record) error {
+	if len(recs) == 0 {
+		return nil
+	}
 	end, err := func() (int64, error) {
 		l.mu.Lock()
 		defer l.mu.Unlock()
@@ -342,18 +350,30 @@ func (l *Log) Copy(rec Record) error {
 		if n := len(l.records); n > 0 {
 			prev = l.records[n-1].Hash
 		}
-		want, err := rec.hash()
-		switch {
-		case err != nil:
-			return 0, err
-		case rec.Seq != int64(len(l.records))+1:
-			return 0, fmt.Errorf("%w: record %d arrived after record %d", ErrBroken, rec.Seq, len(l.records))
-		case rec.Prev != prev:
-			return 0, fmt.Errorf("%w: record %d does not follow this log's last record", ErrBroken, rec.Seq)
-		case rec.Hash != want:
-			return 0, fmt.Errorf("%w: record %d has been altered", ErrBroken, rec.Seq)
+		next := int64(len(l.records)) + 1
+		for _, rec := range recs {
+			want, err := rec.hash()
+			switch {
+			case err != nil:
+				return 0, err
+			case rec.Seq != next:
+				return 0, fmt.Errorf("%w: record %d arrived after record %d", ErrBroken, rec.Seq, next-1)
+			case rec.Prev != prev:
+				return 0, fmt.Errorf("%w: record %d does not follow this log's last record", ErrBroken, rec.Seq)
+			case rec.Hash != want:
+				return 0, fmt.Errorf("%w: record %d has been altered", ErrBroken, rec.Seq)
+			}
+			prev, next = rec.Hash, next+1
 		}
-		return l.put(rec)
+		var end int64
+		for _, rec := range recs {
+			e, err := l.put(rec)
+			if err != nil {
+				return 0, err
+			}
+			end = e
+		}
+		return end, nil
 	}()
 	if err != nil {
 		return err
