@@ -1,0 +1,104 @@
+name: Security
+
+# Checks anyone can read the results of: known vulnerabilities in Vaglio's code and what it depends on (govulncheck),
+# static analysis (CodeQL), the parsers of outside input fuzzed, and the OpenSSF Scorecard of the repository itself.
+# Actions are pinned by commit.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '17 5 * * 1' # weekly: a vulnerability published after the last push is still found
+
+permissions:
+  contents: read
+
+jobs:
+  govulncheck:
+    name: Known vulnerabilities (govulncheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      - name: The console's dependencies
+        working-directory: web
+        run: npm ci && npm audit --omit=dev --audit-level=high
+
+  codeql:
+    name: Static analysis (CodeQL)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [go, javascript-typescript]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: matrix.language == 'go'
+        with:
+          go-version-file: go.mod
+      - uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+      - uses: github/codeql-action/autobuild@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+      - uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+
+  fuzz:
+    name: Fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - policy FuzzParse
+          - evidence FuzzRequest
+          - ncpdp FuzzReadMessage
+          - saml FuzzEntraResponse
+          - ccitt FuzzDecode
+          - pageimg FuzzPages
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Fuzz for two minutes (ten on the weekly run)
+        shell: bash
+        run: |
+          set -- ${{ matrix.target }}
+          time=2m; [ "${{ github.event_name }}" = schedule ] && time=10m
+          go test -run '^$' -fuzz "^$2\$" -fuzztime "$time" "./internal/$1"
+      - name: Keep what failed
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-failure
+          path: internal/**/testdata/fuzz/
+
+  scorecard:
+    name: OpenSSF Scorecard
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
+        with:
+          results_file: scorecard.sarif
+          results_format: sarif
+          publish_results: true
+      - uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          sarif_file: scorecard.sarif

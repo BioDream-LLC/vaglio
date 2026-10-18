@@ -1,0 +1,64 @@
+name: Release
+
+# On a version tag: build the archives twice on different runners and refuse to publish unless the bytes match
+# (reproducible builds), make CycloneDX SBOMs of the Go module and the console, attest build provenance and the SBOMs
+# through GitHub (Sigstore-signed, checkable with `gh attestation verify`), and publish a draft release.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.run }})
+    strategy:
+      matrix:
+        run: [first, second]
+    runs-on: ${{ matrix.run == 'first' && 'ubuntu-latest' || 'ubuntu-24.04-arm' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: sh deploy/release.sh "${{ github.ref_name }}" dist
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-${{ matrix.run }}
+          path: dist/
+
+  publish:
+    name: Compare, attest and publish
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: built
+      - name: The two builds are the same bytes
+        run: diff built/dist-first/SHA256SUMS built/dist-second/SHA256SUMS && cp -R built/dist-first dist
+      - name: SBOMs (CycloneDX)
+        run: |
+          go run github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0 app -json -licenses -main cmd/vaglio -output dist/vaglio.cdx.json
+          cd web && npm ci && npx --yes @cyclonedx/cyclonedx-npm@6.0.1 --omit dev --output-file ../dist/console.cdx.json
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: 'dist/vaglio-*'
+      - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: 'dist/vaglio-*'
+          sbom-path: dist/vaglio.cdx.json
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" dist/* --draft --verify-tag --title "Vaglio ${{ github.ref_name }}" --notes-file docs/release-notes.md
