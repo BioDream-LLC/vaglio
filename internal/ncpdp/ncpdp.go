@@ -35,6 +35,7 @@ func Parse(r io.Reader) (*Node, error) {
 	dec := xml.NewDecoder(io.LimitReader(r, 8<<20))
 	dec.Strict = true
 	var stack []*Node
+	var texts []*strings.Builder // each open element's text, joined once (+= on a string is quadratic in its pieces)
 	var root *Node
 	for {
 		tok, err := dec.Token()
@@ -57,11 +58,13 @@ func Parse(r io.Reader) (*Node, error) {
 				root = n
 			}
 			stack = append(stack, n)
+			texts = append(texts, &strings.Builder{})
 		case xml.EndElement:
-			stack = stack[:len(stack)-1]
+			stack[len(stack)-1].Text = texts[len(texts)-1].String()
+			stack, texts = stack[:len(stack)-1], texts[:len(texts)-1]
 		case xml.CharData:
 			if len(stack) > 0 {
-				stack[len(stack)-1].Text += string(t)
+				texts[len(texts)-1].Write(t)
 			}
 		case xml.Directive:
 			return nil, errors.New("a DOCTYPE or other directive is not accepted")
