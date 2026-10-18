@@ -38,6 +38,13 @@ until [ -f "$work/vaglio/data/tls/ca.crt" ] && curl -s --cacert "$work/vaglio/da
   sleep 1
 done
 
+if [ "$(uname -s)" = Linux ]; then
+  # Docker on Linux has no host.docker.internal unless asked: the kit's containers reach this machine by that name.
+  h='{extra_hosts: ["host.docker.internal:host-gateway"]}'
+  printf 'services:\n  inferno: %s\n  worker: %s\n  nginx: %s\n  hl7_validator_service: %s\n' "$h" "$h" "$h" "$h" > "$work/linux-hosts.yml"
+  COMPOSE_FILE="docker-compose.yml:docker-compose.override.yml:$work/linux-hosts.yml"
+  export COMPOSE_FILE
+fi
 "$work/harness/kit.sh" pas
 PERFUSE="$PERFUSE" "$work/harness/serve.sh" pas \
   -pas-decider-url "https://127.0.0.1:$port/api/pas/decide" \

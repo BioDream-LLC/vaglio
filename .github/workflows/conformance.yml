@@ -1,0 +1,44 @@
+name: Conformance
+
+# The Inferno Da Vinci PAS Server test kit, run against Perfuse with Vaglio as its decision service
+# (conformance/inferno/run.sh). Slow (the kit's containers and validator), so weekly and on demand.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '41 6 * * 0'
+
+permissions:
+  contents: read
+
+jobs:
+  pas:
+    name: Inferno PAS (Perfuse with Vaglio deciding)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: BioDream-LLC/perfuse
+          ref: v0.1.16
+          path: perfuse
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Build Perfuse
+        working-directory: perfuse
+        run: go build -o bin/perfuse ./cmd/perfuse
+      - name: Run the kit
+        run: |
+          PERFUSE=$PWD/perfuse/bin/perfuse PERFUSE_SRC=$PWD/perfuse WORK=$PWD/.inferno sh conformance/inferno/run.sh
+      - name: Keep the results and logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: inferno-pas
+          path: |
+            .inferno/results.txt
+            .inferno/vaglio/serve.log
+            .inferno/harness/.work/pas/serve.log
+            .inferno/harness/.work/pas/results.json
