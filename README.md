@@ -411,8 +411,9 @@ Built from the log, so they cannot disagree with what was decided.
     runs in a temporary directory removed at the end; nothing is sent anywhere.
 
   Neither the plan's decision nor Vaglio's is taken as the truth: a disagreement is settled by a clinician's ruling.
-  It is how a plan can see Vaglio on its own cases without a production site, which Vaglio does not have yet. Tested
-  with Perfuse's protocol in Vaglio's own tests, not yet beside a plan's live process.
+  It is how a plan can see Vaglio on its own cases without a production site, which Vaglio does not have yet. Tried
+  end to end with Perfuse v0.1.16 on one machine (Perfuse asked the shadow server, recorded nothing from it, and
+  answered from its own rules), not yet beside a plan's live process.
 - **CMS prior authorization metrics** from the log (`vaglio report metrics`, the Reports screen, CSV): standard and
   expedited, counts and percentages, time to determination. Appeals and extensions are not seen by Vaglio and are
   reported as not tracked, never as zero.
