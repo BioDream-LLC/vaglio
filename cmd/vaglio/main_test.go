@@ -325,3 +325,36 @@ func TestShadow(t *testing.T) {
 		t.Error("an outcomes file without a decision column was read")
 	}
 }
+
+// The DTR reference implementation's home oxygen questionnaire package (from the Inferno DTR test kit's fixtures,
+// Apache-2.0): its yes/no questions become evidence read from the answers, the CQL defines its expressions use are
+// listed for the author, and the draft parses but decides nothing until rules are written.
+func TestImportDTR(t *testing.T) {
+	raw, err := os.ReadFile("testdata/dtr-home-oxygen.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := importDTR(raw, "home_o2", "hcpcs E1390", ""); err == nil || !strings.Contains(err.Error(), "-questionnaire") {
+		t.Errorf("a questionnaire with no url: %v", err)
+	}
+	src, notes, err := importDTR(raw, "home_o2", "hcpcs E1390", "https://plan.example/Questionnaire/home-o2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"status draft", "questionnaire https://plan.example/Questionnaire/home-o2", "find question 3.7",
+		"Is the patient mobile within the home?", "#   PatientMobile", "service hcpcs E1390"} {
+		if !strings.Contains(src, want) {
+			t.Errorf("the draft lacks %q", want)
+		}
+	}
+	if !strings.Contains(notes, "6 pieces of evidence") {
+		t.Errorf("%s", notes)
+	}
+	p, err := policy.Parse("home_o2.vaglio", src)
+	if err != nil {
+		t.Fatalf("the draft does not parse: %v\n%s", err, src)
+	}
+	if len(p.EvidenceNames()) != 6 || p.Status != policy.Draft {
+		t.Errorf("%d evidence, status %q", len(p.EvidenceNames()), p.Status)
+	}
+}

@@ -28,3 +28,8 @@ The documents in library/sources/ are published by their owners (CMS, state
 agencies) and are quoted here as the basis of each policy; they are not
 licensed by BioDream LLC. HL7 and FHIR are registered trademarks of Health Level
 Seven International, used here only to say what this software reads and writes.
+
+cmd/vaglio/testdata/dtr-home-oxygen.json is trimmed from the Da Vinci DTR
+reference implementation's home oxygen questionnaire package, as carried in the
+Inferno DTR test kit's fixtures (inferno-framework/davinci-dtr-test-kit,
+Apache-2.0), used only to test vaglio import-dtr.
