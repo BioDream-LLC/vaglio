@@ -41,7 +41,10 @@ done
 if [ "$(uname -s)" = Linux ]; then
   # Docker on Linux has no host.docker.internal unless asked: the kit's containers reach this machine by that name.
   h='{extra_hosts: ["host.docker.internal:host-gateway"]}'
-  printf 'services:\n  inferno: %s\n  worker: %s\n  nginx: %s\n  hl7_validator_service: %s\n' "$h" "$h" "$h" "$h" > "$work/linux-hosts.yml"
+  # The kit's data/redis belongs to this user and holds a .keep, so redis's own entrypoint will not take it over:
+  # redis runs as its owner instead.
+  printf 'services:\n  inferno: %s\n  worker: %s\n  nginx: %s\n  hl7_validator_service: %s\n  redis: {user: "%s"}\n' \
+    "$h" "$h" "$h" "$h" "$(id -u):$(id -g)" > "$work/linux-hosts.yml"
   COMPOSE_FILE="docker-compose.yml:docker-compose.override.yml:$work/linux-hosts.yml"
   export COMPOSE_FILE
 fi
