@@ -576,11 +576,12 @@ Claims a reviewer can verify without trusting BioDream, each with where to look:
 - **Reproducible, attested releases**: the release workflow builds every archive twice, on x86 and Arm, and publishes
   nothing unless the bytes match; each archive carries GitHub build provenance (`gh attestation verify`) and the
   release carries CycloneDX SBOMs. `deploy/release.sh` gives the same bytes on your machine.
-- **Standards conformance through Perfuse** (not yet passing): `conformance/inferno/run.sh` runs the Inferno Da Vinci
-  PAS Server test kit against Perfuse with Vaglio as its decision service, and workflow Conformance runs it weekly.
-  It has not completed yet: on this machine the kit's validator ran out of Docker disk, and on GitHub's runner the
-  kit's own containers exit at start. PAS conformance is the PAS server's; Perfuse's own result without Vaglio
-  (82 of 84) is in Perfuse's docs/verification.md.
+- **Standards conformance through Perfuse**: the Inferno Da Vinci PAS Server test kit (v2.2.1) run against Perfuse
+  v0.1.16 with Vaglio as its decision service, weekly (workflow Conformance; `conformance/inferno/run.sh`). Result on
+  2026-10-18: **82 pass, 2 fail**, the same as Perfuse alone. Vaglio decided the 4 items Perfuse's rules sent to it.
+  Both failures are "must support" elements the kit looked for in the response and did not find (adjudication,
+  ClaimResponse.extension:authorizedProvider and others). The kit tests the PAS server; the result shows Vaglio
+  behind it leaves its conformance unchanged, not that Vaglio itself is certified.
 - **Does the policy language fit real policy?** 60 Medicare LCDs, a sample nobody chose, drafted through the policy
   gates: 22 passed; most failures were the model failing the word-for-word quote gate; 3 needed more than the
   language's 16 pieces of evidence. [docs/lcd-study.md](docs/lcd-study.md), `go run ./tools/lcdstudy`.

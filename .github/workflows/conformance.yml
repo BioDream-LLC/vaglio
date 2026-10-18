@@ -5,9 +5,8 @@ name: Conformance
 
 on:
   workflow_dispatch:
-  # Weekly once it passes:
-  # schedule:
-  #   - cron: '41 6 * * 0'
+  schedule:
+    - cron: '41 6 * * 0'
 
 permissions:
   contents: read
