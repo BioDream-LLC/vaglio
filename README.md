@@ -508,7 +508,7 @@ One program on the plan's own servers.
 
 ## Status
 
-**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (275 Go test functions, the
+**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (278 Go test functions, the
 console's tests, and every policy checked on every combination of evidence), and the whole path has been run end to end
 through a real Perfuse. The policies in `policies/` are **illustrative only**: not any payer's policy and not clinical
 guidance.
@@ -550,7 +550,7 @@ How the code is laid out:
 Not yet: OpenID Connect
 sign-on is tested against a test provider only, not a real one, and SAML against Entra-shaped responses and one captured
 from Microsoft Entra ID, not yet by a person signing in to a live tenant; Let's Encrypt is tested against Pebble, its test
-authority, not yet against Let's Encrypt itself; there is no release build yet;
+authority, not yet against Let's Encrypt itself; no release has been cut yet (the release workflow is built and waits for a tag);
 advice before submitting is on Perfuse's main branch, not yet in a Perfuse release. The criteria-service
 protocol is Vaglio's own: no licensed criteria vendor is known to speak it yet, so a plan's licence needs a small adapter
 (`examples/criteria-service` is where to start one).
@@ -558,6 +558,36 @@ Automatic approval from documents is tested with a stand-in model only; how ofte
 checks is what the sampled checks will show. The fax modem has been run against a stand-in only, and reading pages
 with a model against a stand-in model only.
 
+
+## What you can check for yourself
+
+Claims a reviewer can verify without trusting BioDream, each with where to look:
+
+- **Tests on Linux, macOS and Windows**, with the race detector on Linux, on every push: the repository's Actions tab,
+  workflow CI.
+- **Recovery, measured on every push**: the server killed (SIGKILL) under load loses none of the decisions it answered,
+  and its log verifies after; it answers again in about 0.2–0.4 s. A standby taking over lacks the decisions since its
+  last copy. [docs/assurance/recovery.md](docs/assurance/recovery.md), and `go run ./tools/drill` on your machine.
+- **Security checks**, on every push and weekly: govulncheck and npm audit (known vulnerabilities), CodeQL
+  (security-extended, Go and TypeScript), fuzzing of every parser of outside input, OWASP ZAP's baseline scan of a
+  running console, and the OpenSSF Scorecard. Workflow Security.
+- **Installs on fresh machines**: the one-command installers on Linux, macOS and Windows, the container image, and the
+  Helm chart on a kind cluster, from an archive built in the same job. Workflow CI.
+- **Reproducible, attested releases**: the release workflow builds every archive twice, on x86 and Arm, and publishes
+  nothing unless the bytes match; each archive carries GitHub build provenance (`gh attestation verify`) and the
+  release carries CycloneDX SBOMs. `deploy/release.sh` gives the same bytes on your machine.
+- **Standards conformance through Perfuse**: the Inferno Da Vinci PAS Server test kit run against Perfuse with Vaglio
+  as its decision service, weekly. Workflow Conformance; `conformance/inferno/run.sh`. PAS conformance is the PAS
+  server's: the run shows Vaglio behind a conforming PAS server keeps it conforming.
+- **Does the policy language fit real policy?** 60 Medicare LCDs, a sample nobody chose, drafted through the policy
+  gates: 22 passed; most failures were the model failing the word-for-word quote gate; 3 needed more than the
+  language's 16 pieces of evidence. [docs/lcd-study.md](docs/lcd-study.md), `go run ./tools/lcdstudy`.
+- **The assurance pack**: a threat model, the HIPAA Security Rule's technical safeguards mapped to the code, and a
+  hazard log for the decision logic. [docs/assurance](docs/assurance/README.md). Written by BioDream and reviewed by
+  nobody outside it.
+
+Not established by anything here: SOC 2 or HITRUST, an independent penetration test, a business associate agreement,
+service levels, certification, clinical validation in production, or any production site.
 
 ## Try it
 
@@ -602,6 +632,17 @@ letter in English or Spanish, check its receipt, and look at the policy map. How
 <sub>Screens from a test server with invented requests, people and faxes, in the default midnight theme.</sub>
 
 ## Running it
+
+Installed as a service in one command, the archive checked against the release's `SHA256SUMS` (and its build
+provenance, when the GitHub CLI is installed) before anything runs:
+
+```
+curl -fsSL https://raw.githubusercontent.com/BioDream-LLC/vaglio/main/deploy/install.sh | sudo sh -s -- -version vX.Y.Z
+```
+
+On Windows, `deploy/install.ps1 -Version vX.Y.Z` from an elevated PowerShell. As a container, the `Dockerfile`
+(distroless, non-root, data in a volume); on Kubernetes, `deploy/helm/vaglio` (one replica: one process holds the log).
+By hand:
 
 ```
 vaglio serve -data data -policies policies -token-env VAGLIO_TOKEN \
@@ -781,6 +822,9 @@ vaglio check policies/*.vaglio                 # every combination of evidence, 
 vaglio fmt policies/*.vaglio                   # the standard layout (comments at the top are kept)
 vaglio compile policies/lumbar_mri.vaglio      # the JSON the engine reads
 vaglio draft -id knee -out knee.vaglio document.txt    # OpenRouter by default: -url, -model, -key-env
+vaglio import-dtr -id home_o2 -service "hcpcs E1390" -out home_o2.vaglio package.json
+                                                        # from a DTR Questionnaire the plan has: its yes/no questions
+                                                        # as evidence, rules left for the author
 bin/vaglio decide -policy policies/lumbar_mri.vaglio testdata/requests/repeat_mri_unaddressed.json
 ```
 
