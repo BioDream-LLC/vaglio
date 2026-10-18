@@ -32,6 +32,13 @@ jobs:
       - name: Run the kit
         run: |
           PERFUSE=$PWD/perfuse/bin/perfuse PERFUSE_SRC=$PWD/perfuse WORK=$PWD/.inferno sh conformance/inferno/run.sh
+      - name: The kit's containers, when it failed
+        if: failure()
+        run: |
+          cd .inferno/harness/.work/kits/pas 2>/dev/null || exit 0
+          docker compose ps -a
+          for s in nginx inferno worker hl7_validator_service; do echo "== $s"; docker compose logs --tail 40 $s; done
+          curl -sv http://localhost/ 2>&1 | tail -15
       - name: Keep the results and logs
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
