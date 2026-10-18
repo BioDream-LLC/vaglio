@@ -65,6 +65,7 @@ func main() {
 	model := flag.String("model", "meta-llama/llama-3.3-70b-instruct", "the model")
 	keyEnv := flag.String("key-env", "OPENROUTER_API_KEY", "the environment variable holding the API key")
 	workers := flag.Int("workers", 4, "LCDs drafted at once")
+	redo := flag.String("redo", "", "a CSV from an earlier run: keep its rows, and draft again only those that ended in an error")
 	maxChars := flag.Int("max-chars", 40000, "LCDs longer than this are left out (the model's context)")
 	flag.Parse()
 
@@ -77,13 +78,19 @@ func main() {
 		log.Fatal(err)
 	}
 	sample := spread(all, *n)
-	m := &draft.OpenAI{Base: *url, Key: os.Getenv(*keyEnv), Model: *model}
+	m := retrying{&draft.OpenAI{Base: *url, Key: os.Getenv(*keyEnv), Model: *model}}
 	if *drafts != "" {
 		if err := os.MkdirAll(*drafts, 0o700); err != nil {
 			log.Fatal(err)
 		}
 	}
 	rows := make([]row, len(sample))
+	keep := map[string]row{}
+	if *redo != "" {
+		if keep, err = readRows(*redo); err != nil {
+			log.Fatal(err)
+		}
+	}
 	var wg sync.WaitGroup
 	next := make(chan int)
 	for w := 0; w < *workers; w++ {
@@ -98,6 +105,10 @@ func main() {
 		}()
 	}
 	for i := range sample {
+		if r, ok := keep[sample[i].Display]; ok && r.Error == "" {
+			rows[i] = r
+			continue
+		}
 		next <- i
 	}
 	close(next)
@@ -127,7 +138,7 @@ func study(m draft.Model, token string, l lcd, maxChars int, dir string) row {
 		return r
 	}
 	id := strings.ToLower(l.Display)
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
 	defer cancel()
 	res, err := draft.Draft(ctx, m, draft.Request{ID: id, Document: text, Name: l.Display + " " + l.Title})
 	if res != nil {
@@ -169,15 +180,43 @@ func kinds(failures []string) []string {
 	return out
 }
 
+// The licence token lasts about an hour; a run takes longer. get renews it on a 401 and tries once more.
+var (
+	tokenMu  sync.Mutex
+	tokenNow string
+)
+
 func get(url, token string, v any) error {
-	req, _ := http.NewRequest(http.MethodGet, url, nil)
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
+	for try := 0; ; try++ {
+		req, _ := http.NewRequest(http.MethodGet, url, nil)
+		if token != "" {
+			tokenMu.Lock()
+			if tokenNow != "" {
+				token = tokenNow
+			}
+			tokenMu.Unlock()
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		resp, err := (&http.Client{Timeout: time.Minute}).Do(req)
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode == http.StatusUnauthorized && token != "" && try == 0 {
+			resp.Body.Close()
+			fresh, err := licenseToken()
+			if err != nil {
+				return err
+			}
+			tokenMu.Lock()
+			tokenNow = fresh
+			tokenMu.Unlock()
+			continue
+		}
+		return decodeResp(resp, url, v)
 	}
-	resp, err := (&http.Client{Timeout: time.Minute}).Do(req)
-	if err != nil {
-		return err
-	}
+}
+
+func decodeResp(resp *http.Response, url string, v any) error {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("%s: %s", url, resp.Status)
@@ -334,4 +373,52 @@ func articleCodes(token string, id int) string {
 		b.WriteString(" ICD-10-CM codes that support medical necessity: " + strings.Join(icd, " ") + ".")
 	}
 	return strings.TrimSpace(b.String())
+}
+
+// retrying asks again when the model's API fails (a timeout, a rate limit): the study measures the language, not the
+// network. A round is only counted once the model has answered it.
+type retrying struct{ m draft.Model }
+
+func (r retrying) Complete(ctx context.Context, msgs []draft.Message) (string, error) {
+	var err error
+	for i := 0; i < 5; i++ {
+		var out string
+		if out, err = r.m.Complete(ctx, msgs); err == nil {
+			return out, nil
+		}
+		if ctx.Err() != nil {
+			return "", err
+		}
+		time.Sleep(time.Duration(10*(i+1)) * time.Second)
+	}
+	return "", err
+}
+
+func readRows(path string) (map[string]row, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	recs, err := csv.NewReader(f).ReadAll()
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]row{}
+	for _, c := range recs[1:] {
+		var r row
+		r.LCD, r.Title, r.Passed, r.Error = c[0], c[1], c[3] == "true", c[9]
+		fmt.Sscan(c[2], &r.Chars)
+		fmt.Sscan(c[4], &r.Rounds)
+		fmt.Sscan(c[5], &r.Evidence)
+		fmt.Sscan(c[6], &r.Rules)
+		if c[7] != "" {
+			r.FirstKinds = strings.Split(c[7], ";")
+		}
+		if c[8] != "" {
+			r.Kinds = strings.Split(c[8], ";")
+		}
+		out[r.LCD] = r
+	}
+	return out, nil
 }
