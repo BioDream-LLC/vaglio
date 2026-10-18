@@ -20,7 +20,7 @@ for p in $platforms; do
   cp LICENSE.md NOTICE README.md "$work/$name/"
   cp -R licenses examples "$work/$name/"
   if [ "$os" = windows ]; then fmt=zip; else fmt=tar.gz; fi
-  python3 - "$work" "$name" "$dist/$name.$fmt" "$epoch" <<'PY'
+  ${PYTHON:-python3} - "$work" "$name" "$dist/$name.$fmt" "$epoch" <<'PY'
 import gzip, io, os, sys, tarfile, time, zipfile
 work, name, out, epoch = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
 root = os.path.join(work, name)
