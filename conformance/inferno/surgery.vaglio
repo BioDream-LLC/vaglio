@@ -1,0 +1,30 @@
+# INFERNO TEST ONLY. Decides the Da Vinci PAS test kit's surgery requests (X12 service type 3 is the kit's consultation,
+# 2 its surgery), which Perfuse's rules leave to a reviewer and so send to its decision service. Surgery is approved
+# on a plan of care in the record; the kit's requests carry none, so Vaglio pends them, asking for the plan of care,
+# and the kit's reviewer step then finalises them in Perfuse as it does without Vaglio.
+policy inferno_surgery
+  title "Surgery (Inferno PAS test kit only)"
+  version 0.1.0
+  source "Written for the Inferno PAS conformance run; not any payer's policy."
+  service https://codesystem.x12.org/005010/1365 2
+
+evidence plan_of_care
+  text "A pre-surgical evaluation (procedure), or the plan of care sent as a document"
+  clause "Surgery is reviewed by a clinician with the plan of care."
+  find procedure snomed 386053000 within 90 days
+  request document loinc 18776-5
+
+criterion no_plan
+  text "No plan of care has been sent."
+  clause "Surgery is reviewed by a clinician with the plan of care."
+  defeated by plan_of_care
+
+decision approve approves
+  text "Approve the surgery."
+  clause "Surgery is reviewed by a clinician with the plan of care."
+  defeated by no_plan
+
+decision deny_no_plan denies
+  text "Deny: the record shows no plan of care for the surgery."
+  clause "Surgery is reviewed by a clinician with the plan of care."
+  defeated by plan_of_care
