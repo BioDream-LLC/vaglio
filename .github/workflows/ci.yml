@@ -34,6 +34,9 @@ jobs:
       - name: Check every policy
         shell: bash
         run: go run ./cmd/vaglio check policies/*.vaglio library/*.vaglio
+      - name: Recovery drill (kill -9 under load; standby takeover)
+        if: runner.os != 'Windows'
+        run: go build -o bin/vaglio ./cmd/vaglio && go run ./tools/drill -vaglio bin/vaglio
 
   console:
     name: Console
