@@ -5,8 +5,9 @@ name: Conformance
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '41 6 * * 0'
+  # Weekly once it passes:
+  # schedule:
+  #   - cron: '41 6 * * 0'
 
 permissions:
   contents: read
@@ -37,7 +38,8 @@ jobs:
         run: |
           cd .inferno/harness/.work/kits/pas 2>/dev/null || exit 0
           docker compose ps -a
-          for s in nginx inferno worker hl7_validator_service; do echo "== $s"; docker compose logs --tail 40 $s; done
+          for s in redis inferno worker; do echo "== $s"; docker compose logs --no-log-prefix $s 2>&1 | grep -v "^\s*from /" | head -40; done
+          ls -lan data data/redis
           curl -sv http://localhost/ 2>&1 | tail -15
       - name: Keep the results and logs
         if: always()
