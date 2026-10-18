@@ -61,6 +61,15 @@ func (cfg Config) decidePAS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a, status, msg := cfg.decideBundle(raw, r.URL.Query().Get("item"), r.Header.Get("X-PAS-Request-Id"), "", "")
+	if cfg.Shadow {
+		// Decided and recorded, and answered "decides nothing for this item": the PAS server goes on without Vaglio.
+		out := ShadowAnswer{Shadow: true, Error: shadowWhy, Case: a.Case, Decision: a.Decision}
+		if status != http.StatusOK {
+			out.Error += "; and it could not decide this one: " + msg
+		}
+		writeJSON(w, http.StatusNotFound, out)
+		return
+	}
 	if status != http.StatusOK {
 		writeError(w, status, msg)
 		return

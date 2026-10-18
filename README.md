@@ -395,13 +395,24 @@ Short text files in the plan's own words, checked on every combination before th
 
 Built from the log, so they cannot disagree with what was decided.
 
-- **A shadow pilot** (`vaglio shadow -requests DIR -outcomes FILE.csv`), before Vaglio decides anything for real: the
-  plan's past PAS requests, each decided as serve would have on the day it was made, beside what the plan decided
-  (`claim,item,decision,by,appeal`). The report puts first where Vaglio would have approved what the plan denied (and
-  whether an appeal overturned it), then where it would have denied what the plan approved, then what it would have
-  asked for instead of deciding, with a CSV row per item. Everything runs in a temporary directory removed at the
-  end; nothing is sent anywhere. It is how a plan can see Vaglio on its own cases without a production site, which
-  Vaglio does not have yet.
+- **A shadow pilot**, before Vaglio decides anything for real, two ways.
+  - Live (`serve -shadow -outcomes-token-env OUT_TOKEN`): the PAS server sends Vaglio every request as it would a
+    live decision service, and Vaglio decides and records each, then answers 404, which the decision service protocol
+    defines as "decides nothing for this item". Perfuse, and any PAS server keeping to the protocol, then answers as
+    it would without Vaglio; the cost to the provider is the time Vaglio takes to decide. Advice, eligibility, NCPDP,
+    the provider portal and intake are off; serve refuses `-notices` and `-webhook` beside it; and a shadow pilot's
+    data directory is marked, so a live server never starts on it (and a pilot never starts on live data). The plan's
+    systems send what the plan decided to `/api/feeds/outcomes` (JSON, or CSV `claim,item,decision,by,decided,appeal`).
+    The Reports screen then shows agreement where both decided, with its 95% interval and Cohen's kappa, Vaglio's
+    verdict by the plan's, agreement per policy, and the disagreements, which a clinician rules on from the case
+    (which decision the record supports: Vaglio's, the plan's, both or neither, with the reason), audited.
+  - On past requests (`vaglio shadow -requests DIR -outcomes FILE.csv`): the plan's past PAS requests, each decided
+    as serve would have on the day it was made, beside what the plan decided, with a CSV row per item. Everything
+    runs in a temporary directory removed at the end; nothing is sent anywhere.
+
+  Neither the plan's decision nor Vaglio's is taken as the truth: a disagreement is settled by a clinician's ruling.
+  It is how a plan can see Vaglio on its own cases without a production site, which Vaglio does not have yet. Tested
+  with Perfuse's protocol in Vaglio's own tests, not yet beside a plan's live process.
 - **CMS prior authorization metrics** from the log (`vaglio report metrics`, the Reports screen, CSV): standard and
   expedited, counts and percentages, time to determination. Appeals and extensions are not seen by Vaglio and are
   reported as not tracked, never as zero.
@@ -496,7 +507,7 @@ One program on the plan's own servers.
 
 ## Status
 
-**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (273 Go test functions, the
+**v0.0.1: early, and not yet in production anywhere.** Everything above is built and tested (275 Go test functions, the
 console's tests, and every policy checked on every combination of evidence), and the whole path has been run end to end
 through a real Perfuse. The policies in `policies/` are **illustrative only**: not any payer's policy and not clinical
 guidance.

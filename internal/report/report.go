@@ -39,6 +39,9 @@ func ParsePeriod(from, to string, now time.Time) (Period, error) {
 	var p Period
 	var err error
 	if to == "" {
+		// Periods are UTC days, as records are timed: today is the UTC day, or a request made this evening west of
+		// Greenwich (already tomorrow in UTC) would be left out of a report to date.
+		now = now.UTC()
 		p.To = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	} else if p.To, err = time.Parse(time.DateOnly, to); err != nil {
 		return p, fmt.Errorf("to: %q is not YYYY-MM-DD", to)

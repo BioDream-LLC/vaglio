@@ -270,6 +270,10 @@ type Case struct {
 	AppealTaken *AppealRequest `json:"appealTaken,omitempty"`
 	// Notices are the letters mailed to the member about this case (internal/notice), and the ones that could not be.
 	Notices []Notice `json:"notices,omitempty"`
+	// PlanOutcome and Ruling are a shadow pilot's (shadow.go): what the plan's own process decided, and a clinician's
+	// ruling where the two disagree.
+	PlanOutcome *PlanOutcome `json:"planOutcome,omitempty"`
+	Ruling      *Ruling      `json:"ruling,omitempty"`
 }
 
 // Notice is one letter to the member: sent, or why not.
@@ -330,6 +334,9 @@ func Open(log *audit.Log, bundles string) (*Store, error) {
 }
 
 func (s *Store) apply(r audit.Record) error {
+	if ok, err := s.applyShadow(r.Action, r.Case, r.Time, r.Data); ok {
+		return err
+	}
 	switch r.Action {
 	case ActOpened:
 		var o Opening

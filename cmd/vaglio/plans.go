@@ -85,6 +85,10 @@ type planSpec struct {
 	// Letters is the plan's letter settings (JSON): its appeal deadline, addresses and numbers, for letters and notices.
 	Letters     string `json:"letters,omitempty"`
 	NPIRegistry string `json:"npiRegistry,omitempty"`
+	// Shadow runs the plan as a shadow pilot: every request decided and recorded, none answered (serve -shadow).
+	// OutcomesTokenEnv names the token the plan's systems send its own decisions with, to /api/feeds/outcomes.
+	Shadow           bool   `json:"shadow,omitempty"`
+	OutcomesTokenEnv string `json:"outcomesTokenEnv,omitempty"`
 
 	allowed []string // Host header values it answers to
 }
@@ -413,8 +417,15 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 			return fail(err)
 		}
 	}
+	if err := shadowAllowed(sp); err != nil {
+		return fail(err)
+	}
 	st, err := openData(sp.Data)
 	if err != nil {
+		return fail(err)
+	}
+	if err := shadowData(sp.Data, sp.Shadow, len(st.cases.Select(nil))); err != nil {
+		st.log.Close()
 		return fail(err)
 	}
 	ok := false
@@ -467,6 +478,12 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 			return fail(errors.New("fax-token-env: the fax service's token is at least 16 characters"))
 		}
 		cfg.Faxes = &intake.Inbox{Dir: filepath.Join(sp.Data, "faxes")}
+	}
+	cfg.Shadow = sp.Shadow
+	if sp.OutcomesTokenEnv != "" {
+		if cfg.OutcomesToken, err = secretFrom(sp.OutcomesTokenEnv); err != nil || cfg.OutcomesToken == "" {
+			return fail(fmt.Errorf("outcomes-token-env: %s is empty or unreadable", sp.OutcomesTokenEnv))
+		}
 	}
 	if sp.AppealsTokenEnv != "" {
 		if cfg.AppealsToken, err = secretFrom(sp.AppealsTokenEnv); err != nil {
@@ -637,4 +654,45 @@ func planPrefix(op *openedPlan, several bool) string {
 		return ""
 	}
 	return op.spec.Name + " (" + op.spec.ID + "): "
+}
+
+// shadowAllowed refuses, beside a shadow pilot, everything that would reach someone: letters mailed to members, and
+// records pushed to the plan's systems, which may act on them.
+func shadowAllowed(sp planSpec) error {
+	if !sp.Shadow {
+		if sp.OutcomesTokenEnv != "" {
+			return errors.New("-outcomes-token-env takes the plan's decisions for a shadow pilot: it needs -shadow")
+		}
+		return nil
+	}
+	switch {
+	case sp.Notices != "":
+		return errors.New("-shadow answers no one: it cannot mail members letters (-notices)")
+	case sp.Webhook != "":
+		return errors.New("-shadow answers no one: it cannot push records to the plan's systems (-webhook)")
+	}
+	return nil
+}
+
+// shadowMark is the file that says a data directory is a shadow pilot's.
+const shadowMark = "SHADOW"
+
+// shadowData keeps a shadow pilot's data and a live server's apart: a live server started on a pilot's data would
+// count its decisions as the plan's (gold carding, CMS metrics) and could mail or push them, and a pilot started on
+// live data would mix the two. A directory is marked when a pilot first starts on it.
+func shadowData(dir string, shadow bool, cases int) error {
+	mark := filepath.Join(dir, shadowMark)
+	_, err := os.Stat(mark)
+	marked := err == nil
+	switch {
+	case marked && !shadow:
+		return fmt.Errorf("%s is a shadow pilot's data directory: start a live server on a new data directory "+
+			"(its cases were never given to anyone, and must not be taken for decisions that were)", dir)
+	case !marked && shadow && cases > 0:
+		return fmt.Errorf("%s holds a live server's cases: start a shadow pilot on a data directory of its own", dir)
+	case !marked && shadow:
+		return os.WriteFile(mark, []byte("This data directory is a shadow pilot's (vaglio serve -shadow). Nothing decided "+
+			"here was given to anyone.\n"), 0o600)
+	}
+	return nil
 }

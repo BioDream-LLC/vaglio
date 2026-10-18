@@ -146,3 +146,32 @@ func jsonString(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b)
 }
+
+// A shadow pilot's data and a live server's never mix, and a pilot refuses whatever would reach someone.
+func TestShadowDataKeptApart(t *testing.T) {
+	dir := t.TempDir()
+	if err := shadowData(dir, true, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := shadowData(dir, false, 3); err == nil || !strings.Contains(err.Error(), "shadow pilot's data") {
+		t.Errorf("a live server started on a pilot's data: %v", err)
+	}
+	if err := shadowData(dir, true, 3); err != nil {
+		t.Errorf("the pilot again: %v", err)
+	}
+	live := t.TempDir()
+	if err := shadowData(live, true, 2); err == nil {
+		t.Error("a pilot started on live cases")
+	}
+	if err := shadowData(live, false, 2); err != nil {
+		t.Error(err)
+	}
+	for _, sp := range []planSpec{{Shadow: true, Notices: "n.json"}, {Shadow: true, Webhook: "https://x"}, {OutcomesTokenEnv: "X"}} {
+		if shadowAllowed(sp) == nil {
+			t.Errorf("allowed: %+v", sp)
+		}
+	}
+	if shadowAllowed(planSpec{Shadow: true, OutcomesTokenEnv: "X"}) != nil {
+		t.Error("refused a plain pilot")
+	}
+}

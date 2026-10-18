@@ -277,6 +277,11 @@ func serve(args []string) error {
 	network := fs.String("network", "", "the plan's provider network: a file of NPIs (one per line, or a CSV's first column)")
 	npiRegistry := fs.String("npi-registry", "", `where providers' specialties are read: "nppes" (the public NPI Registry API; `+
 		`it is sent the provider's NPI only), or a CSV of npi,taxonomy... extracted from the NPPES download`)
+	shadow := fs.Bool("shadow", false, "a shadow pilot: decide and record every request the PAS server sends, and answer "+
+		"each \"decides nothing\" (404), so the plan's own process answers it as before; letters, webhooks, advice, eligibility, "+
+		"NCPDP, the provider portal and intake are off. Needs a data directory of its own")
+	outcomesTokenEnv := fs.String("outcomes-token-env", "", "for -shadow: name of an environment variable holding the bearer "+
+		"token the plan's systems send its own decisions with, to /api/feeds/outcomes")
 	plansFile := fs.String("plans", "", "serve several health plans from one server: a JSON file listing each plan's id, "+
 		"name, hostname, policies and data directories, and its tokens and PAS server; each plan is its own console, accounts, "+
 		"cases and audit log at its own hostname. The per-plan flags (-policies, -hostname, -token-env, -pas-*, -goldcard, "+
@@ -328,8 +333,8 @@ func serve(args []string) error {
 			PASURL: *pasURL, PASAPI: *pasAPI, PASTokenEnv: *pasTokenEnv, PASCA: *pasCA, GoldCard: *goldCardFile,
 			FaxTokenEnv: *faxTokenEnv, AppealsTokenEnv: *appealsTokenEnv, Criteria: crit, Network: *network, Members: *members, Letters: *letters,
 			Webhook: *webhook, Notices: *notices, WebhookSecretEnv: *webhookSecretEnv, FaxConnectors: *faxConnectorsFile,
-			ReplicaTokenEnv: *replicaTokenEnv,
-			NPIRegistry:     *npiRegistry}}
+			ReplicaTokenEnv: *replicaTokenEnv, Shadow: *shadow, OutcomesTokenEnv: *outcomesTokenEnv,
+			NPIRegistry: *npiRegistry}}
 		if *oidcIssuer != "" {
 			plans[0].SSO = &ssoSpec{Issuer: *oidcIssuer, ClientID: *oidcClient, ClientSecretEnv: *oidcSecretEnv,
 				RedirectURL: *oidcRedirect, NameClaim: *oidcClaim, Group: *oidcGroup, GroupsClaim: *oidcGroupsClaim,

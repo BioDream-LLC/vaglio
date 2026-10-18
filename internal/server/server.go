@@ -91,6 +91,10 @@ type Config struct {
 	// AppealsToken, when set, turns on /api/feeds/appeals for the payer's appeals system, which must send it as a bearer
 	// token.
 	AppealsToken string
+	// Shadow runs a shadow pilot (shadow.go): every request decided and recorded, none answered. OutcomesToken turns on
+	// /api/feeds/outcomes, where the plan's systems send what the plan decided.
+	Shadow        bool
+	OutcomesToken string
 	// Drafter, when set (with PolicyDir), drafts policies from coverage documents uploaded in the console.
 	Drafter *Drafter
 	// Demo marks a public demonstration (serve -demo-account): the console says so on every screen, and the sign-in
@@ -279,6 +283,9 @@ func New(cfg Config) http.Handler {
 	route("POST /api/policies/check", auth.Viewer, cfg.checkSourceHandler)
 	route("POST /api/cases/{id}/extend", auth.Reviewer, cfg.extendCase)
 	mux.HandleFunc("POST /api/feeds/appeals", cfg.appealsFeed)
+	mux.HandleFunc("POST /api/feeds/outcomes", cfg.outcomesFeed)
+	route("POST /api/cases/{id}/ruling", auth.Reviewer, cfg.ruleCase)
+	shown("GET /api/reports/shadow", auth.Reviewer, "", cfg.shadowReport)
 	// Reading drafts is open to reviewers as well as authors: a clinician signs a draft off, and must read it to do so.
 	// Writing one stays with authors.
 	scoped("GET /api/drafts", auth.Reviewer, auth.ScopeAuthor, cfg.listDrafts)
@@ -321,6 +328,10 @@ func (cfg Config) guard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if len(allowed) > 0 && !allowed[r.Host] {
 			writeError(w, http.StatusForbidden, "unexpected Host header")
+			return
+		}
+		if cfg.Shadow && shadowOff(r.URL.Path) {
+			writeJSON(w, http.StatusNotFound, ShadowAnswer{Shadow: true, Error: shadowWhy})
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/feeds/") {
@@ -439,6 +450,8 @@ type Me struct {
 	Editing bool `json:"editing"`
 	// Demo says this is a public demonstration on invented data.
 	Demo bool `json:"demo,omitempty"`
+	// Shadow says this server is a shadow pilot's: it decides beside the plan's process and answers no one.
+	Shadow bool `json:"shadow,omitempty"`
 }
 
 // demoInfo is the public demonstration's published account, or 404 on a real deployment.
@@ -492,7 +505,7 @@ func (cfg Config) logout(w http.ResponseWriter, r *http.Request) {
 
 func (cfg Config) me(w http.ResponseWriter, r *http.Request, s auth.Session) {
 	me := Me{User: s.User, Role: s.Role, ClinicianDenials: cfg.ClinicianDenials, Scopes: s.Scopes, Via: s.Via,
-		Editing: cfg.PolicyDir != "", Demo: cfg.Demo}
+		Editing: cfg.PolicyDir != "", Demo: cfg.Demo, Shadow: cfg.Shadow}
 	if u, ok, err := cfg.Sessions.Account(s.User); err == nil && ok {
 		me.NPI, me.Credential = u.NPI, u.Credential
 	}
