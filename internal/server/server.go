@@ -354,11 +354,22 @@ func (cfg Config) guard(next http.Handler) http.Handler {
 			}
 		}
 		h := w.Header()
-		h.Set("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'")
+		h.Set("Content-Security-Policy", "default-src 'self'; object-src 'none'; base-uri 'self'; "+
+			"form-action 'self'; frame-ancestors 'none'")
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "no-referrer")
-		if strings.HasPrefix(r.URL.Path, "/api/") {
+		// The console uses no camera, microphone, location or payment, and is isolated from other sites' windows.
+		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()")
+		h.Set("Cross-Origin-Opener-Policy", "same-origin")
+		h.Set("Cross-Origin-Embedder-Policy", "require-corp")
+		h.Set("Cross-Origin-Resource-Policy", "same-origin")
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/api/"):
 			h.Set("Cache-Control", "no-store") // patient data stays out of caches
+		case strings.HasPrefix(r.URL.Path, "/assets/"):
+			h.Set("Cache-Control", "public, max-age=31536000, immutable") // named by their content's hash
+		default:
+			h.Set("Cache-Control", "no-cache") // the page itself: always checked, so a new console is seen at once
 		}
 		if cfg.Secure {
 			h.Set("Strict-Transport-Security", "max-age=31536000")
