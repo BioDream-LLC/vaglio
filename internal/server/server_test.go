@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -185,5 +186,20 @@ func TestPASFixtures(t *testing.T) {
 		if a.Result == nil || a.Decision+"/"+string(a.Result.Reason) != want {
 			t.Errorf("%s: %s", file, body)
 		}
+	}
+}
+
+// One address trying passwords against many names is refused after 20 failures, whatever the names.
+func TestSignInRefusedPerAddress(t *testing.T) {
+	e := newEnvWith(t, "", nil)
+	for i := 0; i < signInFailsPerAddress; i++ {
+		body := fmt.Sprintf(`{"name":"nobody%d","password":"wrong"}`, i)
+		if w := e.raw("POST", "/api/login", body, nil, "application/json"); w.Code != 401 {
+			t.Fatalf("attempt %d: %d", i, w.Code)
+		}
+	}
+	right := fmt.Sprintf(`{"name":"viewer","password":%q}`, e.passwords["viewer"])
+	if w := e.raw("POST", "/api/login", right, nil, "application/json"); w.Code != 429 {
+		t.Errorf("the 21st attempt, from the same address: %d", w.Code)
 	}
 }

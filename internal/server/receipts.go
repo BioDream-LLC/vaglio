@@ -139,3 +139,44 @@ func (cfg Config) caseLetter(w http.ResponseWriter, r *http.Request, s auth.Sess
 	}
 	writeJSON(w, http.StatusOK, out)
 }
+
+// failures counts failed attempts per key over a window, for refusing a key that has failed too often.
+type failures struct {
+	mu     sync.Mutex
+	max    int
+	window time.Duration
+	seen   map[string][]time.Time
+}
+
+func newFailures(max int, window time.Duration) *failures {
+	return &failures{max: max, window: window, seen: map[string][]time.Time{}}
+}
+
+func (f *failures) recent(key string, now time.Time) []time.Time {
+	ts := f.seen[key]
+	i := 0
+	for i < len(ts) && ts[i].Before(now.Add(-f.window)) {
+		i++
+	}
+	return ts[i:]
+}
+
+// over is whether key has failed max times within the window.
+func (f *failures) over(key string, now time.Time) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.recent(key, now)) >= f.max
+}
+
+func (f *failures) add(key string, now time.Time) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.seen) > 10000 {
+		for k := range f.seen {
+			if len(f.recent(k, now)) == 0 {
+				delete(f.seen, k)
+			}
+		}
+	}
+	f.seen[key] = append(f.recent(key, now), now)
+}

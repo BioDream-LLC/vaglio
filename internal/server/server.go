@@ -139,6 +139,9 @@ type Config struct {
 	set          *policySet
 	edit         *sync.Mutex
 	receiptLimit *limiter
+	// signInFails counts failed sign-ins per address: the per-name lockout (auth.ErrLocked) does not stop one address
+	// trying a password against many names.
+	signInFails *failures
 }
 
 // New returns the server's handler.
@@ -147,6 +150,7 @@ func New(cfg Config) http.Handler {
 		panic("server: Sessions, Audit and Cases are required")
 	}
 	cfg.set, cfg.edit, cfg.receiptLimit = newPolicySet(cfg.Policies, cfg.Scheduled), &sync.Mutex{}, newLimiter(30)
+	cfg.signInFails = newFailures(signInFailsPerAddress, 15*time.Minute)
 	if cfg.Versions != nil {
 		for _, p := range cfg.Policies {
 			if _, err := cfg.Versions.Keep(p); err != nil {
@@ -474,6 +478,9 @@ func (cfg Config) demoInfo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"name": cfg.DemoName, "password": cfg.DemoPassword})
 }
 
+// signInFailsPerAddress is how many failed sign-ins one address may make in 15 minutes before its sign-ins are refused.
+const signInFailsPerAddress = 20
+
 func (cfg Config) login(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name     string `json:"name"`
@@ -482,9 +489,18 @@ func (cfg Config) login(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &body) {
 		return
 	}
+	ip := clientIP(r)
+	if cfg.signInFails.over(ip, time.Now()) {
+		cfg.Audit.Append("system", "user.sign_in_refused", "", map[string]string{"name": body.Name, "address": ip,
+			"why": "too many failed sign-ins from this address"})
+		w.Header().Set("Retry-After", "900")
+		writeError(w, http.StatusTooManyRequests, "too many failed sign-ins from this address; try again in 15 minutes")
+		return
+	}
 	token, sess, err := cfg.Sessions.SignIn(body.Name, body.Password)
 	if err != nil {
 		if errors.Is(err, auth.ErrBadCredentials) || errors.Is(err, auth.ErrLocked) {
+			cfg.signInFails.add(ip, time.Now())
 			cfg.Audit.Append("system", "user.sign_in_failed", "", map[string]string{"name": body.Name, "why": err.Error()})
 			writeError(w, http.StatusUnauthorized, err.Error())
 			return
