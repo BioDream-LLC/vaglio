@@ -578,7 +578,7 @@ Claims a reviewer can verify without trusting BioDream, each with where to look:
   release carries CycloneDX SBOMs. `deploy/release.sh` gives the same bytes on your machine.
 - **Standards conformance through Perfuse**: the Inferno Da Vinci PAS Server test kit (v2.2.1) run against Perfuse
   v0.1.16 with Vaglio as its decision service, weekly (workflow Conformance; `conformance/inferno/run.sh`). Result on
-  2026-10-18: **82 pass, 2 fail**, the same as Perfuse alone. Vaglio decided the 4 items Perfuse's rules sent to it.
+  2026-10-18, on GitHub's runner and on an M4 Mac alike: **82 pass, 2 fail**, the same as Perfuse alone. Vaglio decided the 4 items Perfuse's rules sent to it.
   Both failures are "must support" elements the kit looked for in the response and did not find (adjudication,
   ClaimResponse.extension:authorizedProvider and others). The kit tests the PAS server; the result shows Vaglio
   behind it leaves its conformance unchanged, not that Vaglio itself is certified.
