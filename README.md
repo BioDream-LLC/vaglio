@@ -527,7 +527,7 @@ How the code is laid out:
 - `internal/dtr`, `internal/goldcard`, `internal/report`, `internal/replay`: questionnaires, exemptions, metrics, pend
   causes and reversals, replays. `internal/reader`: documents read by a model behind the quote gate.
 - `internal/tlsserve`, `internal/acme`: https only, Vaglio's own authority, and Let's Encrypt (RFC 8555, http-01 and
-  tls-alpn-01), tested against Pebble, Let's Encrypt's own test authority.
+  tls-alpn-01), tested against Pebble, Let's Encrypt's own test authority, and tried against Let's Encrypt itself.
 - `internal/receipt`, `internal/letter`, `internal/versions`, `internal/readings`: receipts checked against the log,
   plain-language letters, the kept policy versions, and two readings of one document compared.
 - `internal/precedence`: which policy decides when several are for one service (dates, lines, states, authority).
@@ -547,10 +547,11 @@ How the code is laid out:
 - `testdata/pas/`: synthetic PAS requests, run through a real Perfuse during development and pinned by a test.
   `testdata/drafts/`: a policy the drafting loop produced from `testdata/documents/`, pinned the same way.
 
-Not yet: OpenID Connect
-sign-on is tested against a test provider only, not a real one, and SAML against Entra-shaped responses and one captured
-from Microsoft Entra ID, not yet by a person signing in to a live tenant; Let's Encrypt is tested against Pebble, its test
-authority, not yet against Let's Encrypt itself; no release has been cut yet (the release workflow is built and waits for a tag);
+Tried for real (2026-10-20, on an EC2 server): Let's Encrypt issued Vaglio certificates by both tls-alpn-01 (on 443)
+and http-01 (port 80), trusted from outside with no other help; OpenID Connect sign-on with Amazon Cognito, a person
+signing in through Cognito's own page in a browser and arriving in the console as their account, refused (and the
+refusal recorded) until `vaglio user sso` allowed that account. Not yet: OpenID Connect with Microsoft Entra ID or Okta,
+and SAML by a person on a live tenant (tested against Entra-shaped responses and one captured from Entra); no release has been cut yet (the release workflow is built and waits for a tag);
 advice before submitting is on Perfuse's main branch, not yet in a Perfuse release. The criteria-service
 protocol is Vaglio's own: no licensed criteria vendor is known to speak it yet, so a plan's licence needs a small adapter
 (`examples/criteria-service` is where to start one).
