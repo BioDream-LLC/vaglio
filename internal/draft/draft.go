@@ -177,7 +177,14 @@ func Gate(req Request, answer string) (*policy.Policy, []string) {
 	src := Source(answer)
 	p, err := policy.Parse("draft.vaglio", src)
 	if err != nil {
-		return nil, []string{err.Error()}
+		msg := err.Error()
+		if strings.Contains(msg, "can be checked exhaustively") {
+			msg += fmt.Sprintf(". Fit it in %d: the absence of a fact is never evidence (write criterion no_x defeated by x, "+
+				"as in the example); alternatives that lead to the same result (any one of a list of indications or "+
+				"diagnoses) may be one evidence argument with a find line for each, its clause the sentence that introduces "+
+				"the list", policy.MaxEvidence)
+		}
+		return nil, []string{msg}
 	}
 	var failures []string
 	if p.ID != req.ID {
@@ -186,8 +193,13 @@ func Gate(req Request, answer string) (*policy.Policy, []string) {
 	doc := Normalize(req.Document)
 	for _, a := range p.Arguments {
 		if !strings.Contains(doc, Normalize(a.Clause)) {
-			failures = append(failures, fmt.Sprintf("the clause of %s is not quoted word for word from the document: %q. "+
-				"Copy the sentence it encodes exactly.", a.Name, a.Clause))
+			msg := fmt.Sprintf("the clause of %s is not quoted word for word from the document: %q. "+
+				"Copy the sentence it encodes exactly.", a.Name, a.Clause)
+			if near := nearest(req.Document, a.Clause); near != "" {
+				msg += fmt.Sprintf(" The nearest sentence in the document is %q: copy it whole, or the part of it the "+
+					"argument encodes, character for character.", near)
+			}
+			failures = append(failures, msg)
 		}
 	}
 	words := tokens(req.Document)
@@ -321,6 +333,60 @@ func tokens(doc string) map[string]bool {
 	}) {
 		out[strings.Trim(w, ".-")] = true
 		out[w] = true
+	}
+	return out
+}
+
+// nearest is the document's sentence sharing the most words with a clause that failed the quote gate, when it shares at
+// least half of the clause's words: a model told where it went wrong copies better than one told only that it did. It
+// is advice in a failure message, never a reason to accept a clause.
+func nearest(doc, clause string) string {
+	want := map[string]bool{}
+	for _, w := range strings.Fields(Normalize(clause)) {
+		want[strings.Trim(w, ".,;:()\"'")] = true
+	}
+	if len(want) == 0 {
+		return ""
+	}
+	best, score := "", 0
+	for _, s := range sentences(doc) {
+		n, seen := 0, map[string]bool{}
+		for _, w := range strings.Fields(Normalize(s)) {
+			w = strings.Trim(w, ".,;:()\"'")
+			if want[w] && !seen[w] {
+				seen[w] = true
+				n++
+			}
+		}
+		if n > score {
+			best, score = s, n
+		}
+	}
+	if 2*score < len(want) {
+		return ""
+	}
+	if r := []rune(best); len(r) > 600 {
+		best = string(r[:600]) + "..."
+	}
+	return best
+}
+
+// sentences splits a document into sentences and lines, kept as written.
+func sentences(doc string) []string {
+	var out []string
+	for _, line := range strings.Split(doc, "\n") {
+		start := 0
+		for i := 0; i < len(line); i++ {
+			if (line[i] == '.' || line[i] == ';' || line[i] == '?') && (i+1 == len(line) || line[i+1] == ' ') {
+				if t := strings.TrimSpace(line[start : i+1]); t != "" {
+					out = append(out, t)
+				}
+				start = i + 1
+			}
+		}
+		if t := strings.TrimSpace(line[start:]); t != "" {
+			out = append(out, t)
+		}
 	}
 	return out
 }

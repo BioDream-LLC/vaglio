@@ -38,13 +38,54 @@ Why the 37 failed in their last round (an LCD can fail on more than one, so the 
 | Every combination not decided | 2 | Either. A gap may be the LCD's own: `vaglio readings` reports those as possible ambiguities. |
 | Syntax | 1 | The model's. |
 
+## Second round: better feedback, a second model (2026-10-19)
+
+The first run's failures pointed at two things Vaglio could do better, both in the drafting loop, not the language:
+
+- **The quote gate now says where the model went wrong.** A clause that is not in the LCD comes back with the LCD's
+  nearest sentence (the one sharing the most words, when it shares at least half), so the model can copy it.
+  It is advice in the failure message only: the gate still accepts nothing but the LCD's own words.
+- **The guide now says how to stay within 16 pieces of evidence.** The absence of a fact is never evidence of its own
+  (the model had written both `x` and `no_x` as evidence), and a list of alternatives with the same effect may be one
+  piece of evidence with a `find` line for each.
+
+The same 60 LCDs, the 38 that had not passed drafted again:
+
+| | Llama 3.3 70B, first run | Llama 3.3 70B, better feedback | DeepSeek V4 Pro, better feedback |
+|---|---|---|---|
+| Passed every gate | 22 | **43** | **44** (23 in the first round) |
+| Failed the quote gate in the last round | 23 | 5 | 2 |
+| Needed more than 16 pieces of evidence in the last round | 3 | 0 | 0 |
+| Too long for the model | 1 | 1 | 0 (its context is far larger) |
+
+53 of the 60 passed with one model or the other. DeepSeek's largest passing policy uses exactly 16 pieces of evidence.
+The 16 limit stays: with the guidance, every LCD in the sample fitted under it.
+
+The 7 neither model passed, and what stopped them in the last round:
+
+| LCD | What failed |
+|---|---|
+| Suction Pumps | contradiction, lint |
+| Pressure Reducing Support Surfaces - Group 3 | a code the study's text lacked (below) |
+| Cervical Traction Devices | gap, lint |
+| rTMS in adults | lint, syntax |
+| Upper Gastrointestinal Endoscopy | gap, lint (quote with Llama) |
+| Cervical Disc Replacement | contradiction, lint (quote with Llama) |
+| Immune Thrombocytopenia Therapy | contradiction, lint |
+
+The support surfaces failure is the study's, not the model's. DeepSeek named the service by its HCPCS code, and the
+code gate refused it because the code was not in the text it was given. That LCD's billing articles have no codes under
+the Coverage API's article code endpoint, so the study gave none. A gap or contradiction may be the LCD's own:
+`vaglio readings` reports those as possible ambiguities, and nobody has checked these.
+
 ## What this shows, and does not
 
-- The language could express 22 of 60 real LCDs with a mid-sized open model and four rounds, holding every clause to
-  the LCD's own words. Most failures were the model failing the quote gate, not the language failing the LCD.
-- One limit of the language is real: 16 pieces of evidence per policy, which 3 of the 60 needed more than. Splitting
-  such an LCD into one policy per service it covers is the way round it today.
+- The language expressed 53 of 60 real LCDs (44 with one model alone), holding every clause to the LCD's own words.
+  The first run's failures were mostly the drafting loop's: clearer feedback roughly doubled the passes with the same
+  model.
+- The 16-evidence limit looked like a real limit in the first run, but it was the model writing the absence of a fact
+  as evidence of its own; told otherwise, both models fitted every LCD.
 - **A passing draft is not a correct policy.** The gates check form, quotes, codes and consistency, not meaning.
   Nobody has read these drafts against their LCDs. Each would need a clinician's sign-off, as every draft does, before
   it decided anything. The drafts are not in the repository.
-- Better models would likely pass more; that was not measured here.
+- Two models, one sample of 60, four rounds each. The models' answers vary from run to run; these are single runs.

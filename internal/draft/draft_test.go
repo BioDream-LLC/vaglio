@@ -149,3 +149,17 @@ func TestKind(t *testing.T) {
 		}
 	}
 }
+
+// TestNearestSentence: a clause cut short at a comma gets the whole sentence back as advice, and the gate still refuses it.
+func TestNearestSentence(t *testing.T) {
+	doc := "Evaluations are covered. They are necessary when the patient has an illness and/or symptoms sufficient to " +
+		"cause maladaptive functioning in personal or social settings, which may be suggested by a referral.\nOther text."
+	got := nearest(doc, "They are necessary when the patient has an illness and/or symptoms sufficient to cause "+
+		"maladaptive functioning in personal or social settings.")
+	if !strings.HasPrefix(got, "They are necessary") || !strings.HasSuffix(got, "by a referral.") {
+		t.Fatalf("nearest = %q", got)
+	}
+	if nearest(doc, "Something the document never says about knees.") != "" {
+		t.Fatal("an unrelated clause got a suggestion")
+	}
+}

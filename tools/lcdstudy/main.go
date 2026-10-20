@@ -66,6 +66,7 @@ func main() {
 	keyEnv := flag.String("key-env", "OPENROUTER_API_KEY", "the environment variable holding the API key")
 	workers := flag.Int("workers", 4, "LCDs drafted at once")
 	redo := flag.String("redo", "", "a CSV from an earlier run: keep its rows, and draft again only those that ended in an error")
+	redoFailed := flag.Bool("redo-failed", false, "with -redo: draft again every row that did not pass, not only errors")
 	maxChars := flag.Int("max-chars", 40000, "LCDs longer than this are left out (the model's context)")
 	flag.Parse()
 
@@ -105,7 +106,7 @@ func main() {
 		}()
 	}
 	for i := range sample {
-		if r, ok := keep[sample[i].Display]; ok && r.Error == "" {
+		if r, ok := keep[sample[i].Display]; ok && r.Error == "" && (r.Passed || !*redoFailed) {
 			rows[i] = r
 			continue
 		}
