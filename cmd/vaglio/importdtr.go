@@ -19,7 +19,9 @@ import (
 // importDTRCmd starts a policy from content a plan already has: a Da Vinci DTR Questionnaire (or a questionnaire
 // package Bundle, with its CQL Libraries), as a draft. Each yes/no question becomes a piece of evidence found in the
 // provider's answers (find question LINKID) under the questionnaire's canonical URL, with its words as the clause. The
-// CQL is not run or translated: its define statements are listed in the draft's header, for the author to read the rules
+// CQL is not run. Its define statements are listed in the draft's header, and where a question's pre-fill reaches a
+// record lookup of a shape import-dtr reads (cql.go), a find line is suggested beside it, as a comment, for the author
+// to read the rules
 // from. The draft has no rules (criteria and decisions): an author writes them, and a clinician signs the policy off. It
 // decides nothing until then.
 func importDTRCmd(args []string, w io.Writer) error {
@@ -95,6 +97,7 @@ func importDTR(raw []byte, id, service, canonical string) (string, string, error
 	}
 	var q *questionnaire
 	var defines []string
+	libs := map[string]*cqlLib{}
 	resources := []json.RawMessage{raw}
 	if top.ResourceType == "Bundle" {
 		resources = nil
@@ -130,6 +133,9 @@ func importDTR(raw []byte, id, service, canonical string) (string, string, error
 				}
 				for _, m := range cqlDefine.FindAllStringSubmatch(string(cql), -1) {
 					defines = append(defines, m[1]+m[2])
+				}
+				if l := parseCQL(string(cql)); l.name != "" {
+					libs[l.name] = l
 				}
 			}
 		}
@@ -206,7 +212,8 @@ func importDTR(raw []byte, id, service, canonical string) (string, string, error
 	used = slices.Compact(used)
 	if len(used) > 0 {
 		b.WriteString("#\n# The package's CQL pre-fills these questions from the record (the defines below): read them for what the\n" +
-			"# plan counts as each, and add finds for the record (condition, procedure, observation) where they apply.\n")
+			"# plan counts as each. Where a question's CQL looks up the record in a shape this reader knows, a find line is\n" +
+			"# suggested beside it as a comment: uncomment it only if the plan counts that record as the answer.\n")
 		for _, d := range used {
 			fmt.Fprintf(&b, "#   %s\n", d)
 		}
@@ -214,10 +221,20 @@ func importDTR(raw []byte, id, service, canonical string) (string, string, error
 	b.WriteString("\n")
 	fmt.Fprintf(&b, "policy %s\n  title %q\n  version 0.1.0\n  source %q\n  status draft\n  questionnaire %s\n  service %s\n",
 		id, title, "DTR Questionnaire "+q.URL, q.URL, service)
+	suggested := 0
 	for _, e := range evs {
 		fmt.Fprintf(&b, "\nevidence %s\n  text %q\n  clause %q\n  find question %s\n", e.name, e.text, e.text, e.link)
 		if e.expr != "" {
 			fmt.Fprintf(&b, "  # the questionnaire pre-fills it with: %s\n", strings.ReplaceAll(e.expr, "\n", " "))
+			lib := libs[strings.Trim(strings.SplitN(e.expr, ".", 2)[0], `"`)]
+			finds, notes := lib.suggest(e.expr)
+			for _, f := range finds {
+				fmt.Fprintf(&b, "  # suggested from its CQL: %s\n", f)
+				suggested++
+			}
+			for _, n := range notes {
+				fmt.Fprintf(&b, "  # note: %s\n", n)
+			}
 		}
 	}
 	// The one rule imported: nothing is approved until an author writes the rules. It keeps the draft a policy the
@@ -232,5 +249,6 @@ decision approve approves
   clause "IMPORTED: the coverage rules are not in the questionnaire."
   defeated by rules_not_written
 `)
-	return b.String(), fmt.Sprintf("%d pieces of evidence (%d pre-filled by CQL); no rules yet", len(evs), len(used)), nil
+	return b.String(), fmt.Sprintf("%d pieces of evidence (%d pre-filled by CQL; %d find lines suggested from it, as "+
+		"comments); no rules yet", len(evs), len(used), suggested), nil
 }

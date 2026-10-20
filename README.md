@@ -829,9 +829,16 @@ vaglio compile policies/lumbar_mri.vaglio      # the JSON the engine reads
 vaglio draft -id knee -out knee.vaglio document.txt    # OpenRouter by default: -url, -model, -key-env
 vaglio import-dtr -id home_o2 -service "hcpcs E1390" -out home_o2.vaglio package.json
                                                         # from a DTR Questionnaire the plan has: its yes/no questions
-                                                        # as evidence, rules left for the author
+                                                        # as evidence, find lines suggested from its CQL's record
+                                                        # lookups (as comments), rules left for the author
 bin/vaglio decide -policy policies/lumbar_mri.vaglio testdata/requests/repeat_mri_unaddressed.json
 ```
+
+`import-dtr` does not run CQL. It reads the shapes prepopulation libraries are mostly made of (a question's define
+reaching `[Condition: ...]` or `[Observation: ...]` through other defines, a code list, a look-back of months) and
+suggests the matching `find` line beside the question, commented out. What it cannot read it says: a value set to
+expand, a lookup the CQL negates, an observation with no stated threshold (the suggestion carries `VALUE UNIT`, which
+the language refuses until the author writes one), or a define that reads the request rather than the record.
 
 The language is described at the top of `internal/policy/lang.go`; `policies/` has two worked examples.
 
