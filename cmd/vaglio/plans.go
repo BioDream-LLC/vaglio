@@ -63,6 +63,8 @@ type planSpec struct {
 	FaxConnectors string `json:"faxConnectors,omitempty"`
 	// ReplicaTokenEnv names the token a standby copies this plan's data with (vaglio standby).
 	ReplicaTokenEnv string `json:"replicaTokenEnv,omitempty"`
+	// StandbySync holds each decision's answer until the standby has it, waiting at most this long ("2s").
+	StandbySync string `json:"standbySync,omitempty"`
 	// Webhook is where every record about a case is pushed, signed with the secret in WebhookSecretEnv.
 	Webhook string `json:"webhook,omitempty"`
 	// Notices is the plan's notices file (JSON): which letters are mailed to the member, and how.
@@ -557,6 +559,16 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 			return fail(fmt.Errorf("replica-token-env: the standby's token is at least 16 characters (%v)", err))
 		}
 		cfg.ReplicaToken = t
+	}
+	if sp.StandbySync != "" && sp.StandbySync != "0s" {
+		wait, err := time.ParseDuration(sp.StandbySync)
+		if err != nil || wait <= 0 {
+			return fail(fmt.Errorf("standby-sync %q: write a duration such as 2s", sp.StandbySync))
+		}
+		if cfg.ReplicaToken == "" {
+			return fail(fmt.Errorf("-standby-sync needs a standby: give -replica-token-env too"))
+		}
+		cfg.StandbySync = server.NewStandbySync(cfg.Audit, wait)
 	}
 	if sp.FaxConnectors != "" {
 		started, err := openFaxConnectors(ctx, sp.FaxConnectors, &cfg, sp.Data)

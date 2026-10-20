@@ -48,8 +48,9 @@ tested by one. What has been run is listed at the end.
 - No independent penetration test or security audit.
 - Windows does not check the data directory's permissions (Windows reports no Unix modes); the installer sets its ACL.
 - Sessions live in one process's memory: a restart signs everyone out (safe, but not a cluster).
-- The standby is asynchronous: a primary lost under load loses the decisions answered since the standby's last copy
-  (measured: [recovery.md](recovery.md)).
+- By default the standby is asynchronous: a primary lost under load can lose the decisions of the last milliseconds.
+  `serve -standby-sync` makes each answer wait for the standby, and falls back to asynchronous, recorded, while the
+  standby is down (measured: [recovery.md](recovery.md)).
 
 ## What has been run against it
 

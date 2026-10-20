@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/biodream-llc/vaglio/internal/seal"
 )
@@ -36,6 +37,10 @@ func (cfg Config) replicaRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	after, _ := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
+	cfg.StandbySync.Ack(after)
+	if r.URL.Query().Get("wait") != "" {
+		waitForRecords(r.Context(), cfg.Audit, after, 20*time.Second)
+	}
 	recs := cfg.Audit.Records(after, 2000)
 	n, head := cfg.Audit.Head()
 	w.Header().Set("Content-Type", "application/x-ndjson")

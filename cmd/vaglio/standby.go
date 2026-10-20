@@ -36,7 +36,9 @@ func standbyCmd(args []string) error {
 	tokenEnv := fs.String("token-env", "", "name of an environment variable holding the primary's replica token")
 	dir := fs.String("data", "data", "this standby's data directory")
 	ca := fs.String("ca", "", "the certificate authority that issued the primary's certificate (its DATA/tls/ca.crt)")
-	every := fs.Duration("every", 2*time.Second, "how often to ask the primary for new records")
+	every := fs.Duration("every", 2*time.Second, "how often to ask the primary for new records, and for its accounts")
+	follow := fs.Bool("follow", true, "hold each request open until the primary has new records, so every decision is "+
+		"copied at once (needed for serve -standby-sync); false: ask every -every")
 	fs.Parse(args)
 	if *from == "" || *tokenEnv == "" {
 		return errors.New("usage: vaglio standby -from https://PRIMARY -token-env VAR -data DIR [-ca FILE]")
@@ -58,17 +60,30 @@ func standbyCmd(args []string) error {
 	defer sb.log.Close()
 	n, _ := sb.log.Head()
 	log.Printf("standby of %s in %s: %d records here", *from, *dir, n)
+	sb.follow, sb.usersEvery = *follow, *every
+	copied, said := 0, time.Now()
 	for {
+		began := time.Now()
 		got, behind, err := sb.Once(ctx)
+		copied += got
 		switch {
 		case err != nil:
 			log.Printf("standby: %v", err)
-		case got > 0:
-			log.Printf("standby: copied %d records, %d behind", got, behind)
+		case copied > 0 && (behind > 0 || time.Since(said) > 10*time.Second):
+			log.Printf("standby: copied %d records, %d behind", copied, behind)
+			copied, said = 0, time.Now()
 		}
 		wait := *every
-		if err == nil && behind > 0 {
+		switch {
+		case err == nil && behind > 0:
 			wait = 0 // behind: the next page at once
+		case err == nil && *follow:
+			// The primary held the request until it had something; one that answers at once with nothing does not
+			// hold requests (an older version), and is asked again a little later rather than in a tight loop.
+			wait = 0
+			if got == 0 && time.Since(began) < 50*time.Millisecond {
+				wait = 50 * time.Millisecond
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -85,6 +100,9 @@ type standby struct {
 	hc               *http.Client
 	log              *audit.Log
 	usersSeen        string
+	follow           bool
+	usersEvery       time.Duration
+	usersAt          time.Time
 }
 
 func openStandby(from, token, dir string, hc *http.Client) (*standby, error) {
@@ -135,11 +153,18 @@ func bundlesOf(r audit.Record) []string {
 
 // Once copies what the primary has past this copy's head: it returns how many records it copied and how many remain.
 func (s *standby) Once(ctx context.Context) (int, int, error) {
-	if err := s.copyUsers(ctx); err != nil {
-		return 0, 0, err
+	if time.Since(s.usersAt) >= s.usersEvery {
+		if err := s.copyUsers(ctx); err != nil {
+			return 0, 0, err
+		}
+		s.usersAt = time.Now()
 	}
 	n, _ := s.log.Head()
-	resp, err := s.get(ctx, fmt.Sprintf("/api/replica/records?after=%d", n))
+	q := fmt.Sprintf("/api/replica/records?after=%d", n)
+	if s.follow {
+		q += "&wait=1"
+	}
+	resp, err := s.get(ctx, q)
 	if err != nil {
 		return 0, 0, err
 	}

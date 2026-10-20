@@ -32,11 +32,13 @@ import (
 )
 
 var (
-	bin     = flag.String("vaglio", "bin/vaglio", "the vaglio program")
-	bundle  = flag.String("request", "testdata/pas/approve.json", "the PAS request sent, again and again")
-	clients = flag.Int("clients", 8, "requests in flight at once")
-	before  = flag.Int("before", 300, "decisions answered before the kill")
-	steady  = flag.Duration("steady", 5*time.Second, "for the standby: how long the load runs before the kill")
+	bin      = flag.String("vaglio", "bin/vaglio", "the vaglio program")
+	bundle   = flag.String("request", "testdata/pas/approve.json", "the PAS request sent, again and again")
+	clients  = flag.Int("clients", 8, "requests in flight at once")
+	before   = flag.Int("before", 300, "decisions answered before the kill")
+	steady   = flag.Duration("steady", 5*time.Second, "for the standby: how long the load runs before the kill")
+	extra    = new([]string)
+	syncWait = flag.Duration("standby-sync", 0, "for the standby: run the primary with -standby-sync of this wait (0: asynchronous)")
 )
 
 func main() {
@@ -66,8 +68,9 @@ func start(data, addr string, env ...string) *server {
 	if err := os.MkdirAll(filepath.Dir(data), 0o700); err != nil {
 		log.Fatal(err)
 	}
-	cmd := exec.Command(*bin, "serve", "-data", data, "-policies", "policies", "-addr", addr, "-token-env", "DRILL_TOKEN",
-		"-replica-token-env", "DRILL_REPLICA")
+	args := append([]string{"serve", "-data", data, "-policies", "policies", "-addr", addr, "-token-env", "DRILL_TOKEN",
+		"-replica-token-env", "DRILL_REPLICA"}, *extra...)
+	cmd := exec.Command(*bin, args...)
 	cmd.Env = append(os.Environ(), append([]string{"DRILL_TOKEN=drill", "DRILL_REPLICA=replica-drill-token"}, env...)...)
 	logf, _ := os.Create(data + ".log")
 	cmd.Stdout, cmd.Stderr = logf, logf
@@ -216,7 +219,12 @@ func crash(root string, raw []byte) {
 func standby(root string, raw []byte) {
 	pdata := filepath.Join(root, "standby", "primary")
 	sdata := filepath.Join(root, "standby", "standby")
+	saved := *extra
+	if *syncWait > 0 {
+		*extra = append(append([]string{}, saved...), "-standby-sync", syncWait.String())
+	}
 	p := start(pdata, "127.0.0.1:18792")
+	*extra = saved
 	p.ready(30 * time.Second)
 	os.MkdirAll(sdata, 0o700)
 	sb := exec.Command(*bin, "standby", "-from", "https://127.0.0.1:18792", "-token-env", "DRILL_REPLICA", "-data", sdata,
@@ -242,9 +250,13 @@ func standby(root string, raw []byte) {
 	n.ready(30 * time.Second)
 	first := n.decide(raw, "after-failover")
 	rto := time.Since(killedAt)
-	fmt.Printf("2. Primary killed after %v of steady load, a server started on the standby's data (polling every 200 ms)\n", *steady)
+	mode := "asynchronous: the standby follows, answers do not wait for it"
+	if *syncWait > 0 {
+		mode = "synchronous: each answer waits for the standby, at most " + syncWait.String()
+	}
+	fmt.Printf("2. Primary killed after %v of steady load, a server started on the standby's data (%s)\n", *steady, mode)
 	fmt.Printf("   decisions the primary answered       %d\n", len(answered))
-	fmt.Printf("   of them the standby did not have     %d (recovery point: the standby is asynchronous)\n", lost)
+	fmt.Printf("   of them the standby did not have     %d (the recovery point)\n", lost)
 	fmt.Printf("   standby's log hash chain             %s\n", verify(sdata))
 	fmt.Printf("   kill to first decision answered      %v (recovery time; includes the 1 s wait and stopping the standby)  [%v]\n",
 		rto.Round(time.Millisecond), first != "")

@@ -74,6 +74,7 @@ func (cfg Config) decidePAS(w http.ResponseWriter, r *http.Request) {
 		writeError(w, status, msg)
 		return
 	}
+	cfg.StandbySync.Confirm(r.Context())
 	writeJSON(w, http.StatusOK, a)
 }
 

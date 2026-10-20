@@ -566,8 +566,8 @@ Claims a reviewer can verify without trusting BioDream, each with where to look:
 - **Tests on Linux, macOS and Windows**, with the race detector on Linux, on every push: the repository's Actions tab,
   workflow CI.
 - **Recovery, measured on every push**: the server killed (SIGKILL) under load loses none of the decisions it answered,
-  and its log verifies after; it answers again in about 0.2–0.4 s. A standby taking over lacks the decisions since its
-  last copy. [docs/assurance/recovery.md](docs/assurance/recovery.md), and `go run ./tools/drill` on your machine.
+  and its log verifies after; it answers again in about 0.2–0.4 s. A synchronous standby (`-standby-sync`) taking over
+  lacked none of the decisions answered, in three runs. [docs/assurance/recovery.md](docs/assurance/recovery.md), and `go run ./tools/drill` on your machine.
 - **Security checks**, on every push and weekly: govulncheck and npm audit (known vulnerabilities), CodeQL
   (security-extended, Go and TypeScript), fuzzing of every parser of outside input, OWASP ZAP's baseline scan of a
   running console, and the OpenSSF Scorecard. Workflow Security.
@@ -786,13 +786,15 @@ Not included: TLS, the network and the PAS server in front. For
 scale, 1,000 requests a second is over 80 million a day.
 
 **A standby** (`vaglio standby -from https://PRIMARY -token-env VAR -data DIR [-ca FILE]`, with the primary started
-with `-replica-token-env VAR`) keeps a copy of the primary's data on another machine, a few seconds behind: the audit
+with `-replica-token-env VAR`) keeps a copy of the primary's data on another machine, usually milliseconds behind: the audit
 log record by record, each checked against the chain (a copy that has diverged is refused, never overwritten), the
 request Bundles each record names, fetched and checked by their hash before the record, and the accounts. To take
 over, stop it and run `vaglio serve -data DIR` there (and point the PAS server at it). Not copied: the fax inbox's
-waiting faxes, drafts, and the kept policy versions (the policies come from the plan's own repository); records the
-primary wrote in its last seconds may not have reached the standby. It is a standby, not a cluster: one server
-decides at a time.
+waiting faxes, drafts, and the kept policy versions (the policies come from the plan's own repository). By default an
+answer does not wait for the standby, so a decision of the primary's last milliseconds may not have reached it; with
+`serve -standby-sync 2s` every answer waits until the standby holds it (a takeover loses no answered decision; about
+23% fewer decisions a second on one machine; a standby that stops answering costs each decision 2 s and is recorded,
+and never stops decisions). It is a standby, not a cluster: one server decides at a time.
 
 ## Security
 

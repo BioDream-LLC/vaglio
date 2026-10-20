@@ -268,6 +268,8 @@ func serve(args []string) error {
 	fs.Var(&criteriaTokens, "criteria-token-env", "NAME=VAR: the environment variable holding criteria service NAME's bearer token")
 	faxConnectorsFile := fs.String("fax-connectors", "", "a JSON file naming where else faxes come from: sinch, documo "+
 		"(webhooks), srfax, ringcentral (polled), folder (a scan folder)")
+	standbySync := fs.Duration("standby-sync", 0, "hold each decision's answer until the standby has it, waiting at most "+
+		"this long (0: the standby copies in the background; needs -replica-token-env)")
 	replicaTokenEnv := fs.String("replica-token-env", "", "name of an environment variable holding the token a standby "+
 		"copies this server's data with (vaglio standby)")
 	notices := fs.String("notices", "", "the plan's notices file (JSON): mail the member their letter of a denial, an approval, an "+
@@ -337,7 +339,7 @@ func serve(args []string) error {
 			PASURL: *pasURL, PASAPI: *pasAPI, PASTokenEnv: *pasTokenEnv, PASCA: *pasCA, GoldCard: *goldCardFile,
 			FaxTokenEnv: *faxTokenEnv, AppealsTokenEnv: *appealsTokenEnv, Criteria: crit, Network: *network, Members: *members, Letters: *letters,
 			Webhook: *webhook, Notices: *notices, WebhookSecretEnv: *webhookSecretEnv, FaxConnectors: *faxConnectorsFile,
-			ReplicaTokenEnv: *replicaTokenEnv, Shadow: *shadow, OutcomesTokenEnv: *outcomesTokenEnv,
+			ReplicaTokenEnv: *replicaTokenEnv, StandbySync: standbySync.String(), Shadow: *shadow, OutcomesTokenEnv: *outcomesTokenEnv,
 			NPIRegistry: *npiRegistry}}
 		if *oidcIssuer != "" {
 			plans[0].SSO = &ssoSpec{Issuer: *oidcIssuer, ClientID: *oidcClient, ClientSecretEnv: *oidcSecretEnv,

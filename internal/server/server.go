@@ -125,8 +125,10 @@ type Config struct {
 	FaxHooks map[string]http.Handler
 	// ReplicaToken lets a standby copy this server (GET /api/replica/...); BundleDir and UsersPath are what it reads.
 	ReplicaToken string
-	BundleDir    string
-	UsersPath    string
+	// StandbySync, when set, holds each decision's answer until the standby has it (serve -standby-sync).
+	StandbySync *StandbySync
+	BundleDir   string
+	UsersPath   string
 	// AutoRead, when set (with Reader), reads a pended request's documents at once, and may approve on them.
 	AutoRead *AutoRead
 	// Faxes, when set, is the inbox of faxes received from the plan's fax service, which posts each to
