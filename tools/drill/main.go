@@ -71,7 +71,7 @@ func start(data, addr string, env ...string) *server {
 	args := append([]string{"serve", "-data", data, "-policies", "policies", "-addr", addr, "-token-env", "DRILL_TOKEN",
 		"-replica-token-env", "DRILL_REPLICA"}, *extra...)
 	cmd := exec.Command(*bin, args...)
-	cmd.Env = append(os.Environ(), append([]string{"DRILL_TOKEN=drill", "DRILL_REPLICA=replica-drill-token"}, env...)...)
+	cmd.Env = append(os.Environ(), append([]string{"DRILL_TOKEN=drill-token-0123456789", "DRILL_REPLICA=replica-drill-token"}, env...)...)
 	logf, _ := os.Create(data + ".log")
 	cmd.Stdout, cmd.Stderr = logf, logf
 	if err := cmd.Start(); err != nil {
@@ -107,7 +107,7 @@ func (s *server) ready(deadline time.Duration) time.Time {
 // decide sends one request; it returns the case the server answered with, or "" if it did not answer.
 func (s *server) decide(raw []byte, id string) string {
 	req, _ := http.NewRequest(http.MethodPost, "https://"+s.addr+"/api/pas/decide?item=1", bytes.NewReader(raw))
-	req.Header.Set("Authorization", "Bearer drill")
+	req.Header.Set("Authorization", "Bearer drill-token-0123456789")
 	req.Header.Set("X-PAS-Request-Id", id)
 	resp, err := s.cli.Do(req)
 	if err != nil {

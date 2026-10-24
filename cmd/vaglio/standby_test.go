@@ -93,7 +93,9 @@ func TestStandbySync(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.log.Close()
-	gate := server.NewStandbySync(st.log, 300*time.Millisecond)
+	// Long enough for a slow runner's fsync and round trip (Windows CI once took more than 300 ms); the stopped-standby
+	// check below then waits this long.
+	gate := server.NewStandbySync(st.log, 2*time.Second)
 	h := server.New(server.Config{Sessions: auth.NewSessions(st.users), Audit: st.log, AuditPath: st.auditPath, Cases: st.cases,
 		ReplicaToken: "replica-token-0123", StandbySync: gate, BundleDir: filepath.Join(pdir, "bundles"),
 		UsersPath: filepath.Join(pdir, "users.json")})
@@ -135,7 +137,7 @@ func TestStandbySync(t *testing.T) {
 	if gate.Confirm(context.Background()) {
 		t.Fatal("confirmed with the standby stopped")
 	}
-	if waited := time.Since(began); waited < 250*time.Millisecond || waited > 5*time.Second {
+	if waited := time.Since(began); waited < 1900*time.Millisecond || waited > 10*time.Second {
 		t.Fatalf("waited %v for a stopped standby", waited)
 	}
 	recs := st.log.Records(0, 1000)
