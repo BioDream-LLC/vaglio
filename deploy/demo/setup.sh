@@ -1,14 +1,14 @@
 #!/bin/sh
 # setup.sh - run on the demonstration instance as root (provision.sh copies this directory there and runs it).
-# Installs the binary and the policies, a Let's Encrypt certificate for vaglio.perfuse.health, the service, the
-# invented traffic and the nightly reset. Safe to run again.
+# Installs the binary and the policies, the service (which gets its own Let's Encrypt certificate for
+# vaglio.perfuse.health), the invented traffic and the nightly reset. Safe to run again.
 set -eu
 host=vaglio.perfuse.health
 port=${1:-8443}
 here=$(cd "$(dirname "$0")" && pwd)
 
 apt-get update -qq
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl certbot python3 poppler-utils >/dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl python3 poppler-utils >/dev/null
 id vaglio >/dev/null 2>&1 || useradd --system --home /opt/vaglio --shell /usr/sbin/nologin vaglio
 install -d -o vaglio -g vaglio -m 0700 /opt/vaglio/data /opt/vaglio/logs
 install -d -o root -g vaglio -m 0750 /opt/vaglio/conf /opt/vaglio/tls /opt/vaglio/policies
@@ -31,17 +31,14 @@ chmod 0640 /opt/vaglio/conf/token /opt/vaglio/conf/appeals-token /opt/vaglio/con
 # The traffic goes to this machine by its public name, so the certificate matches.
 grep -q " $host\$" /etc/hosts || echo "127.0.0.1 $host" >> /etc/hosts
 
-# Let's Encrypt on port 80, which neither Vaglio nor Perfuse uses (Perfuse's own renewals use it the same way, briefly). Vaglio reloads a changed certificate by itself, so the renewal
-# hook only copies it into place.
-if [ ! -d "/etc/letsencrypt/live/$host" ]; then
-  certbot certonly --standalone --non-interactive --agree-tos --register-unsafely-without-email -d "$host"
+# Let's Encrypt, by Vaglio itself (serve -acme): http-01 on port 80, opened only while a certificate is fetched (every
+# 60 days or so), because Perfuse's certbot renewals on this machine use port 80 briefly too. The certificate lives in
+# DATA/tls/acme, which the nightly reset keeps. A certbot certificate for this name from before is retired, so
+# certbot no longer renews it.
+if [ -d "/etc/letsencrypt/live/$host" ]; then
+  certbot delete --non-interactive --cert-name "$host" >/dev/null 2>&1 || true
 fi
-cat > /etc/letsencrypt/renewal-hooks/deploy/vaglio.sh <<HOOK
-#!/bin/sh
-install -o root -g vaglio -m 0640 /etc/letsencrypt/live/$host/fullchain.pem /etc/letsencrypt/live/$host/privkey.pem /opt/vaglio/tls/
-HOOK
-chmod 0755 /etc/letsencrypt/renewal-hooks/deploy/vaglio.sh
-install -o root -g vaglio -m 0640 "/etc/letsencrypt/live/$host/fullchain.pem" "/etc/letsencrypt/live/$host/privkey.pem" /opt/vaglio/tls/
+rm -f /etc/letsencrypt/renewal-hooks/deploy/vaglio.sh /opt/vaglio/tls/fullchain.pem /opt/vaglio/tls/privkey.pem
 
 install -m 0644 "$here"/vaglio-*.service "$here"/vaglio-*.timer /etc/systemd/system/
 sed -i "s/-addr :[0-9]*/-addr :$port/" /etc/systemd/system/vaglio-demo.service

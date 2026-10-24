@@ -35,6 +35,10 @@ type Settings struct {
 	Challenge string
 	HTTPPort  int // where http-01 is answered, besides Vaglio's own port (default 80)
 	HTTPSPort int // Vaglio's port
+	// HTTPOnDemand opens the http-01 port only while a certificate is being fetched, for a machine where another
+	// program uses it now and then (certbot's standalone renewals of another site's certificate); a busy port is
+	// tried again in 15 minutes.
+	HTTPOnDemand bool
 }
 
 // Current describes the certificate in use.
@@ -169,6 +173,22 @@ func (m *Manager) check(ctx context.Context) time.Time {
 		return minTime(due, time.Now().Add(12*time.Hour))
 	}
 	kind := challengeKind(s)
+	if kind == "http-01" && s.HTTPOnDemand {
+		// The port only for this order: shared with another program that takes it briefly too.
+		open := s
+		open.HTTPOnDemand = false
+		m.syncListener(open)
+		m.mu.Lock()
+		busy := m.ln == nil
+		why := m.lnError
+		m.mu.Unlock()
+		if busy {
+			m.closeListener()
+			m.setStatus(func(st *Status) { st.State, st.Detail, st.NextTry = "waiting", why, time.Now().Add(15*time.Minute) })
+			return time.Now().Add(15 * time.Minute)
+		}
+		defer m.closeListener()
+	}
 	m.setStatus(func(st *Status) { st.State, st.Detail, st.LastTry, st.Challenge = "working", "", time.Now(), kind })
 	tctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	err := m.obtain(tctx, s, kind)
@@ -344,7 +364,7 @@ func (m *Manager) ConfigForClient(base *tls.Config) func(*tls.ClientHelloInfo) (
 // to Vaglio over HTTPS.
 func (m *Manager) syncListener(s Settings) {
 	want := 0
-	if s.Enabled && challengeKind(s) == "http-01" {
+	if s.Enabled && challengeKind(s) == "http-01" && !s.HTTPOnDemand {
 		want = s.HTTPPort
 		if want == 0 {
 			want = 80

@@ -10,6 +10,7 @@ Reads its bearer tokens from /opt/vaglio/conf (token, appeals-token, fax-token).
 import json
 import random
 import ssl
+import urllib.error
 import sys
 import time
 import urllib.request
@@ -160,6 +161,16 @@ def main():
     faxes = int(sys.argv[2]) if len(sys.argv) > 2 else (1 if random.random() < 0.2 else 0)
     token = secret("token")
     ctx = ssl.create_default_context(cafile=CA)
+    # Just after a start the server may still be fetching its public certificate (it serves its own until then):
+    # wait for it, up to five minutes, rather than fail the night's traffic.
+    for _ in range(60):
+        try:
+            urllib.request.urlopen(URL + "/", context=ctx, timeout=10).close()
+            break
+        except (ssl.SSLError, urllib.error.URLError) as e:
+            if not isinstance(getattr(e, "reason", e), ssl.SSLError):
+                raise
+            time.sleep(5)
     for _ in range(n):
         answer = json.loads(post(ctx, "/api/pas/decide?item=1", token, json.dumps(request()).encode()))
         if answer.get("decision") == "deny" and answer.get("case"):

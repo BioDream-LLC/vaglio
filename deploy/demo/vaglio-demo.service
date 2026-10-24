@@ -9,11 +9,14 @@ Group=vaglio
 WorkingDirectory=/opt/vaglio
 ExecStart=/bin/sh -c 'VAGLIO_TOKEN=$(cat /opt/vaglio/conf/token) VAGLIO_APPEALS=$(cat /opt/vaglio/conf/appeals-token) \
   VAGLIO_FAX=$(cat /opt/vaglio/conf/fax-token) exec /opt/vaglio/vaglio serve -addr :8443 \
-  -hostname vaglio.perfuse.health -tls-cert /opt/vaglio/tls/fullchain.pem -tls-key /opt/vaglio/tls/privkey.pem \
+  -hostname vaglio.perfuse.health -acme -acme-http-on-demand \
   -data /opt/vaglio/data -policies /opt/vaglio/policies -token-env VAGLIO_TOKEN -demo-account demo:try-vaglio-demo \
   -appeals-token-env VAGLIO_APPEALS -fax-token-env VAGLIO_FAX -extract pdftotext'
 Restart=on-failure
 RestartSec=5
+# Port 80, for Let's Encrypt's check only while a certificate is fetched; nothing else.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true

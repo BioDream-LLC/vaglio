@@ -137,6 +137,31 @@ func TestPebble(t *testing.T) {
 	if len(installed) != 1 {
 		t.Fatal("renewed a certificate that was not due")
 	}
+	// On demand: the http-01 port is free between orders, held only while one is fetched.
+	mu.Lock()
+	settings.HTTPOnDemand = true
+	mu.Unlock()
+	m.check(ctx)
+	if l, err := net.Listen("tcp", ":5002"); err != nil {
+		t.Fatalf("on demand, the port is held while nothing is due: %v", err)
+	} else {
+		l.Close()
+	}
+	mu.Lock()
+	cur.NotAfter = time.Now().Add(24 * time.Hour)
+	mu.Unlock()
+	m.check(ctx)
+	if st := m.Status(); st.State != "ok" || len(installed) != 2 {
+		t.Fatalf("on demand: %+v %v", st, installed)
+	}
+	if l, err := net.Listen("tcp", ":5002"); err != nil {
+		t.Fatalf("on demand, the port stayed held after the order: %v", err)
+	} else {
+		l.Close()
+	}
+	mu.Lock()
+	settings.HTTPOnDemand = false
+	mu.Unlock()
 	// tls-alpn-01 on an HTTPS port, after the certificate is due.
 	mu.Lock()
 	settings.Challenge, settings.HTTPSPort = "tls-alpn-01", 5001
@@ -151,7 +176,7 @@ func TestPebble(t *testing.T) {
 	defer ln.Close()
 	go http.Serve(ln, http.NotFoundHandler())
 	m.check(ctx)
-	if st := m.Status(); st.State != "ok" || len(installed) != 2 {
+	if st := m.Status(); st.State != "ok" || len(installed) != 3 {
 		t.Fatalf("tls-alpn-01: %+v", st)
 	}
 	// A name the authority cannot reach fails plainly, and backs off.
@@ -201,5 +226,32 @@ func TestCheckReach(t *testing.T) {
 	}
 	if a := portAdvice(80, &net.OpError{Op: "listen", Err: os.NewSyscallError("bind", syscall.EADDRINUSE)}); !strings.Contains(a, "another program") {
 		t.Fatal(a)
+	}
+}
+
+// On demand, with the port taken by another program (certbot renewing another site): no order is begun, and the
+// manager says so and looks again in 15 minutes.
+func TestOnDemandPortBusy(t *testing.T) {
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	port := ln.Addr().(*net.TCPAddr).Port
+	other, err := net.Listen("tcp", ":"+strconv.Itoa(port))
+	if err == nil {
+		other.Close()
+		t.Skip("this system lets two listeners share the port")
+	}
+	m := &Manager{Dir: t.TempDir(), HTTP: http.DefaultClient,
+		Settings: func() Settings {
+			return Settings{Enabled: true, Domains: []string{"example.org"}, Directory: "https://127.0.0.1:1/dir",
+				Challenge: "http-01", HTTPPort: port, HTTPSPort: 8443, HTTPOnDemand: true}
+		},
+		Current: func() Current { return Current{SelfSigned: true} },
+		Install: func(string, string) error { return nil }}
+	next := m.check(context.Background())
+	if st := m.Status(); st.State != "waiting" || st.Detail == "" || time.Until(next) < 14*time.Minute || time.Until(next) > 16*time.Minute {
+		t.Fatalf("%+v next %v", st, time.Until(next))
 	}
 }

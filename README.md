@@ -778,7 +778,9 @@ Two ways, and the first is what production should use:
   with `-acme-http-port 0` to leave port 80 closed). Until the first certificate arrives, and if Let's Encrypt cannot be
   reached at renewal, Vaglio's own authority's certificate serves, so the console is never without https.
   `-acme-directory` names another ACME authority (the plan's own, or Let's Encrypt's staging directory to try it), and
-  `-acme-ca` the authority to trust for it.
+  `-acme-ca` the authority to trust for it. On a machine where another program uses port 80 now and then (certbot
+  renewing another site), `-acme-http-on-demand` opens it only while a certificate is being fetched, and tries again
+  in 15 minutes if it is taken; the public demonstration runs that way, beside Perfuse's test server.
 - **Vaglio's own authority, the default.** With no `-tls-cert`, the first start makes a small certificate authority in
   `data/tls` and issues the server's certificate from it, renewing it before it runs out. Browsers warn until a computer
   trusts `data/tls/ca.crt` once (or IT pushes it to every computer); after that, never again, renewals included.

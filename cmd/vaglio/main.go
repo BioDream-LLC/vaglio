@@ -218,6 +218,8 @@ func serve(args []string) error {
 	fs.StringVar(&ac.CA, "acme-ca", "", "a PEM file of authorities to trust for -acme-directory, beside the system's (a test authority)")
 	fs.IntVar(&ac.HTTPPort, "acme-http-port", 80, "where the authority's http-01 check is answered (it asks on port 80; the "+
 		"rest of that port redirects to https). 0 with Vaglio on 443: tls-alpn-01 only")
+	fs.BoolVar(&ac.OnDemand, "acme-http-on-demand", false, "open -acme-http-port only while a certificate is being "+
+		"fetched (every 60 days or so), for a machine where another program uses that port now and then (certbot)")
 	hostname := fs.String("hostname", "", "the name browsers reach this server by, required off loopback (Host headers "+
 		"naming anything else are refused)")
 	goldCardFile := fs.String("goldcard", "", "gold card programs (JSON): providers whose record qualifies are approved "+

@@ -30,6 +30,7 @@ type acmeOptions struct {
 	Directory string
 	CA        string // a PEM file of authorities to trust for -acme-directory (a test authority such as Pebble)
 	HTTPPort  int    // where the http-01 challenge is answered; the authority asks on 80
+	OnDemand  bool   // open HTTPPort only while fetching
 }
 
 const (
@@ -92,7 +93,8 @@ func startACME(o acmeOptions, dataDir string, hostnames []string, httpsPort int,
 		Log:  slog.Default(),
 		Settings: func() acme.Settings {
 			return acme.Settings{Enabled: true, Domains: domains, Email: o.Email, Directory: o.Directory,
-				HTTPPort: o.HTTPPort, HTTPSPort: httpsPort, Challenge: challengeFor(o.HTTPPort, httpsPort)}
+				HTTPPort: o.HTTPPort, HTTPSPort: httpsPort, Challenge: challengeFor(o.HTTPPort, httpsPort),
+				HTTPOnDemand: o.OnDemand}
 		},
 		Current: func() acme.Current {
 			leaf := certs.Leaf()

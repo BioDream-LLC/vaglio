@@ -58,6 +58,9 @@ type row struct {
 	Error           string
 }
 
+// roundsPerLCD is -rounds.
+var roundsPerLCD = 4
+
 func main() {
 	n := flag.Int("n", 60, "how many LCDs to draft")
 	out := flag.String("out", "lcd-study.csv", "the CSV to write")
@@ -70,7 +73,9 @@ func main() {
 	redoFailed := flag.Bool("redo-failed", false, "with -redo: draft again every row that did not pass, not only errors")
 	modelTimeout := flag.Duration("model-timeout", 5*time.Minute, "how long one answer from the model may take")
 	maxChars := flag.Int("max-chars", 40000, "LCDs longer than this are left out (the model's context)")
+	rounds := flag.Int("rounds", 4, "drafts to try per LCD before giving up")
 	flag.Parse()
+	roundsPerLCD = *rounds
 
 	token, err := licenseToken()
 	if err != nil {
@@ -144,7 +149,7 @@ func study(m draft.Model, token string, l lcd, maxChars int, dir string) row {
 	id := strings.ToLower(l.Display)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
 	defer cancel()
-	res, err := draft.Draft(ctx, m, draft.Request{ID: id, Document: text, Name: l.Display + " " + l.Title})
+	res, err := draft.Draft(ctx, m, draft.Request{ID: id, Document: text, Name: l.Display + " " + l.Title, Rounds: roundsPerLCD})
 	if res != nil {
 		r.Rounds = len(res.Attempts)
 		if len(res.Attempts) > 0 {

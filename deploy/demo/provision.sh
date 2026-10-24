@@ -3,8 +3,8 @@
 #
 # It runs beside Perfuse's public test instance on the same Amazon Lightsail nano (no second instance, nothing more to
 # pay): the DNS record in the perfuse.health zone, port 8443 opened, and setup.sh run there. The binary is built here
-# from this checkout (Vaglio has no release archives yet). Run again to upgrade: the certificate is kept; the invented
-# cases are rebuilt every night anyway.
+# from this checkout, or with VERSION=vX.Y.Z is that release's own archive, checked against its SHA256SUMS. Run
+# again to upgrade: the certificate is kept; the invented cases are rebuilt every night anyway.
 #
 # Needs the AWS CLI signed in to the account that holds the perfuse.health zone. The SSH key is kept in $KEYS (default
 # ~/keys), mode 600, and never printed.
@@ -21,7 +21,21 @@ key="$keys/lightsail-$region.pem"
 
 build=$(mktemp -d)
 trap 'rm -rf "$build"' EXIT
-(cd "$root" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -buildid= -X main.version=demo-$(git rev-parse --short HEAD)" -o "$build/vaglio" ./cmd/vaglio)
+if [ -n "${VERSION:-}" ]; then
+  # A published release, as anyone would install it: the archive checked against the release's SHA256SUMS.
+  rel="https://github.com/BioDream-LLC/vaglio/releases/download/$VERSION"
+  name="vaglio-$VERSION-linux-amd64.tar.gz"
+  curl -fsSL -o "$build/$name" "$rel/$name"
+  curl -fsSL -o "$build/SHA256SUMS" "$rel/SHA256SUMS"
+  (cd "$build" && grep " $name\$" SHA256SUMS | { if command -v sha256sum >/dev/null; then sha256sum -c -; else shasum -a 256 -c -; fi; }) ||
+    { echo "$name does not match the release's SHA256SUMS" >&2; exit 1; }
+  tar -xzf "$build/$name" -C "$build"
+  mv "$build/vaglio-$VERSION-linux-amd64/vaglio" "$build/vaglio"
+  rm -rf "$build/$name" "$build/SHA256SUMS" "$build/vaglio-$VERSION-linux-amd64"
+  echo "installing the release $VERSION"
+else
+  (cd "$root" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -buildid= -X main.version=demo-$(git rev-parse --short HEAD)" -o "$build/vaglio" ./cmd/vaglio)
+fi
 cp "$root"/policies/*.vaglio "$build/"
 
 # The demonstration shares the Perfuse test instance (perfuse-test, made by Perfuse's deploy/test-instance/provision.sh)
