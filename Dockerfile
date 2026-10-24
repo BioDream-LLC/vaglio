@@ -3,7 +3,7 @@
 #
 #   docker build -t vaglio .
 #   docker run -p 8740:8740 -v vaglio-data:/data -v ./policies:/policies:ro vaglio -hostname vaglio.example.org
-FROM golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS build
+FROM golang:1.27.3-alpine@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS build
 ARG VERSION=dev
 WORKDIR /src
 COPY go.mod go.sum* ./
