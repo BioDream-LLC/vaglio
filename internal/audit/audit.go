@@ -58,6 +58,7 @@ type Log struct {
 	f       *os.File
 	size    int64 // bytes of the file read into records
 	records []Record
+	byCase  map[string][]int // each case's records, by place in records: ForCase is asked on every answer
 	now     func() time.Time
 
 	// Group commit: an append writes its line under mu, then waits, outside it, until the file is synced past that
@@ -156,7 +157,7 @@ func (l *Log) catchUp() error {
 	if err != nil {
 		return err
 	}
-	l.records = append(l.records, more...)
+	l.keep(more...)
 	l.size = info.Size()
 	return nil
 }
@@ -330,7 +331,7 @@ func (l *Log) put(rec Record) (int64, error) {
 	if _, err := l.f.Write(append(line, '\n')); err != nil {
 		return 0, err
 	}
-	l.records = append(l.records, rec)
+	l.keep(rec)
 	l.size += int64(len(line)) + 1
 	return l.size, nil
 }
@@ -415,12 +416,23 @@ func (l *Log) ForCase(id string) []Record {
 	defer l.mu.Unlock()
 	l.sync()
 	out := []Record{}
-	for _, r := range l.records {
-		if r.Case == id {
-			out = append(out, r)
-		}
+	for _, i := range l.byCase[id] {
+		out = append(out, l.records[i])
 	}
 	return out
+}
+
+// keep adds records read or written to the ones in memory, and to their cases' lists. The caller holds mu.
+func (l *Log) keep(recs ...Record) {
+	if l.byCase == nil {
+		l.byCase = map[string][]int{}
+	}
+	for _, r := range recs {
+		if r.Case != "" {
+			l.byCase[r.Case] = append(l.byCase[r.Case], len(l.records))
+		}
+		l.records = append(l.records, r)
+	}
 }
 
 // Head is the number of records and the latest hash.

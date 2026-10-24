@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"sort"
 	"sync"
 	"time"
@@ -30,6 +31,7 @@ func benchCmd(args []string, w io.Writer) error {
 	dir := fs.String("policies", "policies", "the policy directory; the lumbar MRI policy is the one exercised")
 	n := fs.Int("n", 2000, "PAS requests to send")
 	workers := fs.Int("workers", runtime.NumCPU(), "requests in flight at once")
+	cpuProfile := fs.String("cpuprofile", "", "write a CPU profile of the whole-request run to this file (go tool pprof)")
 	seconds := fs.Float64("engine-seconds", 2, "how long to run the engine alone")
 	fs.Parse(args)
 	policies, err := loadDir(*dir)
@@ -78,7 +80,9 @@ func benchCmd(args []string, w io.Writer) error {
 	defer st.log.Close()
 	h := server.New(server.Config{Policies: policies, Token: "bench", Sessions: auth.NewSessions(st.users),
 		Audit: st.log, AuditPath: st.auditPath, Cases: st.cases})
-	bundles := make([][]byte, 64)
+	// One Bundle per request, as in real traffic: each is a new file kept beside its case (written, synced, renamed
+	// into place, its directory synced), not one of a few the server has already kept.
+	bundles := make([][]byte, *n)
 	for i := range bundles {
 		bundles[i] = benchBundle(r, i)
 	}
@@ -86,6 +90,17 @@ func benchCmd(args []string, w io.Writer) error {
 	var next int
 	var mu sync.Mutex
 	var failed error
+	if *cpuProfile != "" {
+		f, err := os.Create(*cpuProfile)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			return err
+		}
+		defer pprof.StopCPUProfile()
+	}
 	start := time.Now()
 	var wg sync.WaitGroup
 	for k := 0; k < *workers; k++ {

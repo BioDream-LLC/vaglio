@@ -16,10 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/biodream-llc/vaglio/internal/fsx"
-	"github.com/biodream-llc/vaglio/internal/seal"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -322,6 +319,7 @@ type Store struct {
 	mu      sync.Mutex
 	log     *audit.Log
 	bundles string
+	packs   *packs // the request Bundles (pack.go)
 	cases   map[string]*Case
 	order   []string
 }
@@ -331,7 +329,7 @@ func Open(log *audit.Log, bundles string) (*Store, error) {
 	if err := os.MkdirAll(bundles, 0o700); err != nil {
 		return nil, err
 	}
-	s := &Store{log: log, bundles: bundles, cases: map[string]*Case{}}
+	s := &Store{log: log, bundles: bundles, packs: openPacks(bundles), cases: map[string]*Case{}}
 	for _, r := range log.Records(0, 0) {
 		if err := s.apply(r); err != nil {
 			return nil, fmt.Errorf("cases: replaying audit record %d: %w", r.Seq, err)
@@ -500,29 +498,13 @@ func newID() string {
 // Open records a decision as a new case, keeping the Bundle it was made on. Earlier pended cases for the same Claim and
 // item are superseded: the request was sent again, so the earlier one is no longer what anyone is waiting on.
 func (s *Store) Open(o Opening, bundle []byte) (*Case, error) {
-	sum := sha256.Sum256(bundle)
-	o.Bundle = hex.EncodeToString(sum[:])
-	path := filepath.Join(s.bundles, o.Bundle+".json")
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		// On disk before the record that names it: a case is never durable without its request.
-		tmp := path + "." + newID() + ".new" // two copies of one request may arrive together
-		if err := seal.WriteFileSync(tmp, "bundle", bundle, 0o600); err != nil {
-			return nil, err
-		}
-		if err := os.Rename(tmp, path); err != nil {
-			// The file is named by its content, so a copy another request put there first is this one. Windows refuses
-			// to replace a file someone has open, where Unix would replace it silently.
-			if _, serr := os.Stat(path); serr != nil {
-				os.Remove(tmp)
-				return nil, err
-			}
-			os.Remove(tmp)
-		}
-		// The name too, not only the bytes: a Bundle renamed into place survives a power cut with its record.
-		if err := fsx.SyncDir(s.bundles); err != nil {
-			return nil, err
-		}
+	// On disk before the record that names it: a case is never durable without its request. Requests arriving
+	// together share the sync (pack.go).
+	sum, err := s.packs.put(bundle)
+	if err != nil {
+		return nil, err
 	}
+	o.Bundle = sum
 	c, wait, err := func() (*Case, func() error, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -800,12 +782,8 @@ func (s *Store) Receive(id string, entries []map[string]any) (*Case, error) {
 	if err != nil {
 		return nil, err
 	}
-	sum := sha256.Sum256(b)
-	name := hex.EncodeToString(sum[:])
-	if err := seal.WriteFileSync(filepath.Join(s.bundles, name+".json"), "bundle", b, 0o600); err != nil {
-		return nil, err
-	}
-	if err := fsx.SyncDir(s.bundles); err != nil {
+	name, err := s.packs.put(b)
+	if err != nil {
 		return nil, err
 	}
 	s.mu.Lock()
@@ -839,7 +817,7 @@ func (s *Store) Entries(c *Case) (map[string]any, error) {
 		return nil, err
 	}
 	for _, r := range c.Received {
-		more, err := seal.ReadFile(filepath.Join(s.bundles, r.Bundle+".json"), "bundle")
+		more, err := s.packs.get(r.Bundle)
 		if err != nil {
 			return nil, err
 		}
@@ -958,7 +936,7 @@ var ErrBundleChanged = errors.New("the stored request does not match the one the
 
 // Bundle returns the request a case was decided on, refusing one that has changed since.
 func (s *Store) Bundle(c *Case) ([]byte, error) {
-	raw, err := seal.ReadFile(filepath.Join(s.bundles, c.Bundle+".json"), "bundle")
+	raw, err := s.packs.get(c.Bundle)
 	if err != nil {
 		return nil, err
 	}

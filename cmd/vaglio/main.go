@@ -1199,8 +1199,24 @@ func auditCmd(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "audit log intact: %d records, latest hash %s\nKeep that hash somewhere else: the log up to it can then "+
-		"never be rewritten unnoticed.\n", n, head)
+	// Every case's request too: kept, readable, and the one it was decided on.
+	l, err := audit.Open(filepath.Join(*dir, "audit.jsonl"))
+	if err != nil {
+		return err
+	}
+	defer l.Close()
+	cs, err := cases.Open(l, filepath.Join(*dir, "bundles"))
+	if err != nil {
+		return err
+	}
+	all := cs.List("")
+	for _, c := range all {
+		if _, err := cs.Bundle(&c); err != nil {
+			return fmt.Errorf("case %s: its request: %w", c.ID, err)
+		}
+	}
+	fmt.Fprintf(w, "audit log intact: %d records, latest hash %s\nrequests intact: all %d cases' requests read back and "+
+		"match\nKeep that hash somewhere else: the log up to it can then never be rewritten unnoticed.\n", n, head, len(all))
 	return nil
 }
 

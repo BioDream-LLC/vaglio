@@ -1,6 +1,7 @@
 package cases
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -114,11 +115,13 @@ func TestTheBundleMustMatch(t *testing.T) {
 	if raw, err := s.Bundle(c); err != nil || string(raw) != `{"resourceType":"Bundle"}` {
 		t.Fatalf("%s %v", raw, err)
 	}
-	info, _ := os.Stat(filepath.Join(dir, "bundles", c.Bundle+".json"))
+	pack := filepath.Join(dir, "bundles", "pack-000001.vgp")
+	info, _ := os.Stat(pack)
 	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 { // Windows keeps no Unix modes
-		t.Errorf("bundle mode %v", info.Mode().Perm())
+		t.Errorf("pack mode %v", info.Mode().Perm())
 	}
-	os.WriteFile(filepath.Join(dir, "bundles", c.Bundle+".json"), []byte(`{"resourceType":"Bundle","edited":true}`), 0o600)
+	raw, _ := os.ReadFile(pack)
+	os.WriteFile(pack, bytes.Replace(raw, []byte(`"Bundle"`), []byte(`"Bundlf"`), 1), 0o600)
 	if _, err := s.Bundle(c); !errors.Is(err, ErrBundleChanged) {
 		t.Errorf("an edited bundle: %v", err)
 	}

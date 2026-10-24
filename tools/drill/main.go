@@ -106,6 +106,8 @@ func (s *server) ready(deadline time.Duration) time.Time {
 
 // decide sends one request; it returns the case the server answered with, or "" if it did not answer.
 func (s *server) decide(raw []byte, id string) string {
+	// Each request its own Bundle, as in real traffic: a new one to keep every time, not one already kept.
+	raw = bytes.Replace(raw, []byte("{"), []byte(`{"id":"`+id+`",`), 1)
 	req, _ := http.NewRequest(http.MethodPost, "https://"+s.addr+"/api/pas/decide?item=1", bytes.NewReader(raw))
 	req.Header.Set("Authorization", "Bearer drill-token-0123456789")
 	req.Header.Set("X-PAS-Request-Id", id)

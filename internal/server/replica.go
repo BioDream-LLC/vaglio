@@ -5,13 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/biodream-llc/vaglio/internal/seal"
 )
 
 // What a standby (vaglio standby) copies from this server, behind the replica token (serve -replica-token-env): the
@@ -57,11 +54,11 @@ func (cfg Config) replicaBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := r.PathValue("sha")
-	if !bundleNameRe.MatchString(name) || cfg.BundleDir == "" {
+	if !bundleNameRe.MatchString(name) || cfg.Cases == nil {
 		writeError(w, http.StatusNotFound, "no such bundle")
 		return
 	}
-	raw, err := seal.ReadFile(filepath.Join(cfg.BundleDir, name+".json"), "bundle")
+	raw, err := cfg.Cases.BundleNamed(name)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "no such bundle")
 		return

@@ -17,12 +17,13 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/biodream-llc/vaglio/internal/audit"
+	"github.com/biodream-llc/vaglio/internal/cases"
 	"github.com/biodream-llc/vaglio/internal/fsx"
-	"github.com/biodream-llc/vaglio/internal/seal"
 	"github.com/biodream-llc/vaglio/internal/tlsserve"
 )
 
@@ -58,6 +59,7 @@ func standbyCmd(args []string) error {
 		return err
 	}
 	defer sb.log.Close()
+	defer sb.packs.Close()
 	n, _ := sb.log.Head()
 	log.Printf("standby of %s in %s: %d records here", *from, *dir, n)
 	sb.follow, sb.usersEvery = *follow, *every
@@ -99,6 +101,7 @@ type standby struct {
 	from, token, dir string
 	hc               *http.Client
 	log              *audit.Log
+	packs            *cases.Packs
 	usersSeen        string
 	follow           bool
 	usersEvery       time.Duration
@@ -116,7 +119,12 @@ func openStandby(from, token, dir string, hc *http.Client) (*standby, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &standby{from: strings.TrimRight(from, "/"), token: token, dir: dir, hc: hc, log: l}, nil
+	packs, err := cases.OpenPacks(filepath.Join(dir, "bundles"))
+	if err != nil {
+		l.Close()
+		return nil, err
+	}
+	return &standby{from: strings.TrimRight(from, "/"), token: token, dir: dir, hc: hc, log: l, packs: packs}, nil
 }
 
 func (s *standby) get(ctx context.Context, path string) (*http.Response, error) {
@@ -176,19 +184,20 @@ func (s *standby) Once(ctx context.Context) (int, int, error) {
 	// A page of records: their request Bundles first (a record never arrives before what it names), then the records,
 	// checked and written together with one sync.
 	var page []audit.Record
+	var need []string
 	for sc.Scan() {
 		var rec audit.Record
 		if err := json.Unmarshal(sc.Bytes(), &rec); err != nil {
 			return 0, head - n, fmt.Errorf("an unreadable record: %w", err)
 		}
-		for _, b := range bundlesOf(rec) {
-			if err := s.copyBundle(ctx, b); err != nil {
-				return 0, head - n, err
-			}
-		}
+		need = append(need, bundlesOf(rec)...)
 		page = append(page, rec)
 	}
 	if err := sc.Err(); err != nil {
+		return 0, head - n, err
+	}
+	// Fetched several at once (one request each), kept in this copy's packs, and synced once for the page.
+	if err := s.copyBundles(ctx, need); err != nil {
 		return 0, head - n, err
 	}
 	if err := s.log.CopyAll(page); err != nil {
@@ -197,14 +206,49 @@ func (s *standby) Once(ctx context.Context) (int, int, error) {
 	return len(page), max(0, head-n-len(page)), nil
 }
 
-func (s *standby) copyBundle(ctx context.Context, name string) error {
-	if !bundleRe.MatchString(name) {
-		return fmt.Errorf("a record names bundle %q", name)
+// copyBundles fetches the Bundles this copy does not have, several at a time, and syncs them before returning.
+func (s *standby) copyBundles(ctx context.Context, names []string) error {
+	var todo []string
+	seen := map[string]bool{}
+	for _, name := range names {
+		if !bundleRe.MatchString(name) {
+			return fmt.Errorf("a record names bundle %q", name)
+		}
+		if !seen[name] && !s.packs.Has(name) {
+			todo = append(todo, name)
+		}
+		seen[name] = true
 	}
-	path := filepath.Join(s.dir, "bundles", name+".json")
-	if _, err := os.Stat(path); err == nil {
+	if len(todo) == 0 {
 		return nil
 	}
+	errs := make(chan error, len(todo))
+	jobs := make(chan string)
+	var wg sync.WaitGroup
+	for w := 0; w < min(8, len(todo)); w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for name := range jobs {
+				errs <- s.copyBundle(ctx, name)
+			}
+		}()
+	}
+	for _, name := range todo {
+		jobs <- name
+	}
+	close(jobs)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return s.packs.Sync()
+}
+
+func (s *standby) copyBundle(ctx context.Context, name string) error {
 	resp, err := s.get(ctx, "/api/replica/bundles/"+name)
 	if err != nil {
 		return err
@@ -217,11 +261,8 @@ func (s *standby) copyBundle(ctx context.Context, name string) error {
 	if sum := sha256.Sum256(raw); hex.EncodeToString(sum[:]) != name {
 		return fmt.Errorf("bundle %s does not match its hash", name)
 	}
-	tmp := path + ".new"
-	if err := seal.WriteFileSync(tmp, "bundle", raw, 0o600); err != nil {
-		return err
-	}
-	return fsx.Replace(tmp, path)
+	_, err = s.packs.Append(raw)
+	return err
 }
 
 func (s *standby) copyUsers(ctx context.Context) error {

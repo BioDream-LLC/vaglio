@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/biodream-llc/vaglio/internal/audit"
+	"github.com/biodream-llc/vaglio/internal/cases"
 	"github.com/biodream-llc/vaglio/internal/fsx"
 	"github.com/biodream-llc/vaglio/internal/seal"
 )
@@ -54,9 +55,14 @@ func dataCmd(args []string, w io.Writer) error {
 			}
 		}
 	}
+	packSealed, packPlain, err := cases.PackEntries(filepath.Join(*dir, "bundles"))
+	if err != nil {
+		return err
+	}
 	if args[0] == "status" {
-		fmt.Fprintf(w, "audit log: %d records sealed, %d plain\nfiles: %d sealed, %d plain\nkey set: %v\n",
-			sealedLines, plainLines, sealedFiles, plainFiles, seal.On())
+		fmt.Fprintf(w, "audit log: %d records sealed, %d plain\nfiles: %d sealed, %d plain\n"+
+			"request Bundles in packs: %d sealed, %d plain\nkey set: %v\n",
+			sealedLines, plainLines, sealedFiles, plainFiles, packSealed, packPlain, seal.On())
 		return nil
 	}
 	for _, f := range toSeal {
@@ -80,12 +86,16 @@ func dataCmd(args []string, w io.Writer) error {
 			return err
 		}
 	}
+	packs, err := cases.SealPacks(filepath.Join(*dir, "bundles"))
+	if err != nil {
+		return err
+	}
 	if plainLines > 0 {
 		if err := sealLog(logPath); err != nil {
 			return err
 		}
 	}
-	fmt.Fprintf(w, "sealed %d audit records and %d files\n", plainLines, len(toSeal))
+	fmt.Fprintf(w, "sealed %d audit records, %d files and %d request Bundles in packs\n", plainLines, len(toSeal), packs)
 	return nil
 }
 

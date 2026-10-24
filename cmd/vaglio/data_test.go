@@ -32,10 +32,10 @@ func TestDataSeal(t *testing.T) {
 	}
 	k, _ := seal.Parse("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
 	seal.SetDefault(k)
-	if err := dataCmd([]string{"seal", "-data", dir}, &out); err != nil || !strings.Contains(out.String(), "sealed 1 audit records and 1 files") {
+	if err := dataCmd([]string{"seal", "-data", dir}, &out); err != nil || !strings.Contains(out.String(), "sealed 1 audit records, 0 files and 1 request Bundles in packs") {
 		t.Fatalf("%v %s", err, out.String())
 	}
-	for _, f := range []string{"audit.jsonl", "bundles/" + c.Bundle + ".json"} {
+	for _, f := range []string{"audit.jsonl", "bundles/pack-000001.vgp"} {
 		raw, _ := os.ReadFile(filepath.Join(dir, f))
 		if bytes.Contains(raw, []byte("Rivera")) {
 			t.Errorf("%s still holds the patient's name", f)
@@ -63,7 +63,8 @@ func TestDataSeal(t *testing.T) {
 	}
 	out.Reset()
 	dataCmd([]string{"status", "-data", dir}, &out)
-	if !strings.Contains(out.String(), "2 records sealed, 0 plain") {
+	if !strings.Contains(out.String(), "2 records sealed, 0 plain") ||
+		!strings.Contains(out.String(), "request Bundles in packs: 1 sealed, 0 plain") {
 		t.Errorf("status: %s", out.String())
 	}
 }
