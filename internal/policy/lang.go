@@ -38,6 +38,12 @@ package policy
 //	  find criteria interqual "KNEE-TKA-3.2"        # a criterion of the plan's own criteria service (serve -criteria)
 //	  find provider specialty 207X00000X            # the provider's specialty, from the NPI registry
 //	  find provider in-network                      # in the plan's network file (serve -network)
+//	  find cql HomeOxygen "BloodGasQualifies"       # a define of a pinned CQL library, run over the request
+//
+// A policy running CQL pins each file it reads in its header, by SHA-256, so its own text covers the libraries':
+//
+//	  cql cql/o2/HomeOxygen.cql sha256 5f1c...       # a library (and each it includes), under the policy directory
+//	  cql cql/o2/valuesets.json sha256 9a07...       # a ValueSet, or a Bundle of them, with its codes listed
 //	  request document loinc 11506-3                # documents to ask for, by LOINC attachment code (CDex)
 //
 //	criterion indication_unestablished
@@ -316,6 +322,11 @@ func (ps *parser) parse() (*Policy, error) {
 						p.States = append(p.States, a.text)
 					}
 				}
+			case "cql":
+				if len(args) != 3 || args[1].text != "sha256" {
+					return nil, ps.errAt(kw, "write: cql <file.cql or file.json> sha256 <hex>")
+				}
+				p.CQL = append(p.CQL, CQLFile{File: args[0].text, SHA256: strings.ToLower(args[2].text)})
 			case "drug":
 				if err := once(kw, "drug"); err != nil {
 					return nil, err
@@ -345,7 +356,7 @@ func (ps *parser) parse() (*Policy, error) {
 				}
 			default:
 				return nil, ps.errAt(kw, "%q is not a policy field (title, version, source, status, signed, effective, ends, authority, lines, "+
-					"states, drug, questionnaire, service), "+
+					"states, drug, questionnaire, service, cql), "+
 					"and no argument has been started", kw.text)
 			}
 			continue
@@ -462,7 +473,7 @@ func (ps *parser) days(at token, args []token, i int) (int, int, error) {
 
 func (ps *parser) source(kw token, args []token) (Source, error) {
 	if len(args) == 0 {
-		return Source{}, ps.errAt(kw, "write: find question|condition|procedure|observation|medication|criteria|provider ...")
+		return Source{}, ps.errAt(kw, "write: find question|condition|procedure|observation|medication|criteria|provider|cql ...")
 	}
 	what := args[0]
 	if what.text == "question" {
@@ -476,6 +487,12 @@ func (ps *parser) source(kw token, args []token) (Source, error) {
 			return Source{}, ps.errAt(what, "write: find criteria <service> <criterion>")
 		}
 		return Source{Criteria: &CriteriaRef{Service: args[1].text, Criterion: args[2].text}}, nil
+	}
+	if what.text == "cql" {
+		if len(args) != 3 || args[1].quoted || !args[2].quoted && strings.TrimSpace(args[2].text) == "" {
+			return Source{}, ps.errAt(what, `write: find cql <Library> "<define>"`)
+		}
+		return Source{CQL: &CQLRef{Library: args[1].text, Define: args[2].text}}, nil
 	}
 	if what.text == "provider" {
 		switch {
@@ -681,6 +698,9 @@ func Format(p *Policy) string {
 	if p.Questionnaire != "" {
 		w("  questionnaire %s\n", p.Questionnaire)
 	}
+	for _, f := range p.CQL {
+		w("  cql %s sha256 %s\n", f.File, f.SHA256)
+	}
 	for i := 0; i < len(p.Services); {
 		j := i
 		var codes []string
@@ -725,6 +745,8 @@ func formatSource(s Source) string {
 		return "question " + s.Question
 	case s.Criteria != nil:
 		return "criteria " + s.Criteria.Service + " " + word(s.Criteria.Criterion)
+	case s.CQL != nil:
+		return "cql " + s.CQL.Library + " " + quote(s.CQL.Define)
 	case s.Provider != nil:
 		if s.Provider.InNetwork {
 			return "provider in-network"

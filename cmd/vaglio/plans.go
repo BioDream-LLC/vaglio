@@ -23,6 +23,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/auth"
 	"github.com/biodream-llc/vaglio/internal/cases"
 	"github.com/biodream-llc/vaglio/internal/cmswatch"
+	"github.com/biodream-llc/vaglio/internal/cqlrun"
 	"github.com/biodream-llc/vaglio/internal/deliver"
 	"github.com/biodream-llc/vaglio/internal/editor"
 	"github.com/biodream-llc/vaglio/internal/eligibility"
@@ -225,7 +226,7 @@ type criteriaSpec struct {
 // openOutside makes a plan's outside sources, and refuses a policy reading one the plan lacks: its evidence would
 // never be addressed, so every request would pend.
 func openOutside(sp planSpec, policies map[string]*policy.Policy) (*outside.Sources, error) {
-	src := &outside.Sources{Criteria: map[string]*outside.CriteriaService{}}
+	src := &outside.Sources{Criteria: map[string]*outside.CriteriaService{}, CQL: &cqlrun.Cache{Dir: sp.Policies}}
 	for name, c := range sp.Criteria {
 		token, err := secretFrom(c.TokenEnv)
 		if err != nil {
@@ -263,6 +264,11 @@ func openOutside(sp planSpec, policies map[string]*policy.Policy) (*outside.Sour
 		for _, a := range p.Arguments {
 			for _, s := range a.Find {
 				switch {
+				case s.CQL != nil:
+					// every pinned file present, unchanged, compiling, and naming what the policy reads
+					if _, err := src.CQL.For(p); err != nil {
+						return nil, err
+					}
 				case s.Criteria != nil && src.Criteria[s.Criteria.Service] == nil:
 					return nil, fmt.Errorf("policy %s reads criteria service %q, which is not configured (-criteria %s=URL)",
 						p.ID, s.Criteria.Service, s.Criteria.Service)

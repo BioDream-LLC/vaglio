@@ -29,6 +29,7 @@ import (
 
 	"github.com/biodream-llc/perfuse/pas"
 	"github.com/biodream-llc/vaglio/internal/auth"
+	"github.com/biodream-llc/vaglio/internal/cqlrun"
 	"github.com/biodream-llc/vaglio/internal/decide"
 	"github.com/biodream-llc/vaglio/internal/evidence"
 	"github.com/biodream-llc/vaglio/internal/policy"
@@ -39,6 +40,9 @@ type Sources struct {
 	Criteria map[string]*CriteriaService
 	Network  *Network
 	Registry Registry
+	// CQL is each policy's CQL program (by policy id): its pinned libraries, run over the request. Not outside the
+	// request, but kept with what was found like the outside sources, so a case decided again reads what they said then.
+	CQL *cqlrun.Cache
 }
 
 // Registry is where a provider's specialties are read: the NPPES API, or a file extracted from its download.
@@ -52,7 +56,7 @@ type Registry interface {
 func Uses(p *policy.Policy) bool {
 	for _, a := range p.Arguments {
 		for _, s := range a.Find {
-			if s.Criteria != nil || s.Provider != nil {
+			if s.Criteria != nil || s.Provider != nil || s.CQL != nil {
 				return true
 			}
 		}
@@ -74,6 +78,22 @@ func (s *Sources) Findings(ctx context.Context, p *policy.Policy, req *pas.Reque
 	npi := ProviderNPI(req)
 	var out []evidence.Finding
 	var notes []string
+	if usesCQL(p) {
+		prog, err := s.CQL.For(p)
+		switch {
+		case err != nil:
+			notes = append(notes, "the policy's cql sources were not run: "+err.Error())
+		case prog == nil:
+			notes = append(notes, "the policy's cql sources were not run: no CQL libraries are loaded (its files are "+
+				"read from the policy directory)")
+		default:
+			fs, n := prog.Run(p, req)
+			for _, f := range fs {
+				out = append(out, evidence.Finding{Argument: f.Argument, Finding: f.Finding, Citation: f.Citation})
+			}
+			notes = append(notes, n...)
+		}
+	}
 	var taxonomies []string
 	var taxCite string
 	taxKnown, taxAsked := false, false
@@ -416,4 +436,15 @@ func (n *NPPES) Taxonomies(ctx context.Context, npi string) ([]string, string, b
 	n.cache[npi] = a
 	n.mu.Unlock()
 	return a.codes, "npi-registry:NPPES " + a.at.Format(time.DateOnly), a.known, nil
+}
+
+func usesCQL(p *policy.Policy) bool {
+	for _, a := range p.Arguments {
+		for _, s := range a.Find {
+			if s.CQL != nil {
+				return true
+			}
+		}
+	}
+	return false
 }

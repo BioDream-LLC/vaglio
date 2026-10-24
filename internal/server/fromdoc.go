@@ -42,6 +42,9 @@ type DraftJob struct {
 	Error    string         `json:"error,omitempty"`
 	Saved    bool           `json:"saved"`           // the last draft is saved as the policy's draft, for an author
 	Check    *decide.Report `json:"check,omitempty"` // the passing draft's exhaustive check
+	// Also is the other policies a passing draft holds, saved as drafts beside the first: a document holding its
+	// services to different criteria is drafted as one policy per service.
+	Also []string `json:"also,omitempty"`
 }
 
 // DraftRound is one round's findings, sorted by kind (draft.Kind).
@@ -171,12 +174,28 @@ func (cfg Config) runDraft(job *DraftJob, text, user string) {
 			". The checker's findings are in the console and the audit log.\n\n" + draft.Source(last.Answer)
 	}
 	saved := false
+	dir := editor.Dir{Path: cfg.PolicyDir}
+	save := func(id, src string) bool {
+		if _, e := cfg.Audit.Append("user:"+user, ActDraftSaved, "", map[string]string{"policy": id,
+			"sha256": editor.Hash([]byte(src))}); e != nil {
+			return false
+		}
+		_, e := dir.SaveDraft(id, []byte(src))
+		return e == nil
+	}
+	firstID := job.Policy
+	if err == nil && res.Policy != nil {
+		firstID = res.Policy.ID
+	}
 	if src != "" {
-		dir := editor.Dir{Path: cfg.PolicyDir}
-		if _, e := cfg.Audit.Append("user:"+user, ActDraftSaved, "", map[string]string{"policy": job.Policy,
-			"sha256": editor.Hash([]byte(src))}); e == nil {
-			_, e = dir.SaveDraft(job.Policy, []byte(src))
-			saved = e == nil
+		saved = save(firstID, src)
+	}
+	var also []string
+	if err == nil {
+		for _, p := range res.Policies[1:] {
+			if save(p.ID, res.Sources[p.ID]) {
+				also = append(also, p.ID)
+			}
 		}
 	}
 	var check *decide.Report
@@ -190,7 +209,8 @@ func (cfg Config) runDraft(job *DraftJob, text, user string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.busy = false
-	job.Saved, job.Check = saved, check
+	job.Saved, job.Check, job.Also = saved, check, also
+	job.Policy = firstID // a split draft's first policy is named ID_service
 	if passed {
 		job.State = "passed"
 	} else {

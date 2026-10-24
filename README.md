@@ -180,6 +180,15 @@ Every request gets an answer the record supports: approve, deny with its proof, 
   the others. Two policies of one rank that could both reach a request are refused at load and at sign-off, so the
   choice is never a tie. When a higher policy may apply but the request does not say (no Coverage type, no address), the
   lower one may approve, never deny: the request is pended and the missing coverage or address asked for.
+- **CQL as evidence** (`find cql LIBRARY "DEFINE"`): a define of a CQL library, such as a Da Vinci DTR questionnaire's
+  pre-fill, run over the request's own resources by Vaglio's CQL engine (`internal/cql`, Go, no Java or JavaScript).
+  True documents the evidence present, false absent; null, an error, or a value set not given leaves it not addressed.
+  The proof cites the define and the resources it read. Each library and value set is a file beside the policy, pinned
+  in its header by SHA-256, so a library changed after sign-off stops the policy loading. The engine does the part of
+  CQL payer DTR libraries use (queries, retrieves, intervals, dates with precision, FHIRHelpers built in), not all of
+  it: no ELM, no terminology service (value sets are given expanded), no unit conversion beyond a short table. Checked
+  define by define against the reference CQL-to-ELM translator and the `cql-execution` engine on three real DTR
+  libraries (79 defines, two invented patients): every value matched.
 - **Richer date rules**: `find condition ... onset at least N days` (how long a condition has lasted), and
   `find procedure ... within N days times N apart N days` (two blocks at least 14 days apart; two RFA sessions in a
   year). Fewer procedures, or ones that cannot be dated apart, document nothing either way.
@@ -855,16 +864,21 @@ vaglio compile policies/lumbar_mri.vaglio      # the JSON the engine reads
 vaglio draft -id knee -out knee.vaglio document.txt    # OpenRouter by default: -url, -model, -key-env
 vaglio import-dtr -id home_o2 -service "hcpcs E1390" -out home_o2.vaglio package.json
                                                         # from a DTR Questionnaire the plan has: its yes/no questions
-                                                        # as evidence, find lines suggested from its CQL's record
-                                                        # lookups (as comments), rules left for the author
+                                                        # as evidence, each also run by its own CQL pre-fill
+                                                        # (find cql, libraries pinned beside it), rules left for
+                                                        # the author
 bin/vaglio decide -policy policies/lumbar_mri.vaglio testdata/requests/repeat_mri_unaddressed.json
 ```
 
-`import-dtr` does not run CQL. It reads the shapes prepopulation libraries are mostly made of (a question's define
-reaching `[Condition: ...]` or `[Observation: ...]` through other defines, a code list, a look-back of months) and
-suggests the matching `find` line beside the question, commented out. What it cannot read it says: a value set to
-expand, a lookup the CQL negates, an observation with no stated threshold (the suggestion carries `VALUE UNIT`, which
-the language refuses until the author writes one), or a define that reads the request rather than the record.
+`import-dtr` writes the package's CQL libraries (and any ValueSets it carries) beside the policy, in `cql/ID/`, pins them,
+and gives each yes/no question the questionnaire pre-fills from a define a `find cql` line beside its `find question`:
+the record and the provider's answer are read side by side, and where they disagree the case says so. A package that
+lacks a library its CQL includes is not run, and import-dtr says which. It also still reads the shapes prepopulation
+libraries are mostly made of (a question's define reaching `[Condition: ...]` or `[Observation: ...]` through other
+defines, a code list, a look-back of months) and suggests the matching plain `find` line beside the question, commented
+out. What it cannot read it says: a value set to expand, a lookup the CQL negates, an observation with no stated
+threshold (the suggestion carries `VALUE UNIT`, which the language refuses until the author writes one), or a define
+that reads the request rather than the record. `-cql=false` writes no libraries and runs nothing.
 
 The language is described at the top of `internal/policy/lang.go`; `policies/` has two worked examples.
 

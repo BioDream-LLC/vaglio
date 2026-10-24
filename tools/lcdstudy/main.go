@@ -52,6 +52,7 @@ type row struct {
 	Passed          bool
 	Rounds          int
 	Evidence, Rules int
+	Policies        int      // how many policies the passing draft holds (one per service group)
 	Kinds           []string // the kinds of failure in the last round, when it did not pass
 	FirstKinds      []string // the kinds of failure in the first round
 	Error           string
@@ -156,11 +157,14 @@ func study(m draft.Model, token string, l lcd, maxChars int, dir string) row {
 	switch {
 	case err == nil:
 		r.Passed, r.Kinds = true, nil
-		r.Evidence = len(res.Policy.EvidenceNames())
-		r.Rules = len(res.Policy.Arguments) - r.Evidence
-		if dir != "" {
-			_ = os.WriteFile(filepath.Join(dir, id+".vaglio"), []byte(res.Source), 0o600)
+		for _, p := range res.Policies {
+			r.Evidence += len(p.EvidenceNames())
+			r.Rules += len(p.Arguments) - len(p.EvidenceNames())
+			if dir != "" {
+				_ = os.WriteFile(filepath.Join(dir, p.ID+".vaglio"), []byte(res.Sources[p.ID]), 0o600)
+			}
 		}
+		r.Policies = len(res.Policies)
 	case errors.Is(err, draft.ErrNoDraft):
 	default:
 		r.Error = err.Error()
@@ -312,10 +316,10 @@ func write(path string, rows []row) error {
 		return err
 	}
 	w := csv.NewWriter(f)
-	w.Write([]string{"lcd", "title", "chars", "passed", "rounds", "evidence", "rules", "first_round_failures", "last_round_failures", "error"})
+	w.Write([]string{"lcd", "title", "chars", "passed", "rounds", "evidence", "rules", "first_round_failures", "last_round_failures", "error", "policies"})
 	for _, r := range rows {
 		w.Write([]string{r.LCD, r.Title, fmt.Sprint(r.Chars), fmt.Sprint(r.Passed), fmt.Sprint(r.Rounds), fmt.Sprint(r.Evidence),
-			fmt.Sprint(r.Rules), strings.Join(r.FirstKinds, ";"), strings.Join(r.Kinds, ";"), r.Error})
+			fmt.Sprint(r.Rules), strings.Join(r.FirstKinds, ";"), strings.Join(r.Kinds, ";"), r.Error, fmt.Sprint(r.Policies)})
 	}
 	w.Flush()
 	return errors.Join(w.Error(), f.Close())
@@ -323,6 +327,9 @@ func write(path string, rows []row) error {
 
 // articleCodes lists the codes the LCD's billing and coding articles give, as LCDs carry none themselves: the code
 // numbers only (CPT descriptions are the AMA's), as the library's policies were drafted.
+// hcpcsII is a HCPCS Level II code: a letter (not I or O, which the code set does not use) and four digits.
+var hcpcsII = regexp.MustCompile(`\b[A-HJ-NP-V][0-9]{4}\b`)
+
 func articleCodes(token string, id int) string {
 	var rel struct {
 		Data []struct {
@@ -349,6 +356,27 @@ func articleCodes(token string, id int) string {
 				if !seen["h"+c.Code] {
 					seen["h"+c.Code] = true
 					hcpcs = append(hcpcs, c.Code)
+				}
+			}
+		}
+		if len(h.Data) == 0 {
+			// DME MAC articles list their codes in the article's own text, not under the code endpoint: the HCPCS
+			// Level II code numbers are read from it (numbers only, never descriptions).
+			var art struct {
+				Data []map[string]any `json:"data"`
+			}
+			if get(fmt.Sprintf("%s/data/article?articleid=%d&ver=%d", api, *a.Article, *a.Version), token, &art) == nil {
+				for _, f := range art.Data {
+					for _, v := range f {
+						if text, ok := v.(string); ok {
+							for _, c := range hcpcsII.FindAllString(text, -1) {
+								if !seen["h"+c] {
+									seen["h"+c] = true
+									hcpcs = append(hcpcs, c)
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -418,6 +446,11 @@ func readRows(path string) (map[string]row, error) {
 		}
 		if c[8] != "" {
 			r.Kinds = strings.Split(c[8], ";")
+		}
+		if len(c) > 10 {
+			fmt.Sscan(c[10], &r.Policies)
+		} else if r.Passed {
+			r.Policies = 1
 		}
 		out[r.LCD] = r
 	}

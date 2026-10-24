@@ -94,7 +94,7 @@ func (x Extraction) Request(policyID string) decide.Request {
 
 // Outside prefixes the citations of findings from outside the request: a criteria service, the plan's network, the NPI
 // registry.
-var Outside = []string{"criteria:", "network:", "npi-registry:"}
+var Outside = []string{"criteria:", "network:", "npi-registry:", "cql:"}
 
 // FromOutside is the extraction's findings from outside the request, to decide a stored case again on what those
 // sources said then, without asking them again.

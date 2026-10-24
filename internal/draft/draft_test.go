@@ -163,3 +163,38 @@ func TestNearestSentence(t *testing.T) {
 		t.Fatal("an unrelated clause got a suggestion")
 	}
 }
+
+// TestSeveralPolicies: a document holding two services to different criteria may be drafted as one policy per
+// service; each is gated alone, its id must be the request's with a suffix, and a code belongs to one of them.
+func TestSeveralPolicies(t *testing.T) {
+	doc := "Covered: CPT 11111 and CPT 22222.\n" +
+		"CPT 11111 is covered when the member has persistent pain.\n" +
+		"CPT 22222 is covered when the member has a fracture.\n"
+	one := func(id, code, ev, clause string) string {
+		return "```vaglio\npolicy " + id + "\n  title \"T\"\n  version 1.0\n  source \"S\"\n" +
+			"  questionnaire https://payer.example/Questionnaire/x\n  service cpt " + code + "\n\n" +
+			"evidence " + ev + "\n  text \"E\"\n  clause \"" + clause + "\"\n  find question " + ev + "\n\n" +
+			"criterion no_" + ev + "\n  text \"N\"\n  clause \"" + clause + "\"\n  defeated by " + ev + "\n\n" +
+			"decision approve approves\n  text \"A\"\n  clause \"" + clause + "\"\n  defeated by no_" + ev + "\n\n" +
+			"decision deny denies\n  text \"D\"\n  clause \"" + clause + "\"\n  defeated by " + ev + "\n```\n"
+	}
+	pain := one("knee_pain", "11111", "pain", "CPT 11111 is covered when the member has persistent pain.")
+	frac := one("knee_fracture", "22222", "fracture", "CPT 22222 is covered when the member has a fracture.")
+	req := Request{ID: "knee", Document: doc}
+	ps, f := GateAll(req, pain+"\n"+frac)
+	if len(f) != 0 || len(ps) != 2 || ps[0].ID != "knee_pain" || ps[1].ID != "knee_fracture" {
+		t.Fatalf("%v %v", ps, f)
+	}
+	if _, f := GateAll(req, pain+"\n"+strings.Replace(frac, "knee_fracture", "other", 1)); len(f) == 0 ||
+		!strings.Contains(strings.Join(f, " "), "each id is knee_") {
+		t.Errorf("a stray id: %v", f)
+	}
+	if _, f := GateAll(req, pain+"\n"+strings.Replace(frac, "cpt 22222", "cpt 11111", 1)); len(f) == 0 ||
+		!strings.Contains(strings.Join(f, " "), "also decided by policy knee_pain") {
+		t.Errorf("a code in two policies: %v", f)
+	}
+	if _, f := GateAll(req, pain+"\n"+strings.Replace(frac, "has a fracture.\"", "is hurt.\"", 1)); len(f) == 0 ||
+		!strings.HasPrefix(f[0], "policy knee_fracture: ") {
+		t.Errorf("a failure not named by its policy: %v", f)
+	}
+}

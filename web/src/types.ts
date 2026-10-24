@@ -825,6 +825,8 @@ export interface DraftJob {
   error?: string;
   saved: boolean;
   check?: { combinations: number; outcomes: Record<string, number> };
+  /** The other policies a split draft holds (one per service), saved as drafts too. */
+  also?: string[];
 }
 
 /** A policy a keyed-in request may fall under, and its questions. */

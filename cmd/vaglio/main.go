@@ -1220,10 +1220,22 @@ func draftCmd(args []string, w, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(*out, []byte(res.Source), 0o644); err != nil {
-		return err
+	// A document holding services to different criteria comes back as one policy per service: the first goes to -out,
+	// the others beside it, named by their ids. None overwrites a file.
+	files := map[string]string{res.Policy.ID: *out}
+	for _, p := range res.Policies[1:] {
+		f := filepath.Join(filepath.Dir(*out), p.ID+".vaglio")
+		if _, err := os.Stat(f); err == nil {
+			return fmt.Errorf("%s exists; a draft never overwrites a policy", f)
+		}
+		files[p.ID] = f
 	}
-	fmt.Fprintf(w, "wrote %s (status draft). Read every rule against the document before signing it off.\n", *out)
+	for _, p := range res.Policies {
+		if err := os.WriteFile(files[p.ID], []byte(res.Sources[p.ID]), 0o644); err != nil {
+			return err
+		}
+		fmt.Fprintf(w, "wrote %s (status draft). Read every rule against the document before signing it off.\n", files[p.ID])
+	}
 	return nil
 }
 

@@ -26,7 +26,7 @@ vet:
 	$(GO) vet ./...
 
 fmt:
-	gofmt -l -w cmd internal
+	gofmt -l -w cmd internal examples library tools conformance
 
 check-policies: build
 	$(BIN) check policies/*$(EXT) library/*$(EXT)
@@ -34,7 +34,7 @@ check-policies: build
 # check prints its marker only if everything above it passed; an absent marker is a failure, whatever else the output
 # says (Perfuse's Makefile records why).
 check:
-	@test -z "$$(gofmt -l cmd internal examples)" || (gofmt -l cmd internal examples; echo "gofmt: files above need formatting"; exit 1)
+	@test -z "$$(gofmt -l cmd internal examples library tools conformance)" || (gofmt -l cmd internal examples library tools conformance; echo "gofmt: files above need formatting"; exit 1)
 	$(GO) vet ./...
 	$(GO) test -race ./...
 	cd web && $(NPM) run typecheck && $(NPM) test

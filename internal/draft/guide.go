@@ -91,7 +91,12 @@ const guide = "You encode payer medical coverage policies in the Vaglio policy l
 	"digits and _.\n" +
 	"5. Every evidence argument and every criterion must defeat something.\n" +
 	"6. Strings are in double quotes on one line.\n" +
-	"7. Answer with the whole policy in one ```vaglio block and nothing else.\n" +
+	"7. Answer with the whole policy in one ```vaglio block (one block per policy, rule 9) and nothing else.\n" +
 	"8. At most 16 evidence arguments. The absence of a fact is never an evidence argument: write a criterion no_x " +
 	"defeated by the evidence x, as in the example. Where a list of alternatives leads to the same result (any one of " +
-	"many indications or diagnoses), one evidence argument may carry a find line for each alternative.\n"
+	"many indications or diagnoses), one evidence argument may carry a find line for each alternative.\n" +
+	"9. A policy decides its services together: one approval covers every code it lists. When the document holds " +
+	"different services to different criteria (a gastric and a respiratory pump, a surgery and a drug), write one " +
+	"policy per service or group of services with the same criteria, each in its own ```vaglio block, with the id " +
+	"you were given followed by _ and a short name (example_gastric), listing only that service's codes and " +
+	"criteria. Never write an approval for one service and a denial for another in the same policy.\n"

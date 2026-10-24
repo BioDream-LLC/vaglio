@@ -118,6 +118,10 @@ type Result struct {
 	Policy   *policy.Policy
 	Source   string // the policy file to write: a header, then the policy in the language
 	Attempts []Attempt
+	// Policies and Sources are every policy the draft holds, Policy and Source the first: a document that holds
+	// different services to different criteria is drafted as one policy per service (ids ID_name).
+	Policies []*policy.Policy
+	Sources  map[string]string
 }
 
 // ErrNoDraft is every round failing.
@@ -140,17 +144,20 @@ func Draft(ctx context.Context, m Model, req Request) (*Result, error) {
 		if err != nil {
 			return res, err
 		}
-		p, failures := Gate(req, answer)
+		ps, failures := GateAll(req, answer)
 		res.Attempts = append(res.Attempts, Attempt{Answer: answer, Failures: failures})
 		if req.OnRound != nil {
 			req.OnRound(i+1, res.Attempts[i])
 		}
 		if len(failures) == 0 {
-			p.Status = policy.Draft
-			res.Policy = p
 			sum := sha256.Sum256([]byte(req.Document))
-			res.Source = fmt.Sprintf(header, req.Name, hex.EncodeToString(sum[:8]), time.Now().UTC().Format("2006-01-02"), i+1) +
-				policy.Format(p)
+			res.Sources = map[string]string{}
+			for _, p := range ps {
+				p.Status = policy.Draft
+				res.Sources[p.ID] = fmt.Sprintf(header, req.Name, hex.EncodeToString(sum[:8]),
+					time.Now().UTC().Format("2006-01-02"), i+1) + policy.Format(p)
+			}
+			res.Policies, res.Policy, res.Source = ps, ps[0], res.Sources[ps[0].ID]
 			return res, nil
 		}
 		messages = append(messages,
@@ -172,7 +179,60 @@ const header = `# DRAFT, machine-drafted from %s (sha256 %s...) on %s, in %d rou
 
 var block = regexp.MustCompile("(?s)```(?:vaglio)?\\s*\\n(.*?)```")
 
-// Gate checks one answer against the document. It returns the policy when there are no failures.
+// GateAll checks every policy in one answer against the document: one policy, or one per service when the document
+// holds different services to different criteria. Their ids are the request's, or the request's followed by _name;
+// each is gated alone, and a service may be decided by only one of them. It returns the policies when nothing fails.
+func GateAll(req Request, answer string) ([]*policy.Policy, []string) {
+	srcs := Sources(answer)
+	if len(srcs) <= 1 {
+		p, f := Gate(req, answer)
+		if len(f) > 0 {
+			return nil, f
+		}
+		return []*policy.Policy{p}, nil
+	}
+	var out []*policy.Policy
+	var failures []string
+	ids, owner := map[string]bool{}, map[string]string{}
+	for i, src := range srcs {
+		id := fmt.Sprintf("the policy in block %d", i+1)
+		sub := req
+		if q, err := policy.Parse("draft.vaglio", src); err == nil {
+			id = "policy " + q.ID
+			if q.ID == req.ID || strings.HasPrefix(q.ID, req.ID+"_") {
+				sub.ID = q.ID
+			} else {
+				failures = append(failures, fmt.Sprintf("%s: with several policies, each id is %s_ and a short name "+
+					"for its service", id, req.ID))
+			}
+			if ids[q.ID] {
+				failures = append(failures, fmt.Sprintf("%s: two policies have this id", id))
+			}
+			ids[q.ID] = true
+			for _, sv := range q.Services {
+				k := sv.System + "|" + sv.Code
+				if o, ok := owner[k]; ok && o != q.ID {
+					failures = append(failures, fmt.Sprintf("%s: code %s is also decided by policy %s; each service "+
+						"belongs to one policy", id, sv.Code, o))
+				}
+				owner[k] = q.ID
+			}
+		}
+		p, f := Gate(sub, "```vaglio\n"+src+"```")
+		for _, x := range f {
+			failures = append(failures, id+": "+x)
+		}
+		if p != nil {
+			out = append(out, p)
+		}
+	}
+	if len(failures) > 0 {
+		return nil, failures
+	}
+	return out, nil
+}
+
+// Gate checks one policy against the document. It returns the policy when there are no failures.
 func Gate(req Request, answer string) (*policy.Policy, []string) {
 	src := Source(answer)
 	p, err := policy.Parse("draft.vaglio", src)
@@ -237,6 +297,18 @@ func Source(answer string) string {
 		return m[1]
 	}
 	return answer
+}
+
+// Sources is every policy in a model's answer: its vaglio blocks, or the whole answer when it has none.
+func Sources(answer string) []string {
+	var out []string
+	for _, m := range block.FindAllStringSubmatch(answer, -1) {
+		out = append(out, m[1])
+	}
+	if len(out) == 0 {
+		return []string{answer}
+	}
+	return out
 }
 
 // Kind sorts a gate's failure for a reader: "contradiction" (approve and deny both hold), "gap" (no decision holds, or

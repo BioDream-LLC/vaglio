@@ -1,28 +1,32 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
 	"strings"
 
+	cqlengine "github.com/biodream-llc/vaglio/internal/cql"
 	"github.com/biodream-llc/vaglio/internal/policy"
 )
 
 // importDTRCmd starts a policy from content a plan already has: a Da Vinci DTR Questionnaire (or a questionnaire
 // package Bundle, with its CQL Libraries), as a draft. Each yes/no question becomes a piece of evidence found in the
-// provider's answers (find question LINKID) under the questionnaire's canonical URL, with its words as the clause. The
-// CQL is not run. Its define statements are listed in the draft's header, and where a question's pre-fill reaches a
-// record lookup of a shape import-dtr reads (cql.go), a find line is suggested beside it, as a comment, for the author
-// to read the rules
-// from. The draft has no rules (criteria and decisions): an author writes them, and a clinician signs the policy off. It
+// provider's answers (find question LINKID) under the questionnaire's canonical URL, with its words as the clause.
+// The package's CQL libraries are written beside the policy and pinned, and each question the questionnaire pre-fills
+// from a define is also found by running that define over the request (find cql), so the record and the answer are read
+// side by side (internal/cql runs it). Where a question's pre-fill reaches a record lookup of a shape import-dtr reads
+// (cql.go), a find line is also suggested beside it, as a comment. The draft has no rules (criteria and decisions): an author writes them, and a clinician signs the policy off. It
 // decides nothing until then.
 func importDTRCmd(args []string, w io.Writer) error {
 	fs := flag.NewFlagSet("import-dtr", flag.ExitOnError)
@@ -30,6 +34,8 @@ func importDTRCmd(args []string, w io.Writer) error {
 	out := fs.String("out", "", "the .vaglio file to write; it must not exist")
 	canonical := fs.String("questionnaire", "", "the questionnaire's canonical URL, when it carries none (answers are read by it)")
 	service := fs.String("service", "", "what the policy decides: SYSTEM CODE..., such as \"cpt 72148 72149\"")
+	runCQL := fs.Bool("cql", true, "write the package's CQL libraries beside the policy (cql/ID/), pin them, and run each "+
+		"yes/no question's own pre-fill as evidence (find cql); -cql=false only lists them")
 	fs.Parse(args)
 	if *id == "" || *out == "" || *service == "" || fs.NArg() != 1 {
 		return errors.New("usage: vaglio import-dtr -id ID -service \"SYSTEM CODE...\" -out FILE.vaglio QUESTIONNAIRE-OR-BUNDLE.json")
@@ -38,9 +44,32 @@ func importDTRCmd(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	src, notes, err := importDTR(raw, *id, *service, *canonical)
+	dir := ""
+	if *runCQL {
+		dir = "cql/" + *id
+	}
+	src, notes, files, err := importDTRFiles(raw, *id, *service, *canonical, dir)
 	if err != nil {
 		return err
+	}
+	// The libraries go beside the policy, under its directory, where the server reads them; one already there is kept
+	// only if it is the same text (a different one would not match its pin).
+	base := filepath.Dir(*out)
+	for name, body := range files {
+		path := filepath.Join(base, filepath.FromSlash(name))
+		if old, err := os.ReadFile(path); err == nil {
+			if string(old) != string(body) {
+				return fmt.Errorf("%s exists with other text; move it, or give another -id", path)
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, body, 0o644); err != nil {
+			return err
+		}
+		fmt.Fprintf(w, "wrote %s\n", path)
 	}
 	f, err := os.OpenFile(*out, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
@@ -86,6 +115,20 @@ var (
 
 // importDTR makes the draft's source, and says what it holds.
 func importDTR(raw []byte, id, service, canonical string) (string, string, error) {
+	src, notes, _, err := importDTRFiles(raw, id, service, canonical, "")
+	return src, notes, err
+}
+
+// importDTRFiles is importDTR with the package's CQL: its libraries (and any ValueSets it carries) as files to write
+// under cqlDir, beside the policy, pinned in the draft by their SHA-256, and a find cql line on every yes/no question
+// the questionnaire pre-fills from a define of a library that compiles and has every library it includes. cqlDir ""
+// keeps the old behaviour: nothing run, find lines only suggested.
+func importDTRFiles(raw []byte, id, service, canonical, cqlDir string) (string, string, map[string][]byte, error) {
+	src, notes, files, err := importDTRInner(raw, id, service, canonical, cqlDir)
+	return src, notes, files, err
+}
+
+func importDTRInner(raw []byte, id, service, canonical, cqlDir string) (string, string, map[string][]byte, error) {
 	var top struct {
 		ResourceType string `json:"resourceType"`
 		Entry        []struct {
@@ -93,11 +136,14 @@ func importDTR(raw []byte, id, service, canonical string) (string, string, error
 		} `json:"entry"`
 	}
 	if err := json.Unmarshal(raw, &top); err != nil {
-		return "", "", fmt.Errorf("not JSON: %w", err)
+		return "", "", nil, fmt.Errorf("not JSON: %w", err)
 	}
 	var q *questionnaire
 	var defines []string
 	libs := map[string]*cqlLib{}
+	compiled, cqlText := map[string]*cqlengine.Library{}, map[string][]byte{}
+	var valueSets []json.RawMessage
+	var notCompiled []string
 	resources := []json.RawMessage{raw}
 	if top.ResourceType == "Bundle" {
 		resources = nil
@@ -119,8 +165,13 @@ func importDTR(raw []byte, id, service, canonical string) (string, string, error
 			if q == nil {
 				q = &questionnaire{}
 				if err := json.Unmarshal(r, q); err != nil {
-					return "", "", err
+					return "", "", nil, err
 				}
+			}
+		case "ValueSet":
+			if vs, err := cqlengine.NewValueSet(r); err == nil {
+				valueSets = append(valueSets, r)
+				_ = vs
 			}
 		case "Library":
 			for _, c := range head.Content {
@@ -137,17 +188,22 @@ func importDTR(raw []byte, id, service, canonical string) (string, string, error
 				if l := parseCQL(string(cql)); l.name != "" {
 					libs[l.name] = l
 				}
+				if l, err := cqlengine.Compile(string(cql)); err == nil && l.Name != "" {
+					compiled[l.Name], cqlText[l.Name] = l, cql
+				} else if err != nil {
+					notCompiled = append(notCompiled, err.Error())
+				}
 			}
 		}
 	}
 	if q == nil {
-		return "", "", errors.New("no Questionnaire in it")
+		return "", "", nil, errors.New("no Questionnaire in it")
 	}
 	if canonical != "" {
 		q.URL = canonical
 	}
 	if q.URL == "" {
-		return "", "", errors.New("the Questionnaire has no canonical url, and answers are read by it: give one with -questionnaire")
+		return "", "", nil, errors.New("the Questionnaire has no canonical url, and answers are read by it: give one with -questionnaire")
 	}
 	// The yes/no questions, anywhere in the tree.
 	type ev struct{ name, link, text, expr string }
@@ -178,10 +234,10 @@ func importDTR(raw []byte, id, service, canonical string) (string, string, error
 	}
 	walk(q.Item)
 	if len(evs) == 0 {
-		return "", "", errors.New("the Questionnaire has no yes/no questions: there is nothing to read evidence from")
+		return "", "", nil, errors.New("the Questionnaire has no yes/no questions: there is nothing to read evidence from")
 	}
 	if len(evs) > policy.MaxEvidence {
-		return "", "", fmt.Errorf("%d yes/no questions, more than a policy's %d pieces of evidence", len(evs), policy.MaxEvidence)
+		return "", "", nil, fmt.Errorf("%d yes/no questions, more than a policy's %d pieces of evidence", len(evs), policy.MaxEvidence)
 	}
 	title := q.Title
 	if title == "" {
@@ -219,11 +275,96 @@ func importDTR(raw []byte, id, service, canonical string) (string, string, error
 		}
 	}
 	b.WriteString("\n")
+	// The package's libraries that can run: compiled, with every library they include in the package.
+	files := map[string][]byte{}
+	runnable := map[string]bool{}
+	if cqlDir != "" {
+		var ok func(name string, seen map[string]bool) bool
+		ok = func(name string, seen map[string]bool) bool {
+			l := compiled[name]
+			if l == nil || seen[name] {
+				return l != nil
+			}
+			seen[name] = true
+			for _, in := range l.Includes {
+				if in.Name != "FHIRHelpers" && !ok(in.Name, seen) {
+					return false
+				}
+			}
+			return true
+		}
+		for name := range compiled {
+			runnable[name] = ok(name, map[string]bool{})
+		}
+	}
+	runs := func(lib, define string) bool {
+		if !runnable[lib] {
+			return false
+		}
+		for _, d := range compiled[lib].Defines() {
+			if d == define {
+				return true
+			}
+		}
+		return false
+	}
+	var pins []string
+	need := map[string]bool{}
+	var mark func(name string)
+	mark = func(name string) {
+		if need[name] || compiled[name] == nil {
+			return
+		}
+		need[name] = true
+		for _, in := range compiled[name].Includes {
+			mark(in.Name)
+		}
+	}
+	for _, e := range evs {
+		if lib, def := prefill(e.expr); runs(lib, def) {
+			mark(lib)
+		}
+	}
+	names := make([]string, 0, len(need))
+	for n := range need {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		file := cqlDir + "/" + n + ".cql"
+		files[file] = cqlText[n]
+		sum := sha256.Sum256(cqlText[n])
+		pins = append(pins, fmt.Sprintf("  cql %s sha256 %s\n", file, hex.EncodeToString(sum[:])))
+	}
+	if len(names) > 0 && len(valueSets) > 0 {
+		vb, _ := json.MarshalIndent(map[string]any{"resourceType": "Bundle", "type": "collection",
+			"entry": func() []any {
+				var out []any
+				for _, v := range valueSets {
+					out = append(out, map[string]any{"resource": v})
+				}
+				return out
+			}()}, "", " ")
+		file := cqlDir + "/valuesets.json"
+		files[file] = vb
+		sum := sha256.Sum256(vb)
+		pins = append(pins, fmt.Sprintf("  cql %s sha256 %s\n", file, hex.EncodeToString(sum[:])))
+	}
 	fmt.Fprintf(&b, "policy %s\n  title %q\n  version 0.1.0\n  source %q\n  status draft\n  questionnaire %s\n  service %s\n",
 		id, title, "DTR Questionnaire "+q.URL, q.URL, service)
+	for _, p := range pins {
+		b.WriteString(p)
+	}
+	runCount := 0
 	suggested := 0
 	for _, e := range evs {
 		fmt.Fprintf(&b, "\nevidence %s\n  text %q\n  clause %q\n  find question %s\n", e.name, e.text, e.text, e.link)
+		if lib, def := prefill(e.expr); runs(lib, def) {
+			// The questionnaire's own pre-fill, run over the request: where it and the provider's answer disagree, the
+			// case says so (a contradiction), and never decides on either alone.
+			fmt.Fprintf(&b, "  find cql %s %q\n", lib, def)
+			runCount++
+		}
 		if e.expr != "" {
 			fmt.Fprintf(&b, "  # the questionnaire pre-fills it with: %s\n", strings.ReplaceAll(e.expr, "\n", " "))
 			lib := libs[strings.Trim(strings.SplitN(e.expr, ".", 2)[0], `"`)]
@@ -249,6 +390,39 @@ decision approve approves
   clause "IMPORTED: the coverage rules are not in the questionnaire."
   defeated by rules_not_written
 `)
-	return b.String(), fmt.Sprintf("%d pieces of evidence (%d pre-filled by CQL; %d find lines suggested from it, as "+
-		"comments); no rules yet", len(evs), len(used), suggested), nil
+	msg := fmt.Sprintf("%d pieces of evidence (%d pre-filled by CQL; %d find lines suggested from it, as comments", len(evs),
+		len(used), suggested)
+	if cqlDir != "" {
+		msg += fmt.Sprintf("; %d run by their CQL, from %d library file(s)", runCount, len(names))
+		var missing []string
+		for name, l := range compiled {
+			for _, in := range l.Includes {
+				if in.Name != "FHIRHelpers" && compiled[in.Name] == nil {
+					missing = append(missing, name+" includes "+in.Name)
+				}
+			}
+		}
+		sort.Strings(missing)
+		if len(missing) > 0 {
+			msg += "; not run, as the package lacks a library they include: " + strings.Join(slices.Compact(missing), ", ")
+		}
+		if len(notCompiled) > 0 {
+			msg += "; not compiled: " + strings.Join(notCompiled, "; ")
+		}
+	}
+	return b.String(), msg + "); no rules yet", files, nil
+}
+
+// prefill is the library and define a DTR initialExpression names: %Lib.Define, "Lib"."Define", Lib.Define.
+func prefill(expr string) (string, string) {
+	e := strings.TrimPrefix(strings.TrimSpace(expr), "%")
+	lib, def, ok := strings.Cut(e, ".")
+	if !ok {
+		return "", ""
+	}
+	lib, def = strings.Trim(lib, `"`), strings.Trim(def, `"`)
+	if strings.ContainsAny(def, " ()[]") && !strings.HasPrefix(strings.TrimSpace(strings.SplitN(e, ".", 2)[1]), `"`) {
+		return "", ""
+	}
+	return lib, def
 }

@@ -78,6 +78,8 @@ type Source struct {
 	// Provider is a fact about the requesting provider: in the plan's network (serve -network FILE), or of one of these
 	// specialties (NUCC taxonomy codes, from the federal NPI registry, serve -npi-registry).
 	Provider *ProviderTest `json:"provider,omitempty"`
+	// CQL is a define of a CQL library the policy pins, run over the request's resources.
+	CQL *CQLRef `json:"cql,omitempty"`
 	// Medication is a medication the patient was given: completed MedicationDispenses and MedicationStatements coded with
 	// one of these codes. A prescription alone (a MedicationRequest) is not read: it says a drug was ordered, not taken.
 	Medication *Medication `json:"medication,omitempty"`
@@ -102,6 +104,19 @@ type Medication struct {
 type CriteriaRef struct {
 	Service   string `json:"service"`   // the name serve -criteria gives it
 	Criterion string `json:"criterion"` // the service's id for the criterion
+}
+
+// CQLFile is a file a policy's CQL sources read: a .cql library, or a .json FHIR ValueSet (or a Bundle of them).
+type CQLFile struct {
+	File   string `json:"file"`
+	SHA256 string `json:"sha256"`
+}
+
+// CQLRef is a define in a CQL library, run over the request (a Da Vinci DTR library's, say): true documents the
+// evidence present, false absent; null, an error, or any other value leaves it not addressed.
+type CQLRef struct {
+	Library string `json:"library"`
+	Define  string `json:"define"`
 }
 
 // ProviderTest is a fact about the requesting provider, known by their NPI.
@@ -238,7 +253,10 @@ type Policy struct {
 	// every line. A request's line is read from its Coverage.
 	Lines []string `json:"lines,omitempty"`
 	// States are the states (two-letter codes) it applies to, by the patient's address; empty, every state.
-	States    []string   `json:"states,omitempty"`
+	States []string `json:"states,omitempty"`
+	// CQL is the CQL libraries and value sets the policy's cql sources run, each a file beside the policy (under its
+	// directory) pinned by its SHA-256: the policy's own text, and so its hash, covers what they say.
+	CQL       []CQLFile  `json:"cql,omitempty"`
 	Arguments []Argument `json:"arguments"`
 	Attacks   []Attack   `json:"attacks"`
 }
@@ -254,6 +272,9 @@ var (
 	loincRe = regexp.MustCompile(`^\d{1,7}-\d$`)
 	// taxonomyRe is a NUCC Health Care Provider Taxonomy code.
 	taxonomyRe = regexp.MustCompile(`^[0-9]{3}[0-9A-Z]{6}X$`)
+	cqlNameRe  = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.]*$`)
+	sha256Re   = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	cqlFileRe  = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.\-/]*\.(cql|json)$`)
 )
 
 // Load reads a policy and validates it. Unknown fields are refused: a misspelt field is a rule silently not applied.
@@ -302,6 +323,26 @@ func (p *Policy) Validate() error {
 	}
 	if p.Status != "" && p.Status != Draft {
 		return fmt.Errorf("policy %s: status is %q or nothing, not %q", p.ID, Draft, p.Status)
+	}
+	seenFile := map[string]bool{}
+	for _, f := range p.CQL {
+		if !cqlFileRe.MatchString(f.File) || strings.Contains(f.File, "..") || !sha256Re.MatchString(f.SHA256) {
+			return fmt.Errorf("policy %s: a cql file is a .cql or .json path under the policy's directory, with its "+
+				"SHA-256 (64 hex digits)", p.ID)
+		}
+		if seenFile[f.File] {
+			return fmt.Errorf("policy %s: cql file %s is named twice", p.ID, f.File)
+		}
+		seenFile[f.File] = true
+	}
+	usesCQL := false
+	for _, a := range p.Arguments {
+		for _, s := range a.Find {
+			usesCQL = usesCQL || s.CQL != nil
+		}
+	}
+	if usesCQL && len(p.CQL) == 0 {
+		return fmt.Errorf("policy %s: its cql sources need the libraries they run, pinned (cql FILE sha256 HEX)", p.ID)
 	}
 	if s := p.Signed; s != nil {
 		if strings.TrimSpace(s.By) == "" || !dateRe.MatchString(s.Date) {
@@ -392,14 +433,14 @@ func (p *Policy) Validate() error {
 func (s Source) validate() error {
 	set := 0
 	for _, b := range []bool{s.Question != "", s.Condition != nil, s.Procedure != nil, s.Observation != nil, s.Medication != nil,
-		s.Criteria != nil, s.Provider != nil} {
+		s.Criteria != nil, s.Provider != nil, s.CQL != nil} {
 		if b {
 			set++
 		}
 	}
 	if set != 1 {
 		return fmt.Errorf("a source is exactly one of a question, a condition, a procedure, an observation, a medication, " +
-			"criteria or a provider test")
+			"criteria, a provider test or a cql define")
 	}
 	switch {
 	case s.Question != "":
@@ -407,6 +448,10 @@ func (s Source) validate() error {
 	case s.Criteria != nil:
 		if !nameRe.MatchString(s.Criteria.Service) || strings.TrimSpace(s.Criteria.Criterion) == "" {
 			return fmt.Errorf("a criteria source names its service (lower case) and the criterion")
+		}
+	case s.CQL != nil:
+		if !cqlNameRe.MatchString(s.CQL.Library) || strings.TrimSpace(s.CQL.Define) == "" {
+			return fmt.Errorf("a cql source names its library and the define")
 		}
 	case s.Provider != nil:
 		if s.Provider.InNetwork == (len(s.Provider.Taxonomy) > 0) {

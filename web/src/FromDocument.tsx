@@ -133,12 +133,23 @@ function Progress({ job, onDone }: { job: string; onDone: () => void }) {
         </p>
       )}
       <Findings job={data} />
-      <div className="mt-3 flex gap-3">
+      {data.also && data.also.length > 0 && (
+        <p className="meta mt-2">
+          The document holds its services to different criteria, so it was drafted as {data.also.length + 1} policies,
+          one per service: {[data.policy, ...data.also].join(', ')}. Each is a draft of its own.
+        </p>
+      )}
+      <div className="mt-3 flex flex-wrap gap-3">
         {data.saved && (
           <button type="button" onClick={() => dispatch(go({ screen: 'draft', id: data.policy }))}>
-            Open the draft
+            Open the draft{data.also && data.also.length > 0 ? ` ${data.policy}` : ''}
           </button>
         )}
+        {(data.also ?? []).map((id) => (
+          <button key={id} type="button" onClick={() => dispatch(go({ screen: 'draft', id }))}>
+            Open the draft {id}
+          </button>
+        ))}
         {data.state !== 'running' && (
           <button type="button" className="link" onClick={onDone}>
             Draft another

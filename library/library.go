@@ -7,9 +7,9 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"io/fs"
 	"sort"
+	"strings"
 
 	"github.com/biodream-llc/vaglio/internal/decide"
 	"github.com/biodream-llc/vaglio/internal/policy"
