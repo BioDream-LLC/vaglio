@@ -184,11 +184,16 @@ Every request gets an answer the record supports: approve, deny with its proof, 
   pre-fill, run over the request's own resources by Vaglio's CQL engine (`internal/cql`, Go, no Java or JavaScript).
   True documents the evidence present, false absent; null, an error, or a value set not given leaves it not addressed.
   The proof cites the define and the resources it read. Each library and value set is a file beside the policy, pinned
-  in its header by SHA-256, so a library changed after sign-off stops the policy loading. The engine does the part of
-  CQL payer DTR libraries use (queries, retrieves, intervals, dates with precision, FHIRHelpers built in), not all of
-  it: no ELM, no terminology service (value sets are given expanded), no unit conversion beyond a short table. Checked
-  define by define against the reference CQL-to-ELM translator and the `cql-execution` engine on three real DTR
-  libraries (79 defines, two invented patients): every value matched.
+  in its header by SHA-256, so a library changed after sign-off stops the policy loading. The engine reads CQL source
+  (no ELM) and passes 2,003 of the 2,037 tests of HL7's CQL conformance suite (`cqframework/cql-tests`, run in the
+  test suite, which fails if fewer pass): queries with the aggregate clause, Integer, Long, Decimal, Ratio, Date,
+  DateTime and Time, intervals and their operators, durations that are uncertain because a date is partial (a birth
+  year alone gives an age as a range, which compares as CQL says), lists, strings, FHIRHelpers built in. The 34 it
+  fails are listed by `VAGLIO_CQL_CONFORMANCE=FILE go test ./internal/cql`: mostly a Decimal's written precision
+  (floats keep none: `predecessor of 1.0` is 0.99999999, not 0.9) and a few arguable cases. Value sets are given
+  expanded, or expanded once by `import-dtr -tx` through a terminology server; no server is asked while deciding. Unit
+  conversion knows a short UCUM table. Checked define by define against the reference CQL-to-ELM translator and the
+  `cql-execution` engine on three real DTR libraries (79 defines, two invented patients): every value matched.
 - **Richer date rules**: `find condition ... onset at least N days` (how long a condition has lasted), and
   `find procedure ... within N days times N apart N days` (two blocks at least 14 days apart; two RFA sessions in a
   year). Fewer procedures, or ones that cannot be dated apart, document nothing either way.
@@ -887,7 +892,12 @@ bin/vaglio decide -policy policies/lumbar_mri.vaglio testdata/requests/repeat_mr
 `import-dtr` writes the package's CQL libraries (and any ValueSets it carries) beside the policy, in `cql/ID/`, pins them,
 and gives each yes/no question the questionnaire pre-fills from a define a `find cql` line beside its `find question`:
 the record and the provider's answer are read side by side, and where they disagree the case says so. A package that
-lacks a library its CQL includes is not run, and import-dtr says which. It also still reads the shapes prepopulation
+lacks a library its CQL includes is not run, and import-dtr says which; `-libraries DIR` gives it those (`.cql` files
+the plan has, CDS Connect Commons say), and `-tx https://tx.fhir.org/r4` expands the value sets its libraries name and
+it does not carry (VSAC's own server with `-tx-key-env` holding a UMLS key), each written and pinned beside the policy.
+The Inferno kit's home oxygen package, which includes two libraries it lacks (one under a name the library does not
+call itself: import-dtr matches it ignoring case and underscores, renames it, and says so) and eight VSAC value sets,
+runs that way. It also still reads the shapes prepopulation
 libraries are mostly made of (a question's define reaching `[Condition: ...]` or `[Observation: ...]` through other
 defines, a code list, a look-back of months) and suggests the matching plain `find` line beside the question, commented
 out. What it cannot read it says: a value set to expand, a lookup the CQL negates, an observation with no stated

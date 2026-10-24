@@ -162,6 +162,8 @@ func lex(src string) ([]token, error) {
 				for j < len(r) && unicode.IsDigit(r[j]) {
 					j++
 				}
+			} else if j < len(r) && r[j] == 'L' && (j+1 == len(r) || !(unicode.IsLetter(r[j+1]) || unicode.IsDigit(r[j+1]) || r[j+1] == '_')) {
+				j++ // a Long: 42L
 			}
 			out = append(out, token{tNumber, string(r[i:j]), line})
 			i = j

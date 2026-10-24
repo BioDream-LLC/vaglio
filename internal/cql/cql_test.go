@@ -159,7 +159,6 @@ func TestErrors(t *testing.T) {
 		"library X\ndefine A: (1 + ":          "ends early",
 		"library X\ndefine A: 1\ndefine A: 2": "defined twice",
 		"library X\ndefine A: 'open":          "never closes",
-		"library X\ndefine A: @T10:00":        "not supported",
 	} {
 		_, err := Compile(src)
 		if err == nil || !strings.Contains(err.Error(), want) {

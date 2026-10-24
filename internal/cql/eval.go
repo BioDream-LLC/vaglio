@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/big"
 	"sort"
 	"strconv"
 	"strings"
@@ -336,7 +337,14 @@ func (e *Env) eval(n *node, sc *scope) any {
 		return t
 	case "interval":
 		c := n.val.([2]bool)
-		return Interval{Low: sys(e.eval(n.args[0], sc)), High: sys(e.eval(n.args[1], sc)), LowClosed: c[0], HighClosed: c[1]}
+		iv := Interval{Low: sys(e.eval(n.args[0], sc)), High: sys(e.eval(n.args[1], sc)), LowClosed: c[0], HighClosed: c[1]}
+		if iv.Low != nil && iv.High != nil {
+			// an interval whose low is past its high (or a point with an open end) holds nothing, and is an error
+			if cmp, ok := compare(iv.Low, iv.High); ok && (cmp > 0 || cmp == 0 && !(iv.LowClosed && iv.HighClosed)) {
+				e.fail(sc.lib, n, "%s: its low is not below its high", Show(iv))
+			}
+		}
+		return iv
 	case "codesel":
 		v, ok := e.member(sc.lib, n.s, n)
 		d, isSys := v.(Def)
@@ -409,9 +417,28 @@ func (e *Env) eval(n *node, sc *scope) any {
 		if !ok {
 			return nil
 		}
+		if d.TimeOnly && (n.s == "year" || n.s == "month" || n.s == "day" || n.s == "date") {
+			return nil
+		}
 		switch n.s {
 		case "date":
 			return DateTime{T: time.Date(d.T.Year(), d.T.Month(), d.T.Day(), 0, 0, 0, 0, time.UTC), Prec: min(d.Prec, pDay), DateOnly: true}
+		case "time":
+			if d.DateOnly || d.Prec < pHour {
+				return nil
+			}
+			return DateTime{T: timeDay.Add(clock(d.T)), Prec: d.Prec, TimeOnly: true}
+		case "millisecond":
+			if d.Prec < pMilli {
+				return nil
+			}
+			return int64(d.T.Nanosecond() / 1e6)
+		case "timezoneoffset":
+			if d.DateOnly || d.TimeOnly {
+				return nil
+			}
+			_, off := d.T.Zone()
+			return roundTo(float64(off)/3600, 8)
 		case "year":
 			return int64(d.T.Year())
 		case "month":
@@ -653,6 +680,21 @@ func (e *Env) query(n *node, sc *scope) any {
 	}
 	walk(0, map[string]any{})
 	var out []any
+	var acc any
+	if q.agg != nil && q.agg.start != nil {
+		acc = e.eval(q.agg.start, sc)
+	}
+	if q.agg != nil && q.agg.distinct && len(srcs) == 1 {
+		var seen []any
+		var kept []map[string]any
+		for _, row := range rows {
+			if inList(row[srcs[0].alias], seen) != T {
+				seen = append(seen, row[srcs[0].alias])
+				kept = append(kept, row)
+			}
+		}
+		rows = kept
+	}
 	for _, row := range rows {
 		rs := sc.child(row)
 		for _, l := range q.lets {
@@ -680,6 +722,11 @@ func (e *Env) query(n *node, sc *scope) any {
 		if q.where != nil && truth(e.eval(q.where, rs)) != T {
 			continue
 		}
+		if q.agg != nil {
+			rs.vars[q.agg.name] = acc
+			acc = e.eval(q.agg.expr, rs)
+			continue
+		}
 		switch {
 		case q.ret != nil:
 			out = append(out, e.eval(q.ret, rs))
@@ -693,6 +740,9 @@ func (e *Env) query(n *node, sc *scope) any {
 			}
 			out = append(out, t)
 		}
+	}
+	if q.agg != nil {
+		return acc
 	}
 	if q.ret != nil && q.distinct {
 		out = distinct(out)
@@ -760,6 +810,12 @@ func order(a, b any) int {
 	}
 	c, ok := compare(a, b)
 	if !ok {
+		// Dates that agree to the coarser precision: the less precise first (@2012-10-05 before @2012-10-05T10).
+		if x, isX := a.(DateTime); isX {
+			if y, isY := b.(DateTime); isY {
+				return cmpF(float64(x.Prec), float64(y.Prec))
+			}
+		}
 		return 0
 	}
 	return c
@@ -791,6 +847,12 @@ func sys(v any) any {
 	case "Range":
 		lo, hi := property(el, "low"), property(el, "high")
 		return Interval{Low: sys(lo), High: sys(hi), LowClosed: true, HighClosed: true}
+	case "Ratio":
+		num, nok := sys(wrap(m["numerator"], "Quantity", nil)).(Quantity)
+		den, dok := sys(wrap(m["denominator"], "Quantity", nil)).(Quantity)
+		if nok && dok {
+			return Ratio{num, den}
+		}
 	}
 	return el
 }
@@ -804,7 +866,7 @@ func fhirKind(el *Elem) string {
 		return "Quantity"
 	}
 	switch el.Type {
-	case "Coding", "CodeableConcept", "Period", "Range":
+	case "Coding", "CodeableConcept", "Period", "Range", "Ratio":
 		return el.Type
 	}
 	if el.Type != "" {
@@ -820,7 +882,11 @@ func fhirKind(el *Elem) string {
 	_, hasEnd := m["end"]
 	_, hasLow := m["low"]
 	_, hasHigh := m["high"]
+	_, hasNum := m["numerator"]
+	_, hasDen := m["denominator"]
 	switch {
+	case hasNum && hasDen:
+		return "Ratio"
 	case hasCoding:
 		return "CodeableConcept"
 	case hasValue && (hasUnit || hasCode && hasSystem || hasCode):
@@ -1070,7 +1136,11 @@ func isType(v any, t string) bool {
 	case bool:
 		return lt == "boolean"
 	case int64:
-		return lt == "integer" || lt == "decimal" && false
+		return lt == "integer"
+	case Long:
+		return lt == "long"
+	case Ratio:
+		return lt == "ratio"
 	case float64:
 		return lt == "decimal"
 	case string:
@@ -1079,8 +1149,10 @@ func isType(v any, t string) bool {
 		switch lt {
 		case "date":
 			return x.DateOnly
+		case "time":
+			return x.TimeOnly
 		case "datetime", "instant":
-			return !x.DateOnly || lt == "datetime"
+			return !x.TimeOnly && (!x.DateOnly || lt == "datetime")
 		}
 		return false
 	case Quantity:
@@ -1181,8 +1253,9 @@ func (e *Env) unary(n *node, sc *scope) any {
 		return truth(v) == F
 	case "-":
 		switch x := sys(v).(type) {
-		case int64:
-			return -x
+		case int64, Long:
+			r, _ := intArith("-", map[bool]any{true: Long(0), false: int64(0)}[isLong(x)], x)
+			return r
 		case float64:
 			return -x
 		case Quantity:
@@ -1219,16 +1292,36 @@ func (e *Env) unary(n *node, sc *scope) any {
 		}
 		switch n.s {
 		case "start of":
-			return i.Low
+			lo, _ := closedBounds(i)
+			return lo
 		case "end of":
-			return i.High
+			_, hi := closedBounds(i)
+			return hi
 		case "point from":
 			if eq, known := equal(i.Low, i.High); known && eq {
 				return i.Low
+			} else if !known {
+				return nil
 			}
 			e.fail(sc.lib, n, "point from an interval of more than one point")
 		}
 		return arith(e, sc, n, "-", i.High, i.Low)
+	case "successor of":
+		return successor(v)
+	case "predecessor of":
+		return predecessor(v)
+	case "collapse":
+		var per any
+		if len(n.args) > 1 && n.args[1] != nil {
+			per = e.eval(n.args[1], sc)
+		}
+		return collapse(e, sc, n, v, per)
+	case "expand":
+		var per any
+		if len(n.args) > 1 && n.args[1] != nil {
+			per = e.eval(n.args[1], sc)
+		}
+		return expand(e, sc, n, v, per)
 	}
 	e.fail(sc.lib, n, "%s is not supported here", n.s)
 	return nil
@@ -1262,6 +1355,10 @@ func (e *Env) binary(n *node, sc *scope) any {
 		return a != b
 	}
 	a, b := e.eval(n.args[0], sc), e.eval(n.args[1], sc)
+	if prec, _ := n.val.(string); prec != "" {
+		// compared at a precision: dates and intervals of them cut to it
+		a, b = atPrecision(a, prec), atPrecision(b, prec)
+	}
 	switch n.s {
 	case "=", "!=", "~", "!~", "<", "<=", ">", ">=", "+", "-", "*", "/", "div", "mod", "^", "&":
 		// list demotion (CQL 1.4): a list where one value is wanted is that value, when it holds one
@@ -1275,6 +1372,9 @@ func (e *Env) binary(n *node, sc *scope) any {
 	}
 	switch n.s {
 	case "=":
+		if (isUncertainty(a) || isUncertainty(b)) && !(isUncertainty(a) && isUncertainty(b)) {
+			return uncertainCompare("=", a, b)
+		}
 		if eq, known := equal(a, b); known {
 			return eq
 		}
@@ -1300,19 +1400,46 @@ func (e *Env) binary(n *node, sc *scope) any {
 		return member(e, sc, n, a, b)
 	case "contains":
 		return member(e, sc, n, b, a)
+	case "~in", "~contains":
+		x, coll := a, b
+		if n.s == "~contains" {
+			x, coll = b, a
+		}
+		if sys(coll) == nil {
+			return false
+		}
+		for _, v := range toList(coll) {
+			if equivalent(x, v) {
+				return true
+			}
+		}
+		return false
 	case "union":
 		if a == nil && b == nil {
 			return nil
 		}
 		if ia, ok := sys(a).(Interval); ok {
 			if ib, ok := sys(b).(Interval); ok {
-				return Interval{Low: minAny(ia.Low, ib.Low), High: maxAny(ia.High, ib.High), LowClosed: true, HighClosed: true}
+				return unionIv(e, sc, n, ia, ib)
+			}
+		}
+		if a == nil || b == nil {
+			if _, ok := sys(a).(Interval); ok {
+				return nil
+			}
+			if _, ok := sys(b).(Interval); ok {
+				return nil
 			}
 		}
 		return distinct(append(append([]any{}, toList(a)...), toList(b)...))
 	case "intersect":
 		if a == nil || b == nil {
 			return nil
+		}
+		if ia, ok := sys(a).(Interval); ok {
+			if ib, ok := sys(b).(Interval); ok {
+				return intersectIv(e, sc, n, ia, ib)
+			}
 		}
 		out := []any{}
 		for _, x := range toList(a) {
@@ -1324,6 +1451,14 @@ func (e *Env) binary(n *node, sc *scope) any {
 	case "except":
 		if a == nil {
 			return nil
+		}
+		if ia, ok := sys(a).(Interval); ok {
+			if b == nil {
+				return nil
+			}
+			if ib, ok := sys(b).(Interval); ok {
+				return exceptIv(e, sc, n, ia, ib)
+			}
 		}
 		out := []any{}
 		for _, x := range toList(a) {
@@ -1353,22 +1488,18 @@ func (e *Env) binary(n *node, sc *scope) any {
 			}
 			return member(e, sc, n, b, a)
 		}
-		base := and3(bound(e, sc, n, ia.Low, ia.LowClosed, ib.High, ib.HighClosed, "<="),
-			bound(e, sc, n, ib.Low, ib.LowClosed, ia.High, ia.HighClosed, "<="))
+		base := overlapping(e, sc, n, ia, ib)
+		aLo, aHi := pointsOf(ia)
+		bLo, bHi := pointsOf(ib)
 		switch n.s {
 		case "overlaps before":
-			return and3(base, cmpOp(e, sc, n, "<", ia.Low, ib.Low))
+			return and3(base, cmpOp(e, sc, n, "<", aLo, bLo))
 		case "overlaps after":
-			return and3(base, cmpOp(e, sc, n, ">", ia.High, ib.High))
+			return and3(base, cmpOp(e, sc, n, ">", aHi, bHi))
 		}
 		return base
-	case "meets":
-		ia, aok := sys(a).(Interval)
-		ib, bok := sys(b).(Interval)
-		if !aok || !bok {
-			return nil
-		}
-		return or3(equalVal(ia.High, ib.Low), equalVal(ib.High, ia.Low))
+	case "meets", "meets before", "meets after", "starts", "ends":
+		return intervalOp(e, sc, n, n.s, a, b)
 	}
 	e.fail(sc.lib, n, "the operator %s is not supported", n.s)
 	return nil
@@ -1381,21 +1512,10 @@ func equalVal(a, b any) any {
 	return nil
 }
 
-// bound compares a low bound with a high one (lo <= hi, or < when either end is open), null bounds being unknown.
-func bound(e *Env, sc *scope, n *node, lo any, loC bool, hi any, hiC bool, _ string) any {
-	if !loC || !hiC {
-		return cmpOp(e, sc, n, "<", lo, hi)
-	}
-	return cmpOp(e, sc, n, "<=", lo, hi)
-}
-
 func member(e *Env, sc *scope, n *node, x, coll any) any {
 	switch c := sys(coll).(type) {
 	case nil:
-		if _, isList := coll.([]any); isList {
-			return false
-		}
-		return nil
+		return false // nothing is in a null list or interval
 	case *ValueSet:
 		if x == nil {
 			return nil
@@ -1462,9 +1582,17 @@ func member(e *Env, sc *scope, n *node, x, coll any) any {
 	return nil
 }
 
+// inList is whether x is among l: an element equal to it, or a null for a null (as CQL's list operators count).
+// Dates that agree only to the coarser precision leave it unknown.
 func inList(x any, l []any) tv {
 	unknown := false
 	for _, v := range l {
+		if sys(x) == nil || sys(v) == nil {
+			if sys(x) == nil && sys(v) == nil {
+				return T
+			}
+			continue
+		}
 		eq, known := equal(x, v)
 		if known && eq {
 			return T
@@ -1480,20 +1608,46 @@ func inList(x any, l []any) tv {
 }
 
 func includes(e *Env, sc *scope, n *node, a, b any, proper bool) any {
+	if _, isList := sys(a).([]any); isList || a == nil && (isListNode(n, 0) || isListNode(n, 1)) {
+		if sys(a) == nil {
+			if _, bl := sys(b).([]any); bl || isListNode(n, 0) && isListNode(n, 1) {
+				return nil // a null list includes a list: unknown
+			}
+			return false
+		}
+		if sys(b) == nil && (isListNode(n, 0) && isListNode(n, 1)) {
+			return nil
+		}
+		la := toList(a)
+		if _, bl := sys(b).([]any); !bl {
+			// an element: in the list, and the list holds more than it
+			in := inList(b, la)
+			if proper {
+				return in == T && len(la) > 1
+			}
+			return in.val()
+		}
+	}
 	if a == nil || b == nil {
 		return nil
+	}
+	if ia, ok := sys(a).(Interval); ok && proper {
+		if _, isIv := sys(b).(Interval); !isIv {
+			// a point properly inside: in the interval and at neither end
+			lo, hi := pointsOf(ia)
+			return and3(cmpOp(e, sc, n, "<", lo, b), cmpOp(e, sc, n, "<", b, hi))
+		}
 	}
 	if ia, ok := sys(a).(Interval); ok {
 		ib, isInt := sys(b).(Interval)
 		if !isInt {
 			return member(e, sc, n, b, ia)
 		}
-		r := and3(cmpOp(e, sc, n, "<=", ia.Low, ib.Low), cmpOp(e, sc, n, ">=", ia.High, ib.High))
-		if ia.Low == nil && ia.LowClosed {
-			r = cmpOp(e, sc, n, ">=", ia.High, ib.High)
-		}
+		aLo, aHi := pointsOf(ia)
+		bLo, bHi := pointsOf(ib)
+		r := and3(cmpOp(e, sc, n, "<=", aLo, bLo), cmpOp(e, sc, n, ">=", aHi, bHi))
 		if proper {
-			return and3(r, not3(and3(equalVal(ia.Low, ib.Low), equalVal(ia.High, ib.High))))
+			return and3(r, not3(and3(equalVal(aLo, bLo), equalVal(aHi, bHi))))
 		}
 		return r
 	}
@@ -1595,6 +1749,9 @@ func equal(a, b any) (bool, bool) {
 		}
 		known := true
 		for i := range x {
+			if sys(x[i]) == nil && sys(y[i]) == nil {
+				continue // lists are equal element by element, a null matching a null
+			}
 			eq, k := equal(x[i], y[i])
 			if k && !eq {
 				return false, true
@@ -1660,15 +1817,24 @@ func equal(a, b any) (bool, bool) {
 		bx, _ := json.Marshal(x.V)
 		by, _ := json.Marshal(y.V)
 		return string(bx) == string(by), true
+	case Ratio:
+		y, ok := b.(Ratio)
+		if !ok {
+			return false, true
+		}
+		n, nk := equal(x.Num, y.Num)
+		d, dk := equal(x.Den, y.Den)
+		return n && d, nk && dk
 	case Quantity:
 		y, ok := b.(Quantity)
 		if !ok {
 			return false, true
 		}
-		if x.Unit != y.Unit && durationUnit(x.Unit) != durationUnit(y.Unit) {
+		c, comparable, known := qcompare(x, y, false)
+		if !comparable {
 			return false, true
 		}
-		return x.Value == y.Value, true
+		return c == 0, known
 	}
 	c, ok := compare(a, b)
 	if !ok {
@@ -1713,10 +1879,25 @@ func equivalent(a, b any) bool {
 			}
 		}
 		return true
-	case float64, int64:
+	case float64, int64, Long:
 		fa, _ := num(a)
 		fb, ok := num(b)
 		return ok && roundTo(fa, 8) == roundTo(fb, 8)
+	case Quantity:
+		y, ok := b.(Quantity)
+		if !ok {
+			return false
+		}
+		c, comparable, known := qcompare(x, y, true)
+		return comparable && known && c == 0
+	case Ratio:
+		// equivalent ratios are equal fractions: 1:100 ~ 2:200
+		y, ok := b.(Ratio)
+		if !ok {
+			return false
+		}
+		return equivalent(Quantity{x.Num.Value * y.Den.Value, x.Num.Unit}, Quantity{y.Num.Value * x.Den.Value, y.Num.Unit}) &&
+			equivalent(Quantity{1, x.Den.Unit}, Quantity{1, y.Den.Unit})
 	}
 	eq, known := equal(a, b)
 	return known && eq
@@ -1725,6 +1906,8 @@ func equivalent(a, b any) bool {
 func num(v any) (float64, bool) {
 	switch x := v.(type) {
 	case int64:
+		return float64(x), true
+	case Long:
 		return float64(x), true
 	case float64:
 		return x, true
@@ -1766,22 +1949,8 @@ func compare(a, b any) (int, bool) {
 		if !ok {
 			return 0, false
 		}
-		xv, yv := x.Value, y.Value
-		if x.Unit != y.Unit {
-			dx, okx := days(x)
-			dy, oky := days(y)
-			if !okx || !oky {
-				return 0, false
-			}
-			xv, yv = dx, dy
-		}
-		switch {
-		case xv < yv:
-			return -1, true
-		case xv > yv:
-			return 1, true
-		}
-		return 0, true
+		c, comparable, known := qcompare(x, y, false)
+		return c, comparable && known
 	case bool:
 		y, ok := b.(bool)
 		if !ok {
@@ -1798,27 +1967,13 @@ func compare(a, b any) (int, bool) {
 	return 0, false
 }
 
-// days is a duration in days, for comparing durations in different units (weeks and days, never months and days).
-func days(q Quantity) (float64, bool) {
-	switch durationUnit(q.Unit) {
-	case "week":
-		return q.Value * 7, true
-	case "day":
-		return q.Value, true
-	case "hour":
-		return q.Value / 24, true
-	case "minute":
-		return q.Value / 1440, true
-	case "second":
-		return q.Value / 86400, true
-	}
-	return 0, false
-}
-
 func cmpOp(e *Env, sc *scope, n *node, op string, a, b any) any {
 	a, b = sys(a), sys(b)
 	if a == nil || b == nil {
 		return nil
+	}
+	if isUncertainty(a) || isUncertainty(b) {
+		return uncertainCompare(op, a, b)
 	}
 	c, ok := compare(a, b)
 	if !ok {
@@ -1830,6 +1985,11 @@ func cmpOp(e *Env, sc *scope, n *node, op string, a, b any) any {
 				return nil
 			}
 			return nil
+		}
+		if _, aq := a.(Quantity); aq {
+			if _, bq := b.(Quantity); bq {
+				return nil // quantities of different dimensions, or a calendar year against UCUM's
+			}
 		}
 		e.fail(sc.lib, n, "%s and %s do not compare", Show(a), Show(b))
 	}
@@ -1849,6 +2009,9 @@ func arith(e *Env, sc *scope, n *node, op string, a, b any) any {
 	if a == nil || b == nil {
 		return nil
 	}
+	if isUncertainty(a) || isUncertainty(b) {
+		return uncertainArith(e, sc, n, op, a, b)
+	}
 	if d, ok := a.(DateTime); ok {
 		q, isQ := b.(Quantity)
 		if !isQ {
@@ -1864,14 +2027,33 @@ func arith(e *Env, sc *scope, n *node, op string, a, b any) any {
 	if qa, ok := a.(Quantity); ok {
 		qb, isQ := b.(Quantity)
 		switch {
-		case isQ && (op == "+" || op == "-"):
-			if qa.Unit != qb.Unit {
-				e.fail(sc.lib, n, "%s and %s have different units, and this engine does not convert units", Show(qa), Show(qb))
+		case isQ && (op == "+" || op == "-" || op == "mod" || op == "div"):
+			conv, ok := qconvert(qb, qa.Unit)
+			if !ok {
+				return nil // of different dimensions
 			}
-			if op == "-" {
-				qb.Value = -qb.Value
+			switch op {
+			case "-":
+				return Quantity{roundTo(qa.Value-conv.Value, 8), qa.Unit}
+			case "mod":
+				if conv.Value == 0 {
+					return nil
+				}
+				return Quantity{roundTo(math.Mod(qa.Value, conv.Value), 8), qa.Unit}
+			case "div":
+				if conv.Value == 0 {
+					return nil
+				}
+				return Quantity{math.Trunc(qa.Value / conv.Value), "1"} // a ratio of like quantities has no unit
 			}
-			return Quantity{qa.Value + qb.Value, qa.Unit}
+			return Quantity{roundTo(qa.Value+conv.Value, 8), qa.Unit}
+		case isQ && op == "/" && qa.Unit == qb.Unit:
+			if qb.Value == 0 {
+				return nil
+			}
+			return Quantity{roundTo(qa.Value/qb.Value, 8), "1"}
+		case isQ && op == "*" && qa.Unit == qb.Unit:
+			return Quantity{roundTo(qa.Value*qb.Value, 8), qa.Unit + "2"}
 		case !isQ && (op == "*" || op == "/"):
 			f, ok := num(b)
 			if !ok {
@@ -1892,66 +2074,151 @@ func arith(e *Env, sc *scope, n *node, op string, a, b any) any {
 			return sa + sb
 		}
 	}
-	ia, aInt := a.(int64)
-	ib, bInt := b.(int64)
-	if aInt && bInt {
-		switch op {
-		case "+":
-			return ia + ib
-		case "-":
-			return ia - ib
-		case "*":
-			return ia * ib
-		case "div":
-			if ib == 0 {
-				return nil
-			}
-			return ia / ib
-		case "mod":
-			if ib == 0 {
-				return nil
-			}
-			return ia % ib
-		case "^":
-			return int64(math.Pow(float64(ia), float64(ib)))
-		}
+	if r, ok := intArith(op, a, b); ok {
+		return r
 	}
 	fa, aok := num(a)
 	fb, bok := num(b)
 	if !aok || !bok {
 		e.fail(sc.lib, n, "%s %s %s is not supported", Show(a), op, Show(b))
 	}
+	var r float64
 	switch op {
 	case "+":
-		return fa + fb
+		r = fa + fb
 	case "-":
-		return fa - fb
+		r = fa - fb
 	case "*":
-		return fa * fb
+		r = fa * fb
 	case "/":
 		if fb == 0 {
 			return nil
 		}
-		return fa / fb
+		r = fa / fb
 	case "div":
 		if fb == 0 {
 			return nil
 		}
-		return math.Trunc(fa / fb)
+		r = math.Trunc(fa / fb)
 	case "mod":
 		if fb == 0 {
 			return nil
 		}
-		return math.Mod(fa, fb)
+		r = math.Mod(fa, fb)
 	case "^":
-		return math.Pow(fa, fb)
+		r = math.Pow(fa, fb)
+	default:
+		return nil
 	}
-	return nil
+	return decimal(r)
+}
+
+// decimal is a Decimal result held to CQL's range and precision: 8 places, under 10^28; null outside it.
+func decimal(f float64) any {
+	if math.IsNaN(f) || math.IsInf(f, 0) || math.Abs(f) >= 1e28 {
+		return nil
+	}
+	return roundTo(f, 8)
+}
+
+// intArith is Integer and Long arithmetic, null on overflow (an Integer is 32 bits, a Long 64); ok false when
+// either side is not an integer.
+func intArith(op string, a, b any) (any, bool) {
+	long := false
+	val := func(v any) (int64, bool) {
+		switch x := v.(type) {
+		case int64:
+			return x, true
+		case Long:
+			long = true
+			return int64(x), true
+		}
+		return 0, false
+	}
+	ia, aok := val(a)
+	ib, bok := val(b)
+	if !aok || !bok {
+		return nil, false
+	}
+	var r *big.Int
+	x, y := big.NewInt(ia), big.NewInt(ib)
+	switch op {
+	case "+":
+		r = new(big.Int).Add(x, y)
+	case "-":
+		r = new(big.Int).Sub(x, y)
+	case "*":
+		r = new(big.Int).Mul(x, y)
+	case "div", "mod":
+		if ib == 0 {
+			return nil, true
+		}
+		if op == "div" {
+			r = new(big.Int).Quo(x, y)
+		} else {
+			r = new(big.Int).Rem(x, y)
+		}
+	case "^":
+		if ib < 0 {
+			return nil, false // a negative power is a Decimal
+		}
+		r = new(big.Int).Exp(x, y, nil)
+	default:
+		return nil, false
+	}
+	return fitInt(r, long), true
+}
+
+// fitInt is r as an Integer (or a Long), or null when it does not fit.
+func fitInt(r *big.Int, long bool) any {
+	if !r.IsInt64() {
+		return nil
+	}
+	v := r.Int64()
+	if long {
+		return Long(v)
+	}
+	if v > math.MaxInt32 || v < math.MinInt32 {
+		return nil
+	}
+	return v
 }
 
 // addTime adds a calendar quantity, clamping to the end of a shorter month as CQL does.
 func addTime(e *Env, sc *scope, n *node, d DateTime, q Quantity) DateTime {
 	u := durationUnit(q.Unit)
+	if d.TimeOnly {
+		// A time of day takes hours and less, and wraps around midnight.
+		unit := map[string]time.Duration{"hour": time.Hour, "minute": time.Minute, "second": time.Second,
+			"millisecond": time.Millisecond}[u]
+		if unit == 0 {
+			e.fail(sc.lib, n, "a time of day takes hours, minutes, seconds or milliseconds, not %s", Show(q))
+		}
+		// Added at the time's own precision: @T10 + 90 minutes is @T11 (whole hours added), as for dates.
+		add := time.Duration(math.Trunc(q.Value)) * unit
+		day := 24 * time.Hour
+		c := (clock(d.T) + add%day + day) % day
+		return DateTime{T: timeDay.Add(c).Truncate(map[int]time.Duration{pHour: time.Hour, pMinute: time.Minute,
+			pSecond: time.Second, pMilli: time.Millisecond}[d.Prec]), Prec: d.Prec, TimeOnly: true}
+	}
+	// A unit finer than the date's own precision is first converted to that precision, truncating: @2014 minus
+	// 25 months is @2012 (2 years); @2014-06 minus 33 days is @2014-05 (1 month, of 30 days).
+	if up := precIndex[u]; up > d.Prec || (u == "week" && d.Prec < pDay) {
+		secs := map[string]float64{"week": 604800, "day": 86400, "hour": 3600, "minute": 60, "second": 1, "millisecond": 0.001}
+		target := map[int]string{pYear: "year", pMonth: "month", pDay: "day", pHour: "hour", pMinute: "minute", pSecond: "second"}[d.Prec]
+		v := q.Value
+		switch {
+		case u == "month" && target == "year":
+			v = v / 12
+		case target == "year":
+			v = v * secs[u] / (365 * 86400)
+		case target == "month":
+			v = v * secs[u] / (30 * 86400)
+		default:
+			v = v * secs[u] / secs[target]
+		}
+		q, u = Quantity{math.Trunc(v), target}, target
+	}
 	whole := math.Trunc(q.Value)
 	t := d.T
 	switch u {
@@ -1979,19 +2246,63 @@ func addTime(e *Env, sc *scope, n *node, d DateTime, q Quantity) DateTime {
 	default:
 		e.fail(sc.lib, n, "%s is not a quantity of time", Show(q))
 	}
+	if t.Year() < 1 || t.Year() > 9999 {
+		e.fail(sc.lib, n, "%s plus %s is outside the years 1 to 9999", Show(d), Show(q))
+	}
 	return DateTime{T: t, Prec: d.Prec, DateOnly: d.DateOnly}
 }
 
-// between: difference (boundaries crossed) or duration (whole periods) from a to b.
+// between: difference (boundaries crossed) or duration (whole periods) from a to b. Where either is known only to a
+// coarser precision than the answer needs, the answer is an uncertainty: the interval of what it could be (years
+// between DateTime(2005) and DateTime(2010) is Interval[4, 5]), which compares as CQL says.
 func between(a, b DateTime, prec string, difference bool) any {
 	p := precIndex[prec]
 	if prec == "week" {
 		p = pDay
 	}
-	if a.Prec < p || b.Prec < p {
+	if p == 0 {
 		return nil
 	}
+	fill := p
+	if p < pDay {
+		fill = pDay // whole years and months depend on the day
+	}
+	if a.TimeOnly != b.TimeOnly {
+		return nil
+	}
+	if a.Prec < fill || b.Prec < fill {
+		at := func(d DateTime, high bool) DateTime {
+			if d.Prec >= fill {
+				return d
+			}
+			out := DateTime{T: d.truncate(d.Prec), Prec: fill, DateOnly: d.DateOnly, TimeOnly: d.TimeOnly}
+			if high {
+				end := endOf(d)
+				out.T = DateTime{T: end, Prec: pMilli}.truncate(fill)
+			}
+			return out
+		}
+		lo := exactBetween(at(a, true), at(b, false), prec, p, difference)
+		hi := exactBetween(at(a, false), at(b, true), prec, p, difference)
+		if lo == nil || hi == nil {
+			return nil
+		}
+		if lo.(int64) > hi.(int64) {
+			lo, hi = hi, lo
+		}
+		if lo == hi {
+			return lo
+		}
+		return Interval{Low: lo, High: hi, LowClosed: true, HighClosed: true}
+	}
+	return exactBetween(a, b, prec, p, difference)
+}
+
+func exactBetween(a, b DateTime, prec string, p int, difference bool) any {
 	ta, tb := a.T, b.T
+	if !a.DateOnly && !a.TimeOnly {
+		tb = tb.In(ta.Location()) // calendar fields read in one offset
+	}
 	if difference {
 		ta, tb = a.truncate(p), b.truncate(p)
 	}
@@ -2001,7 +2312,10 @@ func between(a, b DateTime, prec string, difference bool) any {
 	}
 	months := func() int64 {
 		m := int64(tb.Year()-ta.Year())*12 + int64(tb.Month()-ta.Month())
-		if tb.Day() < ta.Day() || (tb.Day() == ta.Day() && clock(tb) < clock(ta)) {
+		// A day past the end of the later month (the 31st, February the 29th) is reached on its last day.
+		last := time.Date(tb.Year(), tb.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+		day := min(ta.Day(), last)
+		if tb.Day() < day || (tb.Day() == day && clock(tb) < clock(ta)) {
 			m--
 		}
 		return m
@@ -2012,12 +2326,15 @@ func between(a, b DateTime, prec string, difference bool) any {
 		v = months() / 12
 	case "month":
 		v = months()
-	case "week":
-		v = int64(dayDiff(ta, tb) / 7)
-	case "day":
-		v = int64(dayDiff(ta, tb))
-		if !difference && clock(tb) < clock(ta) && v > 0 {
-			v--
+	case "week", "day":
+		if !difference && a.Prec > pDay && b.Prec > pDay {
+			// whole days (or weeks) elapsed between the two instants
+			v = int64(tb.Sub(ta) / (24 * time.Hour))
+		} else {
+			v = int64(dayDiff(ta, tb))
+		}
+		if prec == "week" {
+			v /= 7
 		}
 	case "hour":
 		v = int64(tb.Sub(ta) / time.Hour)
@@ -2075,6 +2392,20 @@ func demote(v, other any) any {
 		return l[0]
 	}
 	return v
+}
+
+// isListNode is whether a binary node's i-th operand is typed as a list (null as List<String>).
+func isListNode(n *node, i int) bool {
+	if n == nil || i >= len(n.args) || n.args[i] == nil {
+		return false
+	}
+	a := n.args[i]
+	return a.op == "list" || a.op == "as" && strings.HasPrefix(a.typ, "List")
+}
+
+func isLong(v any) bool {
+	_, ok := v.(Long)
+	return ok
 }
 
 func isList(v any) bool {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -18,6 +19,7 @@ import (
 
 	cqlengine "github.com/biodream-llc/vaglio/internal/cql"
 	"github.com/biodream-llc/vaglio/internal/policy"
+	"github.com/biodream-llc/vaglio/internal/terminology"
 )
 
 // importDTRCmd starts a policy from content a plan already has: a Da Vinci DTR Questionnaire (or a questionnaire
@@ -36,6 +38,11 @@ func importDTRCmd(args []string, w io.Writer) error {
 	service := fs.String("service", "", "what the policy decides: SYSTEM CODE..., such as \"cpt 72148 72149\"")
 	runCQL := fs.Bool("cql", true, "write the package's CQL libraries beside the policy (cql/ID/), pin them, and run each "+
 		"yes/no question's own pre-fill as evidence (find cql); -cql=false only lists them")
+	libDir := fs.String("libraries", "", "a directory of .cql libraries the package includes but does not carry "+
+		"(CDS Connect Commons, a plan's helpers): used for those, written and pinned with the rest")
+	tx := fs.String("tx", "", "a FHIR terminology server (https://tx.fhir.org/r4) to expand the value sets the libraries "+
+		"name and the package does not carry; the expansions are kept and pinned beside the policy (network, now only)")
+	txKey := fs.String("tx-key-env", "", "environment variable holding the terminology server's API key (VSAC's UMLS key)")
 	fs.Parse(args)
 	if *id == "" || *out == "" || *service == "" || fs.NArg() != 1 {
 		return errors.New("usage: vaglio import-dtr -id ID -service \"SYSTEM CODE...\" -out FILE.vaglio QUESTIONNAIRE-OR-BUNDLE.json")
@@ -48,7 +55,30 @@ func importDTRCmd(args []string, w io.Writer) error {
 	if *runCQL {
 		dir = "cql/" + *id
 	}
-	src, notes, files, err := importDTRFiles(raw, *id, *service, *canonical, dir)
+	opt := dtrOptions{}
+	if *libDir != "" {
+		opt.libraries = map[string][]byte{}
+		names, _ := filepath.Glob(filepath.Join(*libDir, "*.cql"))
+		for _, f := range names {
+			b, err := os.ReadFile(f)
+			if err != nil {
+				return err
+			}
+			if l, err := cqlengine.Compile(string(b)); err == nil && l.Name != "" {
+				opt.libraries[l.Name+"\x00"+l.Version], opt.libraries[l.Name] = b, b
+			}
+		}
+	}
+	if *tx != "" {
+		key := ""
+		if *txKey != "" {
+			if key, err = secretFrom(*txKey); err != nil {
+				return err
+			}
+		}
+		opt.tx = &terminology.Server{Base: *tx, APIKey: key}
+	}
+	src, notes, files, err := importDTRWith(raw, *id, *service, *canonical, dir, opt)
 	if err != nil {
 		return err
 	}
@@ -124,11 +154,21 @@ func importDTR(raw []byte, id, service, canonical string) (string, string, error
 // the questionnaire pre-fills from a define of a library that compiles and has every library it includes. cqlDir ""
 // keeps the old behaviour: nothing run, find lines only suggested.
 func importDTRFiles(raw []byte, id, service, canonical, cqlDir string) (string, string, map[string][]byte, error) {
-	src, notes, files, err := importDTRInner(raw, id, service, canonical, cqlDir)
-	return src, notes, files, err
+	return importDTRWith(raw, id, service, canonical, cqlDir, dtrOptions{})
 }
 
-func importDTRInner(raw []byte, id, service, canonical, cqlDir string) (string, string, map[string][]byte, error) {
+// dtrOptions are what import-dtr may add to a package: libraries it includes but lacks, by name (and name\x00version),
+// and a terminology server for the value sets it names but does not carry.
+type dtrOptions struct {
+	libraries map[string][]byte
+	tx        *terminology.Server
+}
+
+func importDTRWith(raw []byte, id, service, canonical, cqlDir string, opt dtrOptions) (string, string, map[string][]byte, error) {
+	return importDTRInner(raw, id, service, canonical, cqlDir, opt)
+}
+
+func importDTRInner(raw []byte, id, service, canonical, cqlDir string, opt dtrOptions) (string, string, map[string][]byte, error) {
 	var top struct {
 		ResourceType string `json:"resourceType"`
 		Entry        []struct {
@@ -198,6 +238,84 @@ func importDTRInner(raw []byte, id, service, canonical, cqlDir string) (string, 
 	}
 	if q == nil {
 		return "", "", nil, errors.New("no Questionnaire in it")
+	}
+	// Libraries the package includes but lacks, from -libraries: by name and version, else by name.
+	var added []string
+	for changed := true; changed && opt.libraries != nil; {
+		changed = false
+		for _, l := range compiled {
+			for _, in := range l.Includes {
+				if in.Name == "FHIRHelpers" || compiled[in.Name] != nil {
+					continue
+				}
+				b := opt.libraries[in.Name+"\x00"+in.Version]
+				if b == nil {
+					b = opt.libraries[in.Name]
+				}
+				renamed := ""
+				if b == nil {
+					// Published content does not always agree with itself: a package that includes
+					// CDS_Connect_Commons_for_FHIRv400 while the library calls itself CDSConnectCommonsForFHIRv400.
+					// Matched ignoring case and underscores, and renamed to what the package includes, said so.
+					for name, body := range opt.libraries {
+						if !strings.Contains(name, "\x00") && loose(name) == loose(in.Name) {
+							b, renamed = renameLibrary(body, name, in.Name), name
+						}
+					}
+				}
+				if b == nil {
+					continue
+				}
+				if lib, err := cqlengine.Compile(string(b)); err == nil {
+					if renamed != "" {
+						added = append(added, fmt.Sprintf("%s (renamed from %s, as the package includes it)", lib.Name, renamed))
+					}
+					compiled[lib.Name], cqlText[lib.Name] = lib, b
+					if pl := parseCQL(string(b)); pl.name != "" {
+						libs[pl.name] = pl
+					}
+					if renamed == "" {
+						added = append(added, lib.Name+" "+lib.Version)
+					}
+					changed = true
+				}
+			}
+		}
+	}
+	// Value sets the libraries name that the package does not carry: expanded now, through -tx.
+	var expanded, unexpanded []string
+	if cqlDir != "" {
+		have := map[string]bool{}
+		for _, v := range valueSets {
+			var h struct {
+				URL string `json:"url"`
+			}
+			json.Unmarshal(v, &h)
+			have[h.URL] = true
+		}
+		var want []cqlengine.Def
+		for _, l := range compiled {
+			for _, d := range l.ValueSets {
+				if !have[d.ID] {
+					have[d.ID] = true
+					want = append(want, d)
+				}
+			}
+		}
+		sort.Slice(want, func(i, j int) bool { return want[i].ID < want[j].ID })
+		for _, d := range want {
+			if opt.tx == nil {
+				unexpanded = append(unexpanded, d.ID)
+				continue
+			}
+			vs, err := opt.tx.Expand(context.Background(), d.ID, d.Version)
+			if err != nil {
+				unexpanded = append(unexpanded, d.ID+" ("+err.Error()+")")
+				continue
+			}
+			valueSets = append(valueSets, vs)
+			expanded = append(expanded, d.ID)
+		}
 	}
 	if canonical != "" {
 		q.URL = canonical
@@ -409,8 +527,37 @@ decision approve approves
 		if len(notCompiled) > 0 {
 			msg += "; not compiled: " + strings.Join(notCompiled, "; ")
 		}
+		if len(added) > 0 {
+			sort.Strings(added)
+			msg += "; from -libraries: " + strings.Join(added, ", ")
+		}
+		if len(expanded) > 0 {
+			msg += fmt.Sprintf("; %d value set(s) expanded through %s", len(expanded), opt.tx.Base)
+		}
+		if len(unexpanded) > 0 {
+			msg += fmt.Sprintf("; %d value set(s) not expanded, so membership in them is unknown (pass -tx): %s",
+				len(unexpanded), strings.Join(unexpanded, ", "))
+		}
 	}
 	return b.String(), msg + "); no rules yet", files, nil
+}
+
+// loose is a library name ignoring case and underscores, for matching a package's includes to the libraries given.
+func loose(s string) string { return strings.ToLower(strings.ReplaceAll(s, "_", "")) }
+
+var libraryDecl = regexp.MustCompile(`(?m)^(\s*library\s+)("?)([A-Za-z0-9_]+)("?)`)
+
+// renameLibrary rewrites a library's own declaration of its name.
+func renameLibrary(body []byte, from, to string) []byte {
+	done := false
+	return libraryDecl.ReplaceAllFunc(body, func(m []byte) []byte {
+		sub := libraryDecl.FindSubmatch(m)
+		if done || string(sub[3]) != from {
+			return m
+		}
+		done = true
+		return []byte(string(sub[1]) + to)
+	})
 }
 
 // prefill is the library and define a DTR initialExpression names: %Lib.Define, "Lib"."Define", Lib.Define.

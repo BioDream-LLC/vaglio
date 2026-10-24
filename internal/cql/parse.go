@@ -2,6 +2,7 @@ package cql
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -27,6 +28,15 @@ type query struct {
 	distinct bool
 	sort     []qsort
 	sortDir  string // a sort with no "by": asc or desc
+	agg      *qagg
+}
+
+// qagg is a query's aggregate clause: aggregate [all|distinct] R [starting S]: expr.
+type qagg struct {
+	name     string
+	start    *node
+	expr     *node
+	distinct bool
 }
 
 type qsource struct {
@@ -445,6 +455,11 @@ func (p *parser) compare() *node {
 	for {
 		line := p.peek().line
 		bin := func(op string) { l = &node{op: "binary", s: op, line: line, args: []*node{l, p.relational()}} }
+		// binp: an operator with a precision (included in day of): the operands are compared at it
+		binp := func(op string) {
+			prec := p.precisionOf()
+			l = &node{op: "binary", s: op, line: line, val: prec, args: []*node{l, p.relational()}}
+		}
 		switch {
 		case p.accept("is"):
 			neg := p.accept("not")
@@ -463,6 +478,9 @@ func (p *parser) compare() *node {
 				n = &node{op: "unary", s: "not", line: line, args: []*node{n}}
 			}
 			l = n
+		case p.is("~") && (p.peekN(1).text == "in" || p.peekN(1).text == "contains"):
+			p.next()
+			bin("~" + p.next().text) // equivalent membership: ~in, ~contains
 		case p.is("=") || p.is("!=") || p.is("~") || p.is("!~"):
 			bin(p.next().text)
 		case p.accept("between"):
@@ -470,36 +488,37 @@ func (p *parser) compare() *node {
 			p.expect("and")
 			l = &node{op: "between", line: line, args: []*node{l, lo, p.relational()}}
 		case p.accept("contains"):
-			bin("contains")
+			binp("contains")
 		case p.accept("in"):
-			p.precisionOf()
-			bin("in")
+			binp("in")
 		case p.accept("properly", "includes"):
-			bin("properly includes")
-		case p.accept("properly", "included", "in"):
-			bin("properly included in")
+			binp("properly includes")
+		case p.accept("properly", "included", "in"), p.accept("properly", "during"):
+			binp("properly included in")
 		case p.accept("includes"):
-			bin("includes")
+			binp("includes")
 		case p.accept("included", "in"):
-			p.precisionOf()
-			bin("included in")
+			binp("included in")
 		case p.accept("during"):
-			p.precisionOf()
-			bin("included in")
+			binp("included in")
 		case p.accept("overlaps"):
 			switch {
 			case p.accept("before"):
-				bin("overlaps before")
+				binp("overlaps before")
 			case p.accept("after"):
-				bin("overlaps after")
+				binp("overlaps after")
 			default:
-				p.precisionOf()
-				bin("overlaps")
+				binp("overlaps")
 			}
 		case p.accept("meets"):
-			p.accept("before")
-			p.accept("after")
-			bin("meets")
+			switch {
+			case p.accept("before"):
+				binp("meets before")
+			case p.accept("after"):
+				binp("meets after")
+			default:
+				binp("meets")
+			}
 		case p.timingAhead():
 			l = p.timing(l)
 		default:
@@ -546,6 +565,17 @@ func (p *parser) timing(l *node) *node {
 		side = "end"
 	default:
 		p.accept("occurs")
+	}
+	if side != "" {
+		// "A starts B" (and ends), the interval operators, rather than a timing phrase: A starts as B does and ends
+		// no later.
+		switch t := p.peek(); {
+		case t.kind == tNumber, t.text == "same", t.text == "within", t.text == "before", t.text == "after",
+			t.text == "on", t.text == "during", t.text == "included", t.text == "properly":
+		default:
+			prec := p.precisionOf()
+			return &node{op: "binary", s: side + "s", line: line, val: prec, args: []*node{l, p.relational()}}
+		}
 	}
 	if side != "" {
 		l = &node{op: "unary", s: side + " of", line: line, args: []*node{l}}
@@ -695,6 +725,12 @@ func (p *parser) unary() *node {
 	line := p.peek().line
 	u := func(op string) *node { return &node{op: "unary", s: op, line: line, args: []*node{p.unary()}} }
 	switch {
+	case p.is("-") && p.peekN(1).kind == tNumber && !(p.peekN(2).kind == tIdent && precisions[p.peekN(2).text] != "") &&
+		p.peekN(2).kind != tString && p.peekN(2).text != "." && p.peekN(2).text != "[":
+		// A negative literal, so the most negative Integer and Long are literals too.
+		p.next()
+		t := p.next()
+		return &node{op: "lit", line: line, val: p.number(t.text, true)}
 	case p.accept("-"):
 		return u("-")
 	case p.accept("+"):
@@ -717,8 +753,20 @@ func (p *parser) unary() *node {
 		return u("distinct")
 	case p.accept("flatten"):
 		return u("flatten")
-	case p.accept("collapse"):
-		return u("collapse")
+	case p.is("collapse"), p.is("expand"):
+		op := p.next().text
+		x := p.postfixNoQuery() // never a query: "per" after it is not an alias
+		var per *node
+		if p.accept("per") {
+			if t := p.peek(); t.kind == tIdent && precisions[t.text] != "" {
+				// per day: one of that precision's unit
+				p.next()
+				per = &node{op: "lit", line: line, val: Quantity{1, precisions[t.text]}}
+			} else {
+				per = p.unary()
+			}
+		}
+		return &node{op: "unary", s: op, line: line, args: []*node{x, per}}
 	case p.accept("cast"):
 		x := p.unary()
 		p.expect("as")
@@ -746,7 +794,7 @@ func (p *parser) unary() *node {
 		t.text == "time" || t.text == "timezoneoffset") {
 		p.next()
 		p.next()
-		return &node{op: "datepart", s: precisions[t.text] + map[string]string{"date": "date", "time": "time"}[t.text],
+		return &node{op: "datepart", s: precisions[t.text] + map[string]string{"date": "date", "time": "time", "timezoneoffset": "timezoneoffset"}[t.text],
 			line: line, args: []*node{p.unary()}}
 	}
 	if t := p.peek(); t.kind == tIdent && precisions[t.text] != "" && p.peekN(1).text == "between" {
@@ -833,12 +881,26 @@ func (p *parser) queryFrom(sources []qsource) *node {
 	if p.accept("where") {
 		q.where = p.expr()
 	}
-	if p.accept("return") {
+	if p.accept("aggregate") {
+		a := &qagg{}
 		if p.accept("distinct") {
-			q.distinct = true
+			a.distinct = true
 		} else {
 			p.accept("all")
 		}
+		a.name = p.name()
+		if p.accept("starting") {
+			a.start = p.relational()
+		}
+		p.expect(":")
+		a.expr = p.expr()
+		q.agg = a
+		return &node{op: "query", q: q, line: line}
+	}
+	if p.accept("return") {
+		// distinct unless "all": a return clause removes duplicates by default
+		q.distinct = !p.accept("all")
+		p.accept("distinct")
 		q.ret = p.expr()
 	}
 	if p.accept("sort") {
@@ -898,20 +960,31 @@ func (p *parser) term() *node {
 	case tString:
 		p.next()
 		return &node{op: "lit", line: line, val: t.text}
-	case tNumber:
-		if u := p.peekN(1); (u.kind == tIdent && precisions[u.text] != "") || u.kind == tString {
-			return p.quantity()
-		}
-		p.next()
-		if strings.Contains(t.text, ".") {
-			v, _ := strconv.ParseFloat(t.text, 64)
+	case tIdent:
+		if (t.text == "minimum" || t.text == "maximum") && p.peekN(1).kind == tIdent {
+			p.next()
+			typ := p.typeSpec()
+			v := minMaxOf(typ, t.text == "maximum")
+			if v == nil {
+				p.fail("%s %s: no such value", t.text, typ)
+			}
 			return &node{op: "lit", line: line, val: v}
 		}
-		v, err := strconv.ParseInt(t.text, 10, 64)
-		if err != nil {
-			p.fail("%s is too large an integer", t.text)
+	}
+	switch t.kind {
+	case tNumber:
+		if u := p.peekN(1); (u.kind == tIdent && precisions[u.text] != "") || u.kind == tString {
+			q := p.quantity()
+			if p.is(":") && p.peekN(1).kind == tNumber {
+				// a ratio: 1 'cm' : 2 'cm'
+				p.next()
+				d := p.quantity()
+				return &node{op: "lit", line: line, val: Ratio{q.val.(Quantity), d.val.(Quantity)}}
+			}
+			return q
 		}
-		return &node{op: "lit", line: line, val: v}
+		p.next()
+		return &node{op: "lit", line: line, val: p.number(t.text, false)}
 	case tDate:
 		p.next()
 		d, err := ParseDateTime(t.text)
@@ -920,7 +993,12 @@ func (p *parser) term() *node {
 		}
 		return &node{op: "lit", line: line, val: d}
 	case tTime:
-		p.fail("times of day (@T%s) are not supported", t.text)
+		p.next()
+		d, err := ParseTime(t.text)
+		if err != nil {
+			p.fail("%v", err)
+		}
+		return &node{op: "lit", line: line, val: d}
 	case tQuoted:
 		p.next()
 		if p.is("(") {
@@ -1043,6 +1121,42 @@ func (p *parser) term() *node {
 }
 
 // qualifiedID: an identifier, perhaps Lib."name" or Lib.f(args), resolved when it is evaluated.
+// number is a numeric literal's value: an Integer (32 bits), a Long (42L, 64 bits) or a Decimal (28 digits before the
+// point, 8 after). neg is a literal written after a minus sign, so the most negative value fits.
+func (p *parser) number(text string, neg bool) any {
+	if strings.HasSuffix(text, "L") {
+		s := strings.TrimSuffix(text, "L")
+		if neg {
+			s = "-" + s
+		}
+		v, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			p.fail("%s is outside the range of a Long", text)
+		}
+		return Long(v)
+	}
+	if strings.Contains(text, ".") {
+		whole, frac, _ := strings.Cut(text, ".")
+		if len(strings.TrimLeft(whole, "0")) > 28 || len(frac) > 8 {
+			p.fail("%s is outside the range or precision of a Decimal (28 digits, 8 after the point)", text)
+		}
+		v, _ := strconv.ParseFloat(text, 64)
+		if neg {
+			v = -v
+		}
+		return v
+	}
+	s := text
+	if neg {
+		s = "-" + s
+	}
+	v, err := strconv.ParseInt(s, 10, 64)
+	if err != nil || v > math.MaxInt32 || v < math.MinInt32 {
+		p.fail("%s is outside the range of an Integer", text)
+	}
+	return v
+}
+
 func (p *parser) qualifiedID(name string, line int) *node {
 	return &node{op: "id", s: name, line: line}
 }

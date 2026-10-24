@@ -63,7 +63,11 @@ func (e *Env) builtin(name string, args []any, n *node, sc *scope) any {
 	case "Now":
 		return e.now()
 	case "TimeOfDay":
-		e.fail(sc.lib, n, "times of day are not supported")
+		t := e.Now
+		if t.IsZero() {
+			t = time.Now()
+		}
+		return DateTime{T: timeDay.Add(clock(t)), Prec: pMilli, TimeOnly: true}
 	case "Date", "DateTime":
 		parts := []int{0, 1, 1, 0, 0, 0, 0}
 		prec := 0
@@ -84,8 +88,18 @@ func (e *Env) builtin(name string, args []any, n *node, sc *scope) any {
 		if prec == 0 {
 			return nil
 		}
+		loc := time.UTC
+		if name == "DateTime" && len(args) == 8 {
+			// The eighth is the offset from UTC, in hours: -7.0 is seven hours behind.
+			if off, ok := num(sys(args[7])); ok {
+				loc = time.FixedZone("", int(math.Round(off*3600)))
+			}
+		}
+		if parts[1] < 1 || parts[1] > 12 || parts[2] < 1 || parts[0] < 1 || parts[0] > 9999 {
+			e.fail(sc.lib, n, "%s(%v) is not a calendar date", name, parts[:prec])
+		}
 		return DateTime{T: time.Date(parts[0], time.Month(parts[1]), parts[2], parts[3], parts[4], parts[5],
-			parts[6]*1e6, time.UTC), Prec: prec, DateOnly: name == "Date"}
+			parts[6]*1e6, loc), Prec: prec, DateOnly: name == "Date"}
 	case "AgeInYears", "AgeInMonths", "AgeInWeeks", "AgeInDays":
 		b, ok := e.birthDate()
 		if !ok {
@@ -211,11 +225,17 @@ func (e *Env) builtin(name string, args []any, n *node, sc *scope) any {
 		case []any:
 			return int64(len(v))
 		case nil:
+			if _, isList := args[0].([]any); isList || n.args != nil && len(n.args) > 0 && strings.HasPrefix(n.args[0].typ, "List") {
+				return int64(0) // a null list has none
+			}
 			return nil
 		}
 	case "Distinct":
 		return distinct(list())
 	case "Flatten":
+		if sys(args[0]) == nil {
+			return nil
+		}
 		return flatten(list())
 	case "SingletonFrom":
 		l := list()
@@ -227,6 +247,9 @@ func (e *Env) builtin(name string, args []any, n *node, sc *scope) any {
 		}
 		return l[0]
 	case "Tail":
+		if sys(args[0]) == nil {
+			return nil
+		}
 		l := list()
 		if len(l) <= 1 {
 			return []any{}
@@ -234,8 +257,17 @@ func (e *Env) builtin(name string, args []any, n *node, sc *scope) any {
 		return l[1:]
 	case "Skip", "Take":
 		want(2)
+		if sys(args[0]) == nil {
+			return nil
+		}
 		l := toList(args[0])
-		k, _ := arg(1).(int64)
+		k, isK := arg(1).(int64)
+		if !isK && name == "Skip" {
+			return l
+		}
+		if name == "Skip" && k < 0 {
+			return []any{}
+		}
 		k = max(0, min(k, int64(len(l))))
 		if name == "Skip" {
 			return l[k:]
@@ -243,6 +275,9 @@ func (e *Env) builtin(name string, args []any, n *node, sc *scope) any {
 		return l[:k]
 	case "IndexOf":
 		want(2)
+		if sys(args[0]) == nil || sys(args[1]) == nil {
+			return nil
+		}
 		for i, v := range toList(args[0]) {
 			if eq, known := equal(v, args[1]); known && eq {
 				return int64(i)
@@ -250,6 +285,9 @@ func (e *Env) builtin(name string, args []any, n *node, sc *scope) any {
 		}
 		return int64(-1)
 	case "Combine":
+		if l := nonNull(toList(args[0])); len(l) == 0 {
+			return nil
+		}
 		var parts []string
 		for _, v := range nonNull(toList(args[0])) {
 			s, _ := v.(string)
@@ -265,7 +303,10 @@ func (e *Env) builtin(name string, args []any, n *node, sc *scope) any {
 		if !ok {
 			return nil
 		}
-		sep, _ := arg(1).(string)
+		sep, ok := arg(1).(string)
+		if !ok {
+			return []any{s}
+		}
 		out := []any{}
 		for _, p := range strings.Split(s, sep) {
 			out = append(out, p)
@@ -304,7 +345,7 @@ func (e *Env) builtin(name string, args []any, n *node, sc *scope) any {
 	case "Substring":
 		s, ok := arg(0).(string)
 		start, ok2 := arg(1).(int64)
-		if !ok || !ok2 || start < 0 || int(start) > len(s) {
+		if !ok || !ok2 || start < 0 || int(start) > len(s) || int(start) == len(s) && len(s) > 0 {
 			return nil
 		}
 		if l, ok := arg(2).(int64); ok {
@@ -316,37 +357,51 @@ func (e *Env) builtin(name string, args []any, n *node, sc *scope) any {
 		if q, ok := v.(Quantity); ok && name == "Abs" {
 			return Quantity{math.Abs(q.Value), q.Unit}
 		}
-		if i, ok := v.(int64); ok && name == "Abs" {
-			if i < 0 {
-				return -i
+		if name == "Abs" && (isLong(v) || func() bool { _, ok := v.(int64); return ok }()) {
+			if f, _ := num(v); f < 0 {
+				r, _ := intArith("-", map[bool]any{true: Long(0), false: int64(0)}[isLong(v)], v)
+				return r
 			}
-			return i
+			return v
 		}
 		f, ok := num(v)
 		if !ok {
 			return nil
 		}
+		whole := func(f float64) any {
+			if f > math.MaxInt32 || f < math.MinInt32 {
+				return nil
+			}
+			return int64(f)
+		}
 		switch name {
 		case "Abs":
-			return math.Abs(f)
+			return decimal(math.Abs(f))
 		case "Ceiling":
-			return int64(math.Ceil(f))
+			return whole(math.Ceil(f))
 		case "Floor":
-			return int64(math.Floor(f))
+			return whole(math.Floor(f))
 		case "Truncate":
-			return int64(math.Trunc(f))
+			return whole(math.Trunc(f))
 		case "Round":
 			places := int64(0)
 			if p, ok := arg(1).(int64); ok {
 				places = p
 			}
-			return roundTo(f, int(places))
+			pw := math.Pow(10, float64(places))
+			return decimal(math.Round(f*pw) / pw) // half away from zero: Round(-0.5) is -1
 		case "Ln":
-			return math.Log(f)
+			if f <= 0 {
+				return nil
+			}
+			return decimal(math.Log(f))
 		case "Exp":
-			return math.Exp(f)
+			return decimal(math.Exp(f))
 		}
-		return math.Sqrt(f)
+		if f < 0 {
+			return nil
+		}
+		return decimal(math.Sqrt(f))
 	case "ToString":
 		return toString(arg(0))
 	case "ToInteger":
@@ -382,6 +437,14 @@ func (e *Env) builtin(name string, args []any, n *node, sc *scope) any {
 		switch v := arg(0).(type) {
 		case bool:
 			return v
+		case int64, Long, float64:
+			switch f, _ := num(v); f {
+			case 1:
+				return true
+			case 0:
+				return false
+			}
+			return nil
 		case string:
 			switch strings.ToLower(v) {
 			case "true", "t", "yes", "y", "1":
@@ -417,6 +480,18 @@ func (e *Env) builtin(name string, args []any, n *node, sc *scope) any {
 			return Quantity{float64(v), "1"}
 		case float64:
 			return Quantity{v, "1"}
+		case string:
+			// 5.5 'cm', or a number alone
+			num, unit, _ := strings.Cut(strings.TrimSpace(v), " ")
+			f, ok := parseDecimal(num)
+			if !ok {
+				return nil
+			}
+			unit = strings.Trim(strings.TrimSpace(unit), "'")
+			if unit == "" {
+				unit = "1"
+			}
+			return Quantity{f, unit}
 		}
 		return nil
 	case "ToConcept":
@@ -450,9 +525,20 @@ func (e *Env) builtin(name string, args []any, n *node, sc *scope) any {
 		}
 		e.fail(sc.lib, n, "converting %s to '%s' needs a unit conversion this engine does not know", Show(q), u)
 	case "Message":
+		// Message(source, condition, code, severity, message): an Error stops evaluation, with the message.
+		if c, _ := arg(1).(bool); c {
+			if sev, _ := arg(3).(string); strings.EqualFold(sev, "Error") {
+				code, _ := arg(2).(string)
+				msg, _ := arg(4).(string)
+				e.fail(sc.lib, n, "%s: %s", code, msg)
+			}
+		}
 		return args[0]
 	case "start", "end":
 		return e.unary(&node{op: "unary", s: name + " of", line: n.line, args: []*node{{op: "lit", val: arg(0)}}}, sc)
+	}
+	if v, ok := e.moreBuiltin(name, args, n, sc); ok {
+		return v
 	}
 	e.fail(sc.lib, n, "%s is not a function this library defines or this engine has", name)
 	return nil
@@ -468,10 +554,12 @@ func toString(v any) any {
 		return strconv.FormatBool(x)
 	case int64:
 		return strconv.FormatInt(x, 10)
+	case Long:
+		return strconv.FormatInt(int64(x), 10)
 	case float64:
 		return strconv.FormatFloat(x, 'f', -1, 64)
 	case DateTime:
-		return x.String()
+		return strings.TrimPrefix(x.String(), "T") // a time of day as 09:30:01.003
 	case Quantity:
 		return strconv.FormatFloat(x.Value, 'f', -1, 64) + " '" + x.Unit + "'"
 	case Code:

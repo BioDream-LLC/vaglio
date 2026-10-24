@@ -33,3 +33,8 @@ cmd/vaglio/testdata/dtr-home-oxygen.json is trimmed from the Da Vinci DTR
 reference implementation's home oxygen questionnaire package, as carried in the
 Inferno DTR test kit's fixtures (inferno-framework/davinci-dtr-test-kit,
 Apache-2.0), used only to test vaglio import-dtr.
+
+internal/cql/testdata/cql-tests/ holds HL7's CQL conformance tests
+(https://github.com/cqframework/cql-tests, at the commit in SOURCE there),
+licensed under the Apache License, Version 2.0 (its LICENSE beside them), used
+only to test Vaglio's CQL engine.

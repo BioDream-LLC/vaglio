@@ -15,6 +15,12 @@ import (
 // The values an expression has: nil (null), bool, int64 (Integer), float64 (Decimal), string, DateTime, Quantity, Code,
 // Concept, Interval, []any (List), *Tuple, and FHIR data as *Elem.
 
+// Long is CQL's 64-bit integer (42L); an Integer is int64 held to 32 bits.
+type Long int64
+
+// Ratio is a numerator and a denominator quantity (1 'mg' : 2 'mL'), as FHIR's Ratio.
+type Ratio struct{ Num, Den Quantity }
+
 // Precision of a DateTime, from year to millisecond.
 const (
 	pYear = iota + 1
@@ -29,14 +35,53 @@ const (
 var precIndex = map[string]int{"year": pYear, "month": pMonth, "day": pDay, "hour": pHour, "minute": pMinute,
 	"second": pSecond, "millisecond": pMilli}
 
-// DateTime is a Date (DateOnly) or a DateTime, known to its precision.
+// DateTime is a Date (DateOnly), a DateTime, or a Time (TimeOnly: a time of day, its date 0000-01-01 and unused),
+// known to its precision.
 type DateTime struct {
 	T        time.Time
 	Prec     int
 	DateOnly bool
+	TimeOnly bool
+}
+
+// timeDay is the date a Time is held on.
+var timeDay = time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC)
+
+var timeRE = regexp.MustCompile(`^(\d{2})(?::(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?$`)
+
+// ParseTime reads a time of day (14, 14:30, 14:30:15.250), keeping its precision.
+func ParseTime(s string) (DateTime, error) {
+	m := timeRE.FindStringSubmatch(s)
+	if m == nil {
+		return DateTime{}, fmt.Errorf("%q is not a time of day", s)
+	}
+	n := func(i int) int {
+		v, _ := strconv.Atoi(m[i])
+		return v
+	}
+	d := DateTime{Prec: pHour, TimeOnly: true}
+	ms := 0
+	switch {
+	case m[4] != "":
+		d.Prec = pMilli
+		ms, _ = strconv.Atoi((m[4] + "00")[:3]) // to the millisecond
+	case m[3] != "":
+		d.Prec = pSecond
+	case m[2] != "":
+		d.Prec = pMinute
+	}
+	if n(1) > 23 || n(2) > 59 || n(3) > 59 {
+		return DateTime{}, fmt.Errorf("%q is not a time of day", s)
+	}
+	d.T = timeDay.Add(time.Duration(n(1))*time.Hour + time.Duration(n(2))*time.Minute + time.Duration(n(3))*time.Second +
+		time.Duration(ms)*time.Millisecond)
+	return d, nil
 }
 
 func (d DateTime) String() string {
+	if d.TimeOnly {
+		return "T" + d.T.Format(map[int]string{pHour: "15", pMinute: "15:04", pSecond: "15:04:05", pMilli: "15:04:05.000"}[d.Prec])
+	}
 	layout := map[int]string{pYear: "2006", pMonth: "2006-01", pDay: "2006-01-02", pHour: "2006-01-02T15",
 		pMinute: "2006-01-02T15:04", pSecond: "2006-01-02T15:04:05", pMilli: "2006-01-02T15:04:05.000"}[d.Prec]
 	s := d.T.Format(layout)
@@ -90,7 +135,7 @@ func ParseDateTime(s string) (DateTime, error) {
 // truncate drops what is finer than prec.
 func (d DateTime) truncate(prec int) time.Time {
 	t := d.T.UTC()
-	if d.DateOnly || d.Prec <= pDay {
+	if d.DateOnly || d.TimeOnly || d.Prec <= pDay {
 		t = d.T
 	}
 	y, mo, dd := t.Date()
@@ -119,6 +164,9 @@ func (d DateTime) truncate(prec int) time.Time {
 
 // compareDT: -1, 0, 1, or uncertain (ok false) when the two agree to the coarser precision but one is less precise.
 func compareDT(a, b DateTime) (int, bool) {
+	if a.TimeOnly != b.TimeOnly {
+		return 0, false
+	}
 	p := min(a.Prec, b.Prec)
 	ta, tb := a.truncate(p), b.truncate(p)
 	switch {
@@ -269,6 +317,10 @@ func Show(v any) string {
 		return "'" + x + "'"
 	case bool, int64:
 		return fmt.Sprint(x)
+	case Long:
+		return fmt.Sprint(int64(x)) + "L"
+	case Ratio:
+		return x.Num.String() + ":" + x.Den.String()
 	case float64:
 		return strconv.FormatFloat(x, 'f', -1, 64)
 	case DateTime:
