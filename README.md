@@ -24,7 +24,7 @@ calls and portal requests too.
 
 <a href="docs/Vaglio-overview.pptx"><img src="docs/assets/buttons/overview.svg" alt="Vaglio in plain words: the slides" width="240"></a>&nbsp;<a href="#build"><img src="docs/assets/buttons/source.svg" alt="Build Vaglio from source" width="240"></a>
 
-<sub>No release yet: build it from source with Go. [What it needs](#build)</sub>
+<sub><b>v0.1.0</b>: <a href="https://github.com/BioDream-LLC/vaglio/releases/latest">the release</a> (Linux, macOS and Windows, x86 and Arm; reproducible, with build provenance), or build it from source with Go. [What it needs](#build)</sub>
 
 [**Why now**](#why-now) · [**How it compares**](#how-it-compares) · [**What it does**](#everything-it-does) · [**What it looks like**](#what-it-looks-like) · [**Running it**](#running-it) ·
 [**Behind Perfuse**](#behind-perfuse) · [**Writing policies**](#writing-policies) · [**Security**](#security) · [**FAQ**](#faq)
@@ -585,7 +585,8 @@ Tried for real (2026-10-20, on an EC2 server): Let's Encrypt issued Vaglio certi
 and http-01 (port 80), trusted from outside with no other help; OpenID Connect sign-on with Amazon Cognito, a person
 signing in through Cognito's own page in a browser and arriving in the console as their account, refused (and the
 refusal recorded) until `vaglio user sso` allowed that account. Not yet: OpenID Connect with Microsoft Entra ID or Okta,
-and SAML by a person on a live tenant (tested against Entra-shaped responses and one captured from Entra); no release has been cut yet (the release workflow is built and waits for a tag);
+and SAML by a person on a live tenant (tested against Entra-shaped responses and one captured from Entra); v0.1.0 is
+the first release (24 October 2026), its archives rebuilt byte for byte from the tag on a second machine;
 advice before submitting is on Perfuse's main branch, not yet in a Perfuse release. The criteria-service
 protocol is Vaglio's own: no licensed criteria vendor is known to speak it yet, so a plan's licence needs a small adapter
 (`examples/criteria-service` is where to start one).
@@ -682,10 +683,10 @@ Installed as a service in one command, the archive checked against the release's
 provenance, when the GitHub CLI is installed) before anything runs:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/BioDream-LLC/vaglio/main/deploy/install.sh | sudo sh -s -- -version vX.Y.Z
+curl -fsSL https://raw.githubusercontent.com/BioDream-LLC/vaglio/main/deploy/install.sh | sudo sh -s -- -version v0.1.0
 ```
 
-On Windows, `deploy/install.ps1 -Version vX.Y.Z` from an elevated PowerShell. As a container, the `Dockerfile`
+On Windows, `deploy/install.ps1 -Version v0.1.0` from an elevated PowerShell. As a container, the `Dockerfile`
 (distroless, non-root, data in a volume); on Kubernetes, `deploy/helm/vaglio` (one replica: one process holds the log).
 Off loopback, `/api/pas/` needs a bearer token, and the server will not start without one (`-token-env` or
 `-token-file`; `-pas-no-token` only where something in front of it authenticates the PAS server). The installers
