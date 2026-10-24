@@ -25,6 +25,11 @@ existing public services that record them.
   - `-anchor-tsa URL,...`: RFC 3161 time-stamping authorities (DigiCert's, FreeTSA's, the plan's own). The signed token is
     kept as a `.tsr` file, verified with the authority's certificate (`openssl ts -verify`). Vaglio checks the token
     is over the checkpoint's digest and reads its time; it does not check the authority's signature itself.
+  - `-anchor-rekor https://rekor.sigstore.dev`: Sigstore's public transparency log. Each checkpoint's digest goes in as
+    a `hashedrekord` entry, signed with an ECDSA P-256 key of the plan's own (`DATA/anchor/rekor.key`; Rekor checks a
+    signature over a digest, which the Ed25519 checkpoint key cannot make). Rekor's answer is kept as a `.json` file:
+    the entry, its log index and its signed entry timestamp, which the server checks against Rekor's published key.
+    Anyone can find the entry again with `rekor-cli get --log-index N`.
   - `-anchor-witness URL` (and `-anchor-witness-token-env`): an https endpoint a regulator or partner runs, which is
     posted each signed checkpoint and keeps it.
 - **Receipts carry a proof.** A receipt's answer (`GET /api/receipts/CODE`, and the public receipt page) carries:
@@ -68,8 +73,8 @@ key; the old ones still verify with the old public key.
   - that a decision was right;
   - that every decision was ever recorded. A record never written is not in any checkpoint, and records made after the
     last checkpoint are covered only by the next one.
-- **The witnesses' own trust is theirs.** Bitcoin's for OpenTimestamps, the authority's certificate for RFC 3161, the
-  endpoint's operator for the third kind.
+- **The witnesses' own trust is theirs.** Bitcoin's for OpenTimestamps, Sigstore's for Rekor, the authority's
+  certificate for RFC 3161, the endpoint's operator for the last kind.
 
 ## What is tested
 
@@ -88,4 +93,6 @@ key; the old ones still verify with the old public key.
   - DigiCert's authority: its token reads correctly;
   - a server run with `-anchor-every 1m -anchor-ots -anchor-tsa https://freetsa.org/tsr`: a receipt's answer verified
     offline with `vaglio anchor verify -key`.
-- Not built: Sigstore Rekor. Not tried yet; the endpoint witness and the two public services cover the need for now.
+- Rekor: against a stand-in that checks the entry's signature as Rekor does and signs its answer (a timestamp from another
+  key, or an entry over another digest, is refused); and once against the real `rekor.sigstore.dev` (2026-10-24, entry
+  3440703923, its signed entry timestamp verified with Rekor's key).

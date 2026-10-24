@@ -145,7 +145,7 @@ func usage(w io.Writer) {
                 [-pas-url URL] [-pas-token-env VAR] [-pas-ca FILE] [-tls-cert FILE -tls-key FILE] [-hostname NAME]
                 [-goldcard FILE] [-clinician-denials] [-pas-api-url URL]
                 [-require-adoption [-adoption-signatures N]] [-review-every-days N] [-watch-sources]
-                [-anchor-every DUR [-anchor-ots] [-anchor-tsa URLS] [-anchor-witness URL [-anchor-witness-token-env VAR]]]
+                [-anchor-every DUR [-anchor-ots] [-anchor-tsa URLS] [-anchor-rekor URL] [-anchor-witness URL [-anchor-witness-token-env VAR]]]
                 [-document-model-url URL -document-model M [-document-model-key-env VAR] [-document-model-remote]]
                 [-edit-policies] [-oidc-issuer URL -oidc-client-id ID -oidc-client-secret-env VAR
                  -oidc-redirect-url URL [-oidc-name-claim C] [-oidc-group G] [-oidc-label TEXT]]
@@ -241,6 +241,8 @@ func serve(args []string) error {
 		"calendars, which anchor it in Bitcoin")
 	anchorTSA := fs.String("anchor-tsa", "", "RFC 3161 time-stamping authorities (comma-separated URLs) to time-stamp each "+
 		"checkpoint's digest")
+	anchorRekor := fs.String("anchor-rekor", "", "a Sigstore Rekor transparency log (https://rekor.sigstore.dev) each "+
+		"checkpoint's digest is entered in, signed with a key of its own (DATA/anchor/rekor.key)")
 	anchorWitness := fs.String("anchor-witness", "", "an https endpoint (a regulator's, a partner's) each signed "+
 		"checkpoint is posted to; -anchor-witness-token-env names its bearer token")
 	anchorWitnessToken := fs.String("anchor-witness-token-env", "", "name of an environment variable holding "+
@@ -455,7 +457,7 @@ func serve(args []string) error {
 	if *anchorEvery < 0 || (*anchorEvery > 0 && *anchorEvery < time.Minute) {
 		return errors.New("-anchor-every is a minute or more")
 	}
-	if *anchorEvery == 0 && (*anchorOTS || *anchorTSA != "" || *anchorWitness != "") {
+	if *anchorEvery == 0 && (*anchorOTS || *anchorTSA != "" || *anchorWitness != "" || *anchorRekor != "") {
 		return errors.New("witnesses witness checkpoints: set -anchor-every too")
 	}
 	if *anchorOTS {
@@ -471,6 +473,12 @@ func serve(args []string) error {
 			}
 			sh.witnesses = append(sh.witnesses, anchor.TSA{URL: u})
 		}
+	}
+	if *anchorRekor != "" {
+		if err := feed.Check(*anchorRekor); err != nil {
+			return fmt.Errorf("-anchor-rekor: %w", err)
+		}
+		sh.rekor = *anchorRekor
 	}
 	if *anchorWitness != "" {
 		if err := feed.Check(*anchorWitness); err != nil {

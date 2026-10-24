@@ -299,6 +299,7 @@ type shared struct {
 	// Checkpoints of each plan's audit log, and their witnesses (-anchor-every ...).
 	anchorEvery time.Duration
 	witnesses   []anchor.Witness
+	rekor       string // a Rekor log's URL; its witness is made per plan, with the plan's own key
 }
 
 // openedPlan is a plan ready to serve.
@@ -537,8 +538,23 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 		if name == "" {
 			name = "vaglio"
 		}
+		ws := append([]anchor.Witness{}, sh.witnesses...)
+		if sh.rekor != "" {
+			k, err := anchor.RekorKey(filepath.Join(sp.Data, "anchor"))
+			if err != nil {
+				return fail(fmt.Errorf("anchor: the Rekor key: %w", err))
+			}
+			rk := anchor.Rekor{URL: sh.rekor, Key: k}
+			if lk, err := anchor.RekorLogKey(ctx, nil, sh.rekor); err == nil {
+				rk.LogKey = lk
+			} else {
+				log.Printf("%sRekor's own key could not be fetched (%v): its answers are kept but their signed entry "+
+					"timestamps are not checked", where, err)
+			}
+			ws = append(ws, rk)
+		}
 		an := &anchor.Anchor{Dir: filepath.Join(sp.Data, "anchor"), Log: st.log, Name: name, Every: sh.anchorEvery,
-			Witnesses: sh.witnesses}
+			Witnesses: ws}
 		if err := an.Open(); err != nil {
 			return fail(fmt.Errorf("anchor: %w", err))
 		}

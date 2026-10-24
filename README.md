@@ -230,11 +230,12 @@ The proof, written for whoever needs it: the provider, the patient, a regulator.
 - **The log, anchored outside the plan** (`serve -anchor-every 1h`, [docs/anchoring.md](docs/anchoring.md)): the
   server signs checkpoints of the audit log (its size, a Merkle root over its records, the time), each shown to extend
   the last, and checks at every start that the log still matches them. It can send each one to witnesses the plan
-  chooses: OpenTimestamps (anchored in Bitcoin), RFC 3161 time-stamping authorities, or a regulator's endpoint. A
+  chooses: OpenTimestamps (anchored in Bitcoin), Sigstore Rekor, RFC 3161 time-stamping authorities, or a regulator's
+  endpoint. A
   receipt's answer then carries its record's proof, checked offline with `vaglio anchor verify -key PLANKEY`. Only
   hashes leave, salted so no one can test a guess about another patient's record. It proves the records have not
   changed since a checkpoint; it does not prove a decision was right, or that nothing was left out before one. Tried
-  against the real OpenTimestamps calendars, FreeTSA and DigiCert.
+  against the real OpenTimestamps calendars, Rekor, FreeTSA and DigiCert.
 - **Plain-language letters** (each case, in English or Spanish, `GET /api/cases/{id}/letter?lang=en|es`): what was
   asked for, what was decided and by whom, the policy's words it rests on, what the record showed, what is needed or
   what would change it, the patient's rights, and the receipt with its QR code. Written from the decision by fixed
