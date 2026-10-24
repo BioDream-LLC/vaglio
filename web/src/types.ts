@@ -260,6 +260,17 @@ export interface Review {
   automatic?: boolean;
   /** Set aside for a reviewer's check after the fact. */
   sampled?: boolean;
+  /** Decided in the plan's case-review system of this name, as its case `reference`. */
+  via?: string;
+  reference?: string;
+}
+
+/** The case opened for this one in the plan's case-review system. */
+export interface UMLink {
+  system: string;
+  ref: string;
+  url?: string;
+  time: string;
 }
 
 /** A reviewer's after-the-fact check of an automatic approval. */
@@ -343,6 +354,9 @@ export interface CaseDetail {
   drug?: boolean;
   appeal?: Appeal;
   appealTaken?: AppealRequest;
+  um?: UMLink;
+  /** The console may not decide it: it is worked in this case-review system. */
+  workedIn?: string;
   eligibility?: {
     status: "active" | "inactive" | "not-found" | "excluded" | "unknown";
     why: string;

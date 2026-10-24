@@ -257,6 +257,14 @@ The proof, written for whoever needs it: the provider, the patient, a regulator.
 
 What a person decides, they decide with everything in front of them, in the right order.
 
+- **In the plan's own case-review system** (`serve -um FILE`, [docs/um.md](docs/um.md)): every case Vaglio pends is
+  opened in the plan's utilization management system with the proof, the missing evidence, the quoted findings, the
+  receipt, a link back and a PDF of it all, so nurses and physicians stay where they work. Their decision there comes
+  back (pushed to `/api/feeds/um`, or polled) and closes the case here under their name, NPI and credential, held to
+  the console's rules: a physician's case or a denial only from a clinician. Any system with a JSON API is wired by
+  field maps, or FHIR Task; the UM system stays where the person decides, and Vaglio never closes a case there.
+  Tested against stand-ins (`examples/um-standin`), not yet against a real system; no vendor's API was public enough to
+  build a named connector against.
 - **A work queue** (the Queue screen, `GET /api/queue`): every request waiting for a decision and every appeal waiting
   for its outcome, in the order to work them, by a stated rule: past its deadline first, then expedited, then the least
   time left, with a nudge for one whose documents have arrived. Each row says why it is where it is. The order only

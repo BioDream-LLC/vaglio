@@ -221,6 +221,10 @@ type Review struct {
 	Automatic bool `json:"automatic,omitempty"`
 	// Sampled: an automatic approval set aside for a reviewer to check after the fact, for quality.
 	Sampled bool `json:"sampled,omitempty"`
+	// Via is the plan's case-review system the decision was made in (um.go), and Reference that system's id for the
+	// case: the reviewer worked it there, and By is their name in it.
+	Via       string `json:"via,omitempty"`
+	Reference string `json:"reference,omitempty"`
 }
 
 // QA is a reviewer's check of an automatic approval, after the fact: whether they agree the documents show what the
@@ -274,6 +278,8 @@ type Case struct {
 	// ruling where the two disagree.
 	PlanOutcome *PlanOutcome `json:"planOutcome,omitempty"`
 	Ruling      *Ruling      `json:"ruling,omitempty"`
+	// UM is the case opened for this one in the plan's case-review system (um.go), where its reviewers decide it.
+	UM *UMLink `json:"um,omitempty"`
 }
 
 // Notice is one letter to the member: sent, or why not.
@@ -335,6 +341,9 @@ func Open(log *audit.Log, bundles string) (*Store, error) {
 
 func (s *Store) apply(r audit.Record) error {
 	if ok, err := s.applyShadow(r.Action, r.Case, r.Time, r.Data); ok {
+		return err
+	}
+	if ok, err := s.applyUM(r); ok {
 		return err
 	}
 	switch r.Action {
@@ -559,6 +568,10 @@ var ErrNotPended = errors.New("the case is not waiting for a reviewer")
 
 // Review records a reviewer's decision on a pended case.
 func (s *Store) Review(id, user string, rv Review) (*Case, error) {
+	return s.review(id, "user:"+user, user, rv)
+}
+
+func (s *Store) review(id, actor, user string, rv Review) (*Case, error) {
 	if rv.Decision != "approve" && rv.Decision != "deny" {
 		return nil, fmt.Errorf("a review approves or denies, not %q", rv.Decision)
 	}
@@ -577,7 +590,7 @@ func (s *Store) Review(id, user string, rv Review) (*Case, error) {
 		return nil, ErrNotPended
 	}
 	rv.By = user
-	if _, err := s.write("user:"+user, ActReviewed, id, rv); err != nil {
+	if _, err := s.write(actor, ActReviewed, id, rv); err != nil {
 		return nil, err
 	}
 	out := *c

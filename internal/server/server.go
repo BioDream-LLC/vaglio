@@ -41,6 +41,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/outside"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/reader"
+	"github.com/biodream-llc/vaglio/internal/um"
 	"github.com/biodream-llc/vaglio/internal/versions"
 )
 
@@ -120,6 +121,10 @@ type Config struct {
 	Webhook *feed.Webhook
 	// Notices mails the member their letters (serve -notices); nil mails nothing.
 	Notices *notice.Mailer
+	// UM links the plan's case-review system (serve -um): pended cases are opened there, and decisions made there come
+	// back. UMToken turns on POST /api/feeds/um, where that system pushes them.
+	UM      *um.Link
+	UMToken string
 	// FaxHooks are fax services' own webhooks (sinch, documo), at POST /api/feeds/fax/{service}; each checks its own
 	// credentials.
 	FaxHooks map[string]http.Handler
@@ -286,10 +291,12 @@ func New(cfg Config) http.Handler {
 	scoped("GET /api/audit/verify", auth.Admin, auth.ScopeAudit, cfg.verifyAudit)
 	scoped("GET /api/export/events", auth.Admin, auth.ScopeAudit, cfg.exportEvents)
 	scoped("GET /api/export/status", auth.Admin, auth.ScopeAudit, cfg.exportStatus)
+	route("GET /api/um/status", auth.Reviewer, cfg.umStatus)
 	route("POST /api/policies/check", auth.Viewer, cfg.checkSourceHandler)
 	route("POST /api/cases/{id}/extend", auth.Reviewer, cfg.extendCase)
 	mux.HandleFunc("POST /api/feeds/appeals", cfg.appealsFeed)
 	mux.HandleFunc("POST /api/feeds/outcomes", cfg.outcomesFeed)
+	mux.HandleFunc("POST /api/feeds/um", cfg.umFeed)
 	route("POST /api/cases/{id}/ruling", auth.Reviewer, cfg.ruleCase)
 	shown("GET /api/reports/shadow", auth.Reviewer, "", cfg.shadowReport)
 	// Reading drafts is open to reviewers as well as authors: a clinician signs a draft off, and must read it to do so.
@@ -808,6 +815,8 @@ type CaseDetail struct {
 	// confirmed since; RedecideError says why it could not be made.
 	Redecided     *Redecision `json:"redecided,omitempty"`
 	RedecideError string      `json:"redecideError,omitempty"`
+	// WorkedIn is the plan's case-review system the case is decided in, when the console may not decide it.
+	WorkedIn string `json:"workedIn,omitempty"`
 }
 
 func (cfg Config) getCase(w http.ResponseWriter, r *http.Request, s auth.Session) {
@@ -823,6 +832,9 @@ func (cfg Config) getCase(w http.ResponseWriter, r *http.Request, s auth.Session
 	h := cfg.Cases.History(c.ID)
 	d := CaseDetail{Case: c, History: h, Receipts: receiptsFor(h), Due: c.Due().UTC().Format(time.RFC3339),
 		MaxExtensionDays: cfg.extensionDays()}
+	if system, held := cfg.umHoldsCase(c.ID); held && c.Status == cases.Pended {
+		d.WorkedIn = system
+	}
 	if rd, err := cfg.redecide(c); err != nil {
 		d.RedecideError = err.Error()
 	} else {
@@ -872,6 +884,11 @@ func (cfg Config) reviewCase(w http.ResponseWriter, r *http.Request, s auth.Sess
 	acct, ok, err := cfg.Sessions.Account(s.User)
 	if err != nil || !ok {
 		writeError(w, http.StatusUnauthorized, "the session has ended; sign in again")
+		return
+	}
+	if system, held := cfg.umHoldsCase(r.PathValue("id")); held {
+		writeError(w, http.StatusConflict, "this case is worked in "+system+", the plan's case-review system: decide it "+
+			"there, and the decision comes back here")
 		return
 	}
 	if pc, ok := cfg.Cases.Get(r.PathValue("id")); ok && pc.Assigned != nil && pc.Assigned.To != "" &&

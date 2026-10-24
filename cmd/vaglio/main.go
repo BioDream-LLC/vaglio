@@ -146,7 +146,7 @@ func usage(w io.Writer) {
                 [-fax-token-env VAR] [-acme [-acme-email ADDR] [-acme-directory URL]] [-plans FILE]
                 [-read-documents [-approve-from-documents [-approve-sample PCT]] [-read-workers N]]
                 [-criteria NAME=URL [-criteria-token-env NAME=VAR]] [-network FILE] [-npi-registry nppes|FILE] [-members FILE]
-                [-webhook URL -webhook-secret-env VAR] [-fax-connectors FILE]
+                [-webhook URL -webhook-secret-env VAR] [-fax-connectors FILE] [-um FILE [-um-token-env VAR]]
                 (with VAGLIO_DATA_KEY set, every command seals patient data on disk; see vaglio data)
   vaglio user   add|reset|remove|list|provider -data DIR [-role viewer|reviewer|admin|provider] [-npi NPIs] [NAME]
   vaglio data   seal|status -data DIR
@@ -276,6 +276,10 @@ func serve(args []string) error {
 		"extension or an appeal's outcome, as PDFs into a folder for a mail house or through Lob")
 	webhook := fs.String("webhook", "", "push every record about a case, as signed JSON events, to this https URL")
 	webhookSecretEnv := fs.String("webhook-secret-env", "", "name of an environment variable holding the webhook's signing secret (16+ bytes)")
+	umFile := fs.String("um", "", "the plan's case-review system (JSON): every pended case is opened there with its proof, and "+
+		"the reviewer's decision there comes back and closes it here (see docs/um.md)")
+	umTokenEnv := fs.String("um-token-env", "", "name of an environment variable holding the token the case-review system "+
+		"pushes its decisions to /api/feeds/um with (16+ characters)")
 	letters := fs.String("letters", "", "the plan's letter settings (JSON): its own appeal deadline as a date, appeals address, fax, "+
 		"phone and portal, member services, and its receipt page; without it letters give the generic words")
 	members := fs.String("members", "", "the plan's member file (CSV: member_id, birth_date, plan, line, start, end, excluded): "+
@@ -299,7 +303,7 @@ func serve(args []string) error {
 	if *plansFile != "" {
 		for _, f := range []string{"policies", "hostname", "token-env", "pas-url", "pas-token-env", "pas-ca", "pas-api-url",
 			"goldcard", "fax-token-env", "appeals-token-env", "demo-account", "oidc-issuer", "oidc-client-id", "oidc-client-secret-env", "oidc-redirect-url", "oidc-group", "oidc-groups-claim", "oidc-label", "saml-metadata", "saml-entity-id", "saml-acs-url", "saml-name-attribute", "saml-group", "saml-groups-attribute", "saml-label", "criteria", "criteria-token-env",
-			"network", "npi-registry", "members", "letters", "notices", "webhook", "webhook-secret-env", "fax-connectors", "replica-token-env"} {
+			"network", "npi-registry", "members", "letters", "notices", "webhook", "webhook-secret-env", "fax-connectors", "replica-token-env", "um", "um-token-env"} {
 			if set[f] {
 				return fmt.Errorf("-%s is set per plan in the -plans file (the demonstration is for one plan only)", f)
 			}
@@ -340,7 +344,7 @@ func serve(args []string) error {
 			FaxTokenEnv: *faxTokenEnv, AppealsTokenEnv: *appealsTokenEnv, Criteria: crit, Network: *network, Members: *members, Letters: *letters,
 			Webhook: *webhook, Notices: *notices, WebhookSecretEnv: *webhookSecretEnv, FaxConnectors: *faxConnectorsFile,
 			ReplicaTokenEnv: *replicaTokenEnv, StandbySync: standbySync.String(), Shadow: *shadow, OutcomesTokenEnv: *outcomesTokenEnv,
-			NPIRegistry: *npiRegistry}}
+			NPIRegistry: *npiRegistry, UM: *umFile, UMTokenEnv: *umTokenEnv}}
 		if *oidcIssuer != "" {
 			plans[0].SSO = &ssoSpec{Issuer: *oidcIssuer, ClientID: *oidcClient, ClientSecretEnv: *oidcSecretEnv,
 				RedirectURL: *oidcRedirect, NameClaim: *oidcClaim, Group: *oidcGroup, GroupsClaim: *oidcGroupsClaim,

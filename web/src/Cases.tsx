@@ -486,12 +486,28 @@ function CaseBody({ c, me }: { c: CaseDetail; me: Me }) {
             {when(c.review.time)}
             {c.review.reviewerNpi && ` · NPI ${c.review.reviewerNpi}`}
             {c.review.credential && ` · ${c.review.credential}`}
+            {c.review.via && ` · in ${c.review.via}, case ${c.review.reference}`}
           </p>
           <Delivery c={c} />
         </article>
       )}
       <WorkPanel c={c} me={me} />
-      {c.status === "pended" && me.role !== "viewer" && (
+      {c.um && (
+        <p className="note">
+          Opened in {c.um.system} as case{" "}
+          {c.um.url ? (
+            <a href={c.um.url} target="_blank" rel="noreferrer">
+              {c.um.ref}
+            </a>
+          ) : (
+            c.um.ref
+          )}{" "}
+          on {when(c.um.time)}.
+          {c.workedIn &&
+            ` Its reviewers decide it there; the decision comes back here under their name.`}
+        </p>
+      )}
+      {c.status === "pended" && me.role !== "viewer" && !c.workedIn && (
         <ReviewForm c={c} me={me} />
       )}
       {c.status === "pended" && me.role === "viewer" && (

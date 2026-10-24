@@ -1,0 +1,30 @@
+{
+  "name": "standin",
+  "connector": "rest",
+  "url": "http://127.0.0.1:8791/cases",
+  "headerEnv": {"X-Api-Key": "UM_KEY"},
+  "console": "https://127.0.0.1:8740",
+  "pollEvery": "1m",
+  "fields": {
+    "externalId": "case",
+    "summary": "why",
+    "due": "due",
+    "link": "link",
+    "receipt": "receipt",
+    "clinicianOnly": "clinicianOnly",
+    "missing": "missing",
+    "proof": "proofPdf"
+  },
+  "refField": "data.caseId",
+  "decisionUrl": "http://127.0.0.1:8791/cases/{ref}",
+  "decisionFields": {
+    "ref": "caseId",
+    "case": "externalId",
+    "decision": "status",
+    "reason": "determination.note",
+    "reviewer": "determination.by.name",
+    "npi": "determination.by.npi",
+    "credential": "determination.by.credential"
+  },
+  "decisionValues": {"APPROVED": "approve", "DENIED": "deny"}
+}

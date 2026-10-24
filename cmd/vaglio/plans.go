@@ -35,6 +35,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/seal"
 	"github.com/biodream-llc/vaglio/internal/server"
 	"github.com/biodream-llc/vaglio/internal/tlsserve"
+	"github.com/biodream-llc/vaglio/internal/um"
 	"github.com/biodream-llc/vaglio/internal/versions"
 	"github.com/biodream-llc/vaglio/internal/web"
 )
@@ -91,6 +92,9 @@ type planSpec struct {
 	// OutcomesTokenEnv names the token the plan's systems send its own decisions with, to /api/feeds/outcomes.
 	Shadow           bool   `json:"shadow,omitempty"`
 	OutcomesTokenEnv string `json:"outcomesTokenEnv,omitempty"`
+	// UM is the plan's case-review system file (internal/um); UMTokenEnv names the token it pushes decisions with.
+	UM         string `json:"um,omitempty"`
+	UMTokenEnv string `json:"umTokenEnv,omitempty"`
 
 	allowed []string // Host header values it answers to
 }
@@ -507,6 +511,34 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 		}
 		cfg.Webhook = hook
 	}
+	if sp.UM != "" {
+		uc, err := um.LoadConfig(sp.UM)
+		if err != nil {
+			return fail(fmt.Errorf("-um: %w", err))
+		}
+		conn, err := uc.Connect(secretFrom)
+		if err != nil {
+			return fail(fmt.Errorf("-um: %w", err))
+		}
+		every, err := uc.PollInterval()
+		if err != nil {
+			return fail(fmt.Errorf("-um: %w", err))
+		}
+		link := &um.Link{Name: uc.Name, Conn: conn, Log: st.log, Cases: st.cases, Cursor: filepath.Join(sp.Data, "um.cursor"),
+			PollEvery: every, ReviewHere: uc.ReviewHere}
+		cfg.UM = link
+		link.Packet = cfg.UMPacket(uc.Console)
+		if sp.UMTokenEnv != "" {
+			if cfg.UMToken, err = secretFrom(sp.UMTokenEnv); err != nil || len(cfg.UMToken) < 16 {
+				return fail(fmt.Errorf("um-token-env: %s is empty, unreadable or under 16 characters", sp.UMTokenEnv))
+			}
+		} else if every == 0 {
+			return fail(errors.New("-um: decisions would never come back: set -um-token-env (the system pushes them) or " +
+				"pollEvery in the file (Vaglio asks)"))
+		}
+	} else if sp.UMTokenEnv != "" {
+		return fail(errors.New("-um-token-env takes decisions from the case-review system: it needs -um"))
+	}
 	if sp.Notices != "" {
 		nc, sender, err := notice.LoadConfig(sp.Notices, secretFrom)
 		if err != nil {
@@ -577,6 +609,14 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 		}
 		connectors = started
 	}
+	if cfg.UM != nil {
+		// Started last, with the configuration complete: decisions it records are delivered like the console's.
+		final := cfg
+		cfg.UM.Record = final.RecordUMDecision
+		if err := cfg.UM.Start(ctx); err != nil {
+			return fail(fmt.Errorf("-um: %w", err))
+		}
+	}
 	ok = true
 	return &openedPlan{spec: sp, cfg: cfg, st: st, moved: moved, scheduled: scheduled, gold: gold, connectors: connectors}, nil
 }
@@ -627,6 +667,16 @@ func (op *openedPlan) report(origin string) {
 		if o.Registry != nil {
 			log.Printf("%sNPI registry: %s", who, op.spec.NPIRegistry)
 		}
+	}
+	if l := op.cfg.UM; l != nil {
+		how := "pushed to " + origin + "/api/feeds/um"
+		if l.PollEvery > 0 {
+			how = fmt.Sprintf("asked for every %s", l.PollEvery)
+			if op.cfg.UMToken != "" {
+				how += ", or pushed to " + origin + "/api/feeds/um"
+			}
+		}
+		log.Printf("%scase-review system %s: pended cases are opened there; its decisions are %s", who, l.Name, how)
 	}
 	if op.cfg.ClinicianDenials {
 		log.Printf("%sclinician denials: the engine proposes denials; only clinicians make them", who)
@@ -682,6 +732,8 @@ func shadowAllowed(sp planSpec) error {
 		return errors.New("-shadow answers no one: it cannot mail members letters (-notices)")
 	case sp.Webhook != "":
 		return errors.New("-shadow answers no one: it cannot push records to the plan's systems (-webhook)")
+	case sp.UM != "":
+		return errors.New("-shadow answers no one: it cannot open cases in the plan's case-review system (-um)")
 	}
 	return nil
 }
