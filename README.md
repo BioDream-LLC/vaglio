@@ -609,6 +609,11 @@ Claims a reviewer can verify without trusting BioDream, each with where to look:
 - **Recovery, measured on every push**: the server killed (SIGKILL) under load loses none of the decisions it answered,
   and its log verifies after; it answers again in about 0.2–0.4 s. A synchronous standby (`-standby-sync`) taking over
   lacked none of the decisions answered, in three runs. [docs/assurance/recovery.md](docs/assurance/recovery.md), and `go run ./tools/drill` on your machine.
+- **Power cuts, replayed**: what the disk had been told to keep, replayed to each of the 670 points (ext4; 672 on XFS)
+  it was told to keep it, as if the power went just after: every state started a server, verified, and took a new
+  decision, and every decision answered before the cut was there (`tools/powercut`, dm-log-writes; weekly on GitHub).
+  It found, and Vaglio now fixes, an accounts file a power cut just after the first start could leave empty. It takes
+  the disk at its word: one that acknowledges a flush and loses it defeats any software.
 - **Security checks**, on every push and weekly: govulncheck and npm audit (known vulnerabilities), CodeQL
   (security-extended, Go and TypeScript), fuzzing of every parser of outside input, OWASP ZAP's baseline scan of a
   running console, and the OpenSSF Scorecard. Workflow Security.

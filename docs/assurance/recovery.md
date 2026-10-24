@@ -47,3 +47,34 @@ real traffic is, the standby of that day fell 1,158 of 1,348 decisions behind, f
 own. It now fetches a page's Bundles eight at a time and syncs them once (above), and the primary keeps Bundles in
 pack files synced together (README "Speed"). The drill now sends a new Bundle every time, and `vaglio audit verify`,
 which it runs on each copy, checks that every case's request reads back and matches.
+
+## Power cut (2026-10-24)
+
+A `kill -9` loses what the process held, never what the operating system held; a power cut loses what the disk had
+not been told to keep. `tools/powercut` (Linux, root; GitHub runs it weekly as "Power cut") tests that: Vaglio runs,
+anchoring, on a filesystem over the kernel's dm-log-writes, which records every write and every flush sent to the
+disk, while clients send requests, a new Bundle each, and after each answer a mark goes into the record. The record is
+then replayed onto a fresh device up to every flush, as if the power had gone just after it, and each state is
+mounted (on a snapshot, so the replay goes on), a server started on it, its log and every case's request verified
+(`vaglio audit verify`), and a new decision taken; and up to every tenth mark, where every decision answered before
+the mark must be there with its request.
+
+| | ext4 | XFS |
+|---|---|---|
+| Decisions answered, each followed by a mark | 303 | 303 |
+| States after a flush checked (each started, verified, decided) | **670**, all passed | **672**, all passed |
+| Marks checked: every decision answered before them present | **31 of 31** | **31 of 31** |
+
+Run on an EC2 t3.medium (Ubuntu 24.04, kernel 7.0), 2026-10-24. Before the fixes it found, version 0.1.0 failed at the
+sixth flush: the first start writes the accounts file by renaming a copy into place, the copy was never synced, and
+after a power cut there the file was empty and the server would not start. Fixed: every state file Vaglio keeps is
+now written through one function that syncs the copy, renames it and syncs the directory (`fsx.WriteFile`: accounts,
+the anchor's keys, the known-browser key, checkpoints' witness proofs, cursors, kept policy versions, certificates).
+Also from the test's review of what a power cut can leave: a last log record cut off mid-write is set aside on the
+next start (kept in a file beside the log, and said in the log), never a reason to refuse to start, since no answer
+waits on a record before its whole line is synced; the anchor signs checkpoints over synced records only, so a power
+cut cannot leave a checkpoint over records the disk never kept; and a checkpoint file's torn last line is cut off.
+
+What it does not show: a disk that acknowledges a flush and then loses it (some consumer drives, some virtual disks
+configured to ignore flushes) defeats this and any other software; it is the disk's promise that is tested here,
+taken at its word.
