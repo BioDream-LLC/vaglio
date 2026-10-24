@@ -179,7 +179,7 @@ type TornTail struct {
 }
 
 // setAsideTorn copies the torn bytes to PATH.torn-TIME, synced, then cuts the log back to its last whole line.
-func setAsideTorn(f *os.File, path string) (*TornTail, error) {
+func setAsideTorn(_ *os.File, path string) (*TornTail, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -201,10 +201,17 @@ func setAsideTorn(f *os.File, path string) (*TornTail, error) {
 		err = fsx.SyncDir(filepath.Dir(path))
 	}
 	if err == nil {
-		err = f.Truncate(int64(good))
-	}
-	if err == nil {
-		err = f.Sync()
+		// Through a handle of its own: the log's is opened for appending, which Windows does not let truncate.
+		var t *os.File
+		if t, err = os.OpenFile(path, os.O_RDWR, 0); err == nil {
+			err = t.Truncate(int64(good))
+			if err == nil {
+				err = t.Sync()
+			}
+			if cerr := t.Close(); err == nil {
+				err = cerr
+			}
+		}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("setting aside a torn last record: %w", err)
