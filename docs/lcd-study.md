@@ -106,16 +106,59 @@ three of DeepSeek's fifteen new passes for certain; the rest were drafted again 
 passed where they had not, which is what a model's run-to-run variance looks like. One LCD (L38268) needed DeepSeek
 longer than the five minutes a model is given per answer and passed with fifteen (`lcdstudy -model-timeout`).
 
+## The last LCD, the same runs again, and whether the readings mean the same (2026-10-24)
+
+**Cervical disc replacement (L38033)**, the one LCD neither model drafted, failed DeepSeek eight rounds running on one
+clause: the LCD writes its indication as a sentence running on through a list ("The Beneficiary has EITHER:", two
+bulleted items, "OR"), and the model quoted it whole, its bullets left out, which the quote gate refused as not word
+for word. That was the gate's fault: the words are the LCD's, in its order. The gate now accepts a clause the document
+holds once its list items' markers are left out (`draft.Quoted`; a clause the document does not hold is still
+refused). With it, DeepSeek drafted L38033 in two rounds: **60 of 60 with DeepSeek**, and Llama's failures drafted
+again passed one more, **49 of 60**.
+
+**The same runs again.** Each figure above was one run, and later rounds drafted only what had not passed. To see how
+much is the models' variance, each model drafted all 60 again from nothing, with the third round's guide and feedback
+(and the old quote gate), in one round of up to four drafts each:
+
+| | Llama 3.3 70B | DeepSeek V4 Pro |
+|---|---|---|
+| Passed, fresh run | 45 | 50 |
+| Passed in the earlier rounds, failed this time | 6 | 10 |
+| Failed in the earlier rounds, passed this time | 3 | 1 |
+
+So about one LCD in eight passes or fails by the run, and the cumulative figures (49 and 60) owe something to drafting
+again what failed. The fresh runs' failures were mostly lint and gaps (a decision that some combination of evidence
+leaves without an answer), not quotes.
+
+**Do two readings mean the same?** The gates check form, not meaning. One check of meaning that needs no person: give
+the same LCD to two drafters and compare what they decide, combination by combination of the evidence they share
+(`vaglio readings`, which pairs evidence by the clause it quotes). Where both models passed an LCD (48), 37 could be
+compared (11 have more than 18 pieces of evidence between the two readings, past what `readings` compares; one pair
+quotes no clause in common):
+
+| Two readings of one LCD | Pairs | Decide alike on every combination | Median share of combinations they decide differently | Within 5% |
+|---|---|---|---|---|
+| Llama against DeepSeek | 37 | 2 | 3.9% | 19 |
+| Llama against itself (earlier round and the fresh run) | 37 | 7 | 1.2% | 25 |
+| DeepSeek against itself | 40 | 8 | 2.0% | 24 |
+
+Two models (and one model twice) mostly agree, and almost never entirely: they choose different clauses as evidence
+(the two models shared 4.6 clauses on average, beside 2.1 and 3.7 each chose alone), and where they choose the same,
+they sometimes combine them differently. Some of that is the LCDs' own ambiguity, which `vaglio readings` exists to
+show (docs/medicare-readings.md); some is a model's misreading. Telling the two apart needs a person who reads the LCD.
+What the comparison gives that person is where to look: the combinations the two readings decide differently.
+
 ## What this shows, and does not
 
-- The language expressed 59 of 60 real LCDs (59 with one model alone, in the third round), holding every clause to the
-  LCD's own words; two of them as one policy per service.
+- The language expressed all 60 real LCDs (60 with DeepSeek alone, after the quote gate learned to read a sentence
+  through its list), holding every clause to the LCD's own words; two of them as one policy per service.
   The first run's failures were mostly the drafting loop's: clearer feedback roughly doubled the passes with the same
   model.
 - The 16-evidence limit looked like a real limit in the first run, but it was the model writing the absence of a fact
   as evidence of its own; told otherwise, both models fitted every LCD.
 - **A passing draft is not a correct policy.** The gates check form, quotes, codes and consistency, not meaning.
-  Nobody has read these drafts against their LCDs. Each would need a clinician's sign-off, as every draft does, before
+  Two independent readings of one LCD agree on every combination of evidence in only 2 of 37 comparable cases (the
+  median differs on 3.9% of combinations). Nobody has read these drafts against their LCDs. Each would need a clinician's sign-off, as every draft does, before
   it decided anything. The drafts are not in the repository.
-- Two models, one sample of 60, four rounds each, three study rounds. The models' answers vary from run to run; each
-  figure is a single run, and later rounds drafted only what had not passed before.
+- Two models, one sample of 60, four rounds each (eight for the last LCD), three study rounds and a second fresh run.
+  The models' answers vary from run to run: about one LCD in eight passes or fails by the run.
