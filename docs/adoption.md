@@ -83,4 +83,5 @@ would need to hire. Vaglio records who approved what and when. It does not make 
   - a review falling due and recorded, and a withdrawal;
   - an older adopted version deciding while a new one waits, and the new one taking over once adopted.
 - `internal/cmswatch`, against a stand-in of the two reports. `vaglio sources` was also run against the real Coverage
-  API on 2026-10-23: 9 of 10 sources unchanged, one unknown.
+  API on 2026-10-24: all 10 sources unchanged (L33718's copy, which stated no version, was checked line by line
+  against version 52 and now records it).

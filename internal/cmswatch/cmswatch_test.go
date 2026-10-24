@@ -40,8 +40,12 @@ func TestCompare(t *testing.T) {
 	got := map[string]Finding{}
 	for _, f := range fs {
 		got[f.Policy] = f
+		if f.Unknown {
+			t.Errorf("%s: the library's copy must say which version of %s it was drafted from (cms.version in "+
+				"library.json)", f.Policy, f.Document.Display())
+		}
 	}
-	for id, want := range map[string]string{"esi": "changed", "cpap_osa": "unknown", "tka": "same", "facet_rfa": "changed",
+	for id, want := range map[string]string{"esi": "changed", "cpap_osa": "same", "tka": "same", "facet_rfa": "changed",
 		"bariatric_ncd": "same", "hbo": "missing"} {
 		f := got[id]
 		state := map[bool]string{true: "changed"}[f.Changed]

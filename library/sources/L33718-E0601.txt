@@ -1,7 +1,8 @@
 Source: Local Coverage Determination L33718, Positive Airway Pressure (PAP) Devices for the Treatment of Obstructive
-Sleep Apnea, Medicare DME MAC (https://www.cms.gov/medicare-coverage-database/view/lcd.aspx?lcdid=33718), retrieved
-2026-10-13. The initial coverage criteria for E0601 only, copied as published. A Medicare coverage document, used here
-to draft a library policy; check it against the current LCD before relying on it.
+Sleep Apnea, Medicare DME MAC (https://www.cms.gov/medicare-coverage-database/view/lcd.aspx?lcdid=33718), version 52
+(effective 2024-01-01), retrieved 2026-10-13 and checked against version 52 again on 2026-10-24. The initial coverage
+criteria for E0601 only, copied as published. A Medicare coverage document, used here to draft a library policy;
+check it against the current LCD before relying on it.
 
 INITIAL COVERAGE:
 In this policy, the term PAP (positive airway pressure) device will refer to both a single-level continuous positive airway pressure device (E0601) and a bi-level respiratory assist device without back-up rate (E0470) when it is used in the treatment of obstructive sleep apnea.

@@ -8,7 +8,8 @@
       "category": "Durable medical equipment: sleep",
       "cms": {
         "type": "lcd",
-        "id": 33718
+        "id": 33718,
+        "version": 52
       }
     },
     {
