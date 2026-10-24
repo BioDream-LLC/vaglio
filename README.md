@@ -976,17 +976,37 @@ engine, and its logo.
 
 ## Contributions are not accepted
 
+This is deliberate, and it is not a judgement about anybody's code.
+
 Vaglio is developed and maintained by BioDream LLC, and it stays that way. **Pull requests will not be reviewed or
-merged.** There is no contributor agreement to sign because there is no route for a contribution to arrive. This
-software decides whether patients get care, and the discipline that makes it worth trusting (every denial proven,
-every policy checked on every case, anything uncertain refused rather than guessed) is easy to state and slow to
-enforce across contributors.
+merged.** There is no contributor agreement to sign because there is no route for a contribution to arrive.
+
+The reason is the subject matter. This software decides whether patients get care, and the discipline that makes it
+worth trusting is that every denial is proven from the policy's own words, every policy is checked against every case
+it could meet, and anything uncertain is pended and asked about instead of guessed. That standard is easy to state and
+slow to enforce across contributors, and a half-enforced standard in software that decides about care is worse than
+no standard at all.
 
 **Bug reports are wanted.** [Open an issue](https://github.com/BioDream-LLC/vaglio/issues) with the output of
-`vaglio version` and, if a request is involved, a synthetic or fully de-identified one. Never post patient data.
+`vaglio version` and, if a request is involved, a synthetic or fully de-identified one. Never post patient data. A
+clear report of something that does not work is more valuable here than a patch.
 
 **Security problems:** please report them privately through this repository's Security tab ("Report a
 vulnerability"), not in a public issue.
+
+### What the licence permits regardless
+
+The PolyForm Shield License 1.0.0 lets you use, change and redistribute Vaglio, inside your own organisation or for
+others, and closing this repository to contributions does not take that away. You may take a copy, change it to suit
+your plan, and run the result. What the licence does not allow is using Vaglio to offer a product that competes with
+BioDream's own; what is closed is the path back into *this* repository. Read [LICENSE.md](LICENSE.md) for the exact
+terms.
+
+### Building it yourself
+
+`make check` runs formatting, vet, the tests, the console's type check and tests, and the policy checks.
+`deploy/release.sh` builds the release archives; built from a clean checkout of a tag, it gives the same bytes as the
+published release.
 
 ## Licence
 
