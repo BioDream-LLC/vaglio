@@ -19,6 +19,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/biodream-llc/vaglio/internal/fsx"
 )
 
 // Rekor records each checkpoint in Sigstore's public transparency log as a hashedrekord entry: the checkpoint's
@@ -53,7 +55,7 @@ func RekorKey(dir string) (*ecdsa.PrivateKey, error) {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return nil, err
 		}
-		if err := os.WriteFile(file, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), 0o600); err != nil {
+		if err := fsx.WriteFile(file, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), 0o600); err != nil {
 			return nil, err
 		}
 		return k, nil

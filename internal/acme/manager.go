@@ -20,6 +20,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/biodream-llc/vaglio/internal/fsx"
 )
 
 // Settings say what the manager gets and how it proves the names.
@@ -252,7 +254,7 @@ func (m *Manager) accountKey() (*ecdsa.PrivateKey, error) {
 	if err := os.MkdirAll(m.Dir, 0o700); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(path, b, 0o600); err != nil {
+	if err := fsx.WriteFile(path, b, 0o600); err != nil {
 		return nil, err
 	}
 	return k, nil

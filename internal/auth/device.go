@@ -42,24 +42,7 @@ func DeviceKey(dir string) ([]byte, error) {
 	if _, err := rand.Read(b); err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(p+".new", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
-	if err != nil {
-		return nil, err
-	}
-	_, err = f.Write(b)
-	if err == nil {
-		err = f.Sync()
-	}
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil {
-		err = fsx.Replace(p+".new", p)
-	}
-	if err == nil {
-		err = fsx.SyncDir(dir)
-	}
-	if err != nil {
+	if err := fsx.WriteFile(p, b, 0o600); err != nil {
 		return nil, err
 	}
 	return b, nil

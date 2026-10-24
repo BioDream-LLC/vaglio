@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 )
@@ -43,6 +44,35 @@ func SyncDir(dir string) error {
 	err = d.Sync()
 	if cerr := d.Close(); err == nil {
 		err = cerr
+	}
+	return err
+}
+
+// WriteFile replaces path with data so that a power cut leaves either the old file or the new one, whole: written to
+// a temporary file beside it, synced, renamed over it, and the directory synced.
+func WriteFile(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	f, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*.new")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	defer os.Remove(tmp) // gone after the rename; left only when something failed
+	_, err = f.Write(data)
+	if err == nil {
+		err = f.Chmod(perm)
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = Replace(tmp, path)
+	}
+	if err == nil {
+		err = SyncDir(dir)
 	}
 	return err
 }

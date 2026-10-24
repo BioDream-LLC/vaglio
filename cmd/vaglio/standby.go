@@ -281,10 +281,7 @@ func (s *standby) copyUsers(ctx context.Context) error {
 	sum := sha256.Sum256(raw)
 	if h := hex.EncodeToString(sum[:]); h != s.usersSeen {
 		path := filepath.Join(s.dir, "users.json")
-		if err := os.WriteFile(path+".new", raw, 0o600); err != nil {
-			return err
-		}
-		if err := fsx.Replace(path+".new", path); err != nil {
+		if err := fsx.WriteFile(path, raw, 0o600); err != nil {
 			return err
 		}
 		s.usersSeen = h

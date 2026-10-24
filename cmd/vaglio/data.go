@@ -157,5 +157,8 @@ func sealLog(path string) error {
 		return fmt.Errorf("the sealed log does not match the plain one (%d %s / %d %s, %v); nothing changed", n2, head2, n, head, err)
 	}
 	in.Close()
-	return fsx.Replace(tmp, path)
+	if err := fsx.Replace(tmp, path); err != nil {
+		return err
+	}
+	return fsx.SyncDir(filepath.Dir(path))
 }

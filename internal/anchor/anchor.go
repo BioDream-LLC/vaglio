@@ -36,6 +36,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -44,6 +45,7 @@ import (
 	"time"
 
 	"github.com/biodream-llc/vaglio/internal/audit"
+	"github.com/biodream-llc/vaglio/internal/fsx"
 	"github.com/biodream-llc/vaglio/internal/merkle"
 )
 
@@ -200,7 +202,7 @@ func secret(file string) ([]byte, error) {
 		if _, err := rand.Read(raw); err != nil {
 			return nil, err
 		}
-		if err := os.WriteFile(file, raw, 0o600); err != nil {
+		if err := fsx.WriteFile(file, raw, 0o600); err != nil {
 			return nil, err
 		}
 		return raw, nil
@@ -215,7 +217,7 @@ func secret(file string) ([]byte, error) {
 }
 
 func readLines(file string, each func([]byte) error) error {
-	f, err := os.Open(file)
+	f, err := os.OpenFile(file, os.O_RDWR, 0)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
@@ -223,6 +225,19 @@ func readLines(file string, each func([]byte) error) error {
 		return err
 	}
 	defer f.Close()
+	// A power cut while a line was being added leaves it incomplete: it was never synced, so never relied on. It is
+	// cut off, so the next line starts clean.
+	if raw, err := io.ReadAll(f); err == nil && len(raw) > 0 && raw[len(raw)-1] != '\n' {
+		if err := f.Truncate(int64(bytes.LastIndexByte(raw, '\n') + 1)); err != nil {
+			return err
+		}
+		if err := f.Sync(); err != nil {
+			return err
+		}
+	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 64<<10), 8<<20)
 	for n := 1; sc.Scan(); n++ {
@@ -241,6 +256,7 @@ func appendLine(file string, v any) error {
 	if err != nil {
 		return err
 	}
+	_, statErr := os.Stat(file)
 	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
@@ -250,6 +266,9 @@ func appendLine(file string, v any) error {
 	}
 	if cerr := f.Close(); err == nil {
 		err = cerr
+	}
+	if err == nil && errors.Is(statErr, os.ErrNotExist) {
+		err = fsx.SyncDir(filepath.Dir(file)) // a new file's name, once
 	}
 	return err
 }
@@ -275,8 +294,10 @@ func LeafOf(salt []byte, recordHash string) (merkle.Hash, error) {
 
 // extend reads the records appended since and adds their leaves. The caller holds mu.
 func (a *Anchor) extend() {
-	for {
-		page := a.Log.Records(int64(len(a.leaves)), 1000)
+	// Only records on disk: a checkpoint over records a power cut could still take would later look like a rewrite.
+	synced := a.Log.Synced()
+	for len(a.leaves) < synced {
+		page := a.Log.Records(int64(len(a.leaves)), min(1000, synced-len(a.leaves)))
 		if len(page) == 0 {
 			return
 		}
@@ -409,7 +430,7 @@ func (a *Anchor) keepProof(p *WitnessProof) {
 			return '-'
 		}, strings.ToLower(p.Witness)), ext)
 		_ = os.MkdirAll(filepath.Join(a.Dir, "witness"), 0o700)
-		if err := os.WriteFile(filepath.Join(a.Dir, p.File), p.Data, 0o600); err != nil {
+		if err := fsx.WriteFile(filepath.Join(a.Dir, p.File), p.Data, 0o600); err != nil {
 			p.OK, p.Note, p.File = false, "the proof could not be kept: "+err.Error(), ""
 		}
 	}

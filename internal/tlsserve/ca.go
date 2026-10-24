@@ -372,27 +372,8 @@ func writePEM(path, typ string, der []byte, mode os.FileMode) error {
 	return writeFile(path, pem.EncodeToMemory(&pem.Block{Type: typ, Bytes: der}), mode)
 }
 
-// writeFile replaces path atomically, so a server reloading it never reads half a file.
+// writeFile replaces path atomically and durably, so a server reloading it never reads half a file, and a power cut
+// leaves the old file or the new one.
 func writeFile(path string, data []byte, mode os.FileMode) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if err := tmp.Chmod(mode); err != nil {
-		tmp.Close()
-		return err
-	}
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return fsx.Replace(tmp.Name(), path)
+	return fsx.WriteFile(path, data, mode)
 }

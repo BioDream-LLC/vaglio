@@ -87,7 +87,7 @@ func (b *Inbox) AddNew(raw []byte, contentType, from string, pages int, text str
 	}
 	f := Fax{ID: id, Received: now.UTC().Format(time.RFC3339), From: from, Pages: pages, ContentType: contentType,
 		Size: len(raw), SHA256: h, Text: text}
-	if err := seal.WriteFile(b.path(id, ext(contentType)), "fax", raw, 0o600); err != nil {
+	if err := fsx.WriteFile(b.path(id, ext(contentType)), seal.Blob("fax", raw), 0o600); err != nil {
 		return Fax{}, false, err
 	}
 	return f, true, b.save(f)
@@ -95,11 +95,7 @@ func (b *Inbox) AddNew(raw []byte, contentType, from string, pages int, text str
 
 func (b *Inbox) save(f Fax) error {
 	raw, _ := json.MarshalIndent(f, "", "  ")
-	tmp := b.path(f.ID, ".json.new")
-	if err := seal.WriteFile(tmp, "fax", raw, 0o600); err != nil {
-		return err
-	}
-	return fsx.Replace(tmp, b.path(f.ID, ".json"))
+	return fsx.WriteFile(b.path(f.ID, ".json"), seal.Blob("fax", raw), 0o600)
 }
 
 func (b *Inbox) get(id string) (Fax, error) {

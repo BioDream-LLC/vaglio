@@ -1,6 +1,8 @@
 package audit
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -137,13 +139,35 @@ func TestTwoWriters(t *testing.T) {
 	}
 }
 
-func TestACutOffRecordIsRefused(t *testing.T) {
+// A power cut in the middle of writing a record leaves an incomplete last line. Verify reports it; the next Open (the
+// server starting) cuts the log back to its last whole record, keeps the torn bytes in a file beside it, and says so
+// in the log. Nobody was answered on that record: an answer waits for its whole line to be synced.
+func TestACutOffRecordIsSetAside(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "audit.jsonl")
 	fill(t, path, 2)
 	raw, _ := os.ReadFile(path)
+	first := bytes.IndexByte(raw, '\n') + 1
 	os.WriteFile(path, raw[:len(raw)-5], 0o600)
-	if _, err := Open(path); !errors.Is(err, ErrBroken) || !strings.Contains(err.Error(), "incomplete") {
-		t.Errorf("%v", err)
+	if _, _, err := Verify(path); !errors.Is(err, ErrBroken) || !strings.Contains(err.Error(), "incomplete") {
+		t.Errorf("verify: %v", err)
+	}
+	l, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	recs := l.Records(0, 0)
+	if len(recs) != 2 || recs[1].Action != "log.torn_tail_set_aside" || recs[1].Seq != 2 {
+		t.Fatalf("records after: %+v", recs)
+	}
+	var torn TornTail
+	json.Unmarshal(recs[1].Data, &torn)
+	kept, err := os.ReadFile(filepath.Join(filepath.Dir(path), torn.Kept))
+	if err != nil || !bytes.Equal(kept, raw[first:len(raw)-5]) || torn.Bytes != len(kept) || torn.Whole != int64(first) {
+		t.Errorf("kept %q (%v), %+v", kept, err, torn)
+	}
+	if n, _, err := Verify(path); err != nil || n != 2 {
+		t.Errorf("after: %d %v", n, err)
 	}
 }
 
@@ -238,5 +262,31 @@ func TestTwoProcessesAppend(t *testing.T) {
 	n, _, err := Verify(path)
 	if err != nil || n != 400 {
 		t.Fatalf("%d records, %v; want 400 in one unbroken chain", n, err)
+	}
+}
+
+// Synced counts only records on disk: one written and not yet waited for is not among them.
+func TestSyncedCountsDurableRecords(t *testing.T) {
+	l, err := Open(filepath.Join(t.TempDir(), "audit.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	l.Append("system", "a", "", nil)
+	if n := l.Synced(); n != 1 {
+		t.Fatalf("after Append: %d synced", n)
+	}
+	_, wait, err := l.AppendLater("system", "b", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := l.Synced(); n != 1 {
+		t.Errorf("before the wait: %d synced, want 1", n)
+	}
+	if err := wait(); err != nil {
+		t.Fatal(err)
+	}
+	if n := l.Synced(); n != 2 {
+		t.Errorf("after the wait: %d synced", n)
 	}
 }

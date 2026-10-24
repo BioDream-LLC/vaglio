@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/biodream-llc/vaglio/internal/fsx"
 	"github.com/biodream-llc/vaglio/internal/policy"
 )
 
@@ -89,7 +90,7 @@ func (s *Store) Keep(p *policy.Policy) (Version, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return v, err
 	}
-	if err := os.WriteFile(path, src, 0o600); err != nil {
+	if err := fsx.WriteFile(path, src, 0o600); err != nil { // whole and synced before the index names it
 		return v, err
 	}
 	line, _ := json.Marshal(v)

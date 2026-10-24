@@ -217,11 +217,7 @@ func (r *Registry) keep(policy, hash string, src []byte) error {
 	if _, err := os.Stat(file); err == nil {
 		return nil
 	}
-	tmp := file + ".tmp"
-	if err := os.WriteFile(tmp, src, 0o600); err != nil {
-		return err
-	}
-	return fsx.Replace(tmp, file)
+	return fsx.WriteFile(file, src, 0o600)
 }
 
 func (r *Registry) file(policy, hash string) string {

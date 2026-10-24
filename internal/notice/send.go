@@ -45,11 +45,7 @@ func (f *Folder) Send(_ context.Context, m Mail) (string, bool, error) {
 	if _, err := os.Stat(path); err == nil {
 		return name, false, nil
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, m.PDF, 0o600); err != nil {
-		return "", false, err
-	}
-	if err := fsx.Replace(tmp, path); err != nil {
+	if err := fsx.WriteFile(path, m.PDF, 0o600); err != nil {
 		return "", false, err
 	}
 	mf, err := os.OpenFile(filepath.Join(f.Dir, "manifest.csv"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)

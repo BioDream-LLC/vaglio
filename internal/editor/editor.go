@@ -329,23 +329,8 @@ func Fits(p *policy.Policy, others []*policy.Policy) error {
 	return nil
 }
 
-// writeAtomic replaces a file in one step, so a reader never sees half a policy.
+// writeAtomic replaces a file in one step, so a reader never sees half a policy, and durably, so a power cut leaves
+// the old policy or the new one.
 func writeAtomic(path string, data []byte) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".policy-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Chmod(0o644); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return fsx.Replace(tmp.Name(), path)
+	return fsx.WriteFile(path, data, 0o644)
 }

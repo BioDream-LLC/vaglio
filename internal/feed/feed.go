@@ -168,22 +168,7 @@ func (w *Webhook) Start(ctx context.Context) error {
 func (w *Webhook) Done() <-chan struct{} { return w.done }
 
 func (w *Webhook) save() error {
-	tmp := w.Cursor + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(f, "%d\n", w.delivered)
-	if err == nil {
-		err = f.Sync()
-	}
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
-		return err
-	}
-	return fsx.Replace(tmp, w.Cursor)
+	return fsx.WriteFile(w.Cursor, []byte(fmt.Sprintf("%d\n", w.delivered)), 0o600)
 }
 
 func (w *Webhook) run(ctx context.Context) {

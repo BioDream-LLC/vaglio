@@ -145,11 +145,7 @@ func (l *Link) Load() error {
 }
 
 func (l *Link) save() error {
-	tmp := l.Cursor + ".tmp"
-	if err := os.WriteFile(tmp, []byte(strconv.FormatInt(l.done, 10)+"\n"), 0o600); err != nil {
-		return err
-	}
-	return fsx.Replace(tmp, l.Cursor)
+	return fsx.WriteFile(l.Cursor, []byte(strconv.FormatInt(l.done, 10)+"\n"), 0o600)
 }
 
 // Once opens cases for the pended cases after the cursor, in order, stopping at the first the system refuses (so none

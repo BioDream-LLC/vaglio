@@ -139,11 +139,7 @@ func keptCovers(certFile, keyFile string, hostnames []string) bool {
 }
 
 func writeAtomic(path string, b []byte) error {
-	tmp := path + ".new"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return err
-	}
-	return fsx.Replace(tmp, path)
+	return fsx.WriteFile(path, b, 0o600)
 }
 
 // runACME keeps the certificate until ctx ends, and says at start what it is waiting for.

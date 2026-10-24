@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -196,23 +195,8 @@ func (u *Users) save() error {
 	if err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(u.path), ".users-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(append(raw, '\n')); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := fsx.Replace(tmp.Name(), u.path); err != nil {
+	// Durably: a power cut just after the first start must not leave an empty accounts file behind.
+	if err := fsx.WriteFile(u.path, append(raw, '\n'), 0o600); err != nil {
 		return err
 	}
 	u.byID = nil // reread, picking up the new mtime

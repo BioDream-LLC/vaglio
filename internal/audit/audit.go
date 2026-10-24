@@ -23,6 +23,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 )
@@ -59,6 +60,7 @@ type Log struct {
 	size    int64 // bytes of the file read into records
 	records []Record
 	byCase  map[string][]int // each case's records, by place in records: ForCase is asked on every answer
+	ends    []int64          // where each record's line ends in the file
 	now     func() time.Time
 
 	// Group commit: an append writes its line under mu, then waits, outside it, until the file is synced past that
@@ -129,12 +131,85 @@ func Open(path string) (*Log, error) {
 		return nil, err
 	}
 	err = l.catchUp()
+	var torn *TornTail
+	if errors.Is(err, errTorn) {
+		torn, err = setAsideTorn(f, path)
+		if err == nil {
+			l.records, l.byCase, l.ends, l.size = nil, nil, nil, 0
+			err = l.catchUp()
+		}
+	}
 	unlock(f)
 	if err != nil {
 		f.Close()
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
+	if err == nil {
+		// What was read is made durable now (a previous process may have been killed before its sync), so it all
+		// counts as synced.
+		if err = f.Sync(); err == nil {
+			l.sy.synced = l.size
+		}
+	}
+	if err != nil {
+		f.Close()
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	if torn != nil {
+		// Said in the log itself, so whoever reads it knows a write was cut short and where its bytes are.
+		if _, err := l.Append("system", "log.torn_tail_set_aside", "", torn); err != nil {
+			l.Close()
+			return nil, err
+		}
+	}
 	return l, nil
+}
+
+// errTorn is a log whose last line was cut off mid-write.
+var errTorn = errors.New("the last record is incomplete (cut off mid-write, as by a power cut; the server sets it " +
+	"aside when it next starts)")
+
+// TornTail is what a power cut left: the bytes after the last whole record. They cannot be a record anyone was
+// answered on (an answer waits until its whole line is synced), so the log is cut back to its last whole record and
+// the bytes are kept beside it, never thrown away.
+type TornTail struct {
+	Bytes int    `json:"bytes"`
+	Kept  string `json:"kept"`  // the file they are kept in, beside the log
+	Whole int64  `json:"whole"` // the log's length after, its last whole record's end
+}
+
+// setAsideTorn copies the torn bytes to PATH.torn-TIME, synced, then cuts the log back to its last whole line.
+func setAsideTorn(f *os.File, path string) (*TornTail, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	good := bytes.LastIndexByte(raw, '\n') + 1
+	kept := fmt.Sprintf("%s.torn-%d", path, time.Now().UnixNano())
+	k, err := os.OpenFile(kept, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	_, err = k.Write(raw[good:])
+	if err == nil {
+		err = k.Sync()
+	}
+	if cerr := k.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = fsx.SyncDir(filepath.Dir(path))
+	}
+	if err == nil {
+		err = f.Truncate(int64(good))
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("setting aside a torn last record: %w", err)
+	}
+	return &TornTail{Bytes: len(raw) - good, Kept: filepath.Base(kept), Whole: int64(good)}, nil
 }
 
 // catchUp reads and verifies whatever the file holds past what this Log has read. The caller holds the file lock.
@@ -157,7 +232,7 @@ func (l *Log) catchUp() error {
 	if err != nil {
 		return err
 	}
-	l.keep(more...)
+	l.keep(info.Size(), more...) // read together: durable once the file is synced past all of them
 	l.size = info.Size()
 	return nil
 }
@@ -199,7 +274,7 @@ func read(r io.Reader, first int64, prev string) ([]Record, error) {
 		// Every record ends its line; a file that does not end in one was cut off mid-write.
 		raw, _ := io.ReadAll(io.LimitReader(br, 1<<40))
 		if len(raw) > 0 && raw[len(raw)-1] != '\n' {
-			return nil, fmt.Errorf("%w: the last record is incomplete", ErrBroken)
+			return nil, fmt.Errorf("%w: %w", ErrBroken, errTorn)
 		}
 		br = bufio.NewReaderSize(bytes.NewReader(raw), 64<<10)
 	}
@@ -331,7 +406,7 @@ func (l *Log) put(rec Record) (int64, error) {
 	if _, err := l.f.Write(append(line, '\n')); err != nil {
 		return 0, err
 	}
-	l.keep(rec)
+	l.keep(l.size+int64(len(line))+1, rec)
 	l.size += int64(len(line)) + 1
 	return l.size, nil
 }
@@ -422,8 +497,9 @@ func (l *Log) ForCase(id string) []Record {
 	return out
 }
 
-// keep adds records read or written to the ones in memory, and to their cases' lists. The caller holds mu.
-func (l *Log) keep(recs ...Record) {
+// keep adds records read or written to the ones in memory, and to their cases' lists; end is where in the file they
+// are all on disk once it is synced that far. The caller holds mu.
+func (l *Log) keep(end int64, recs ...Record) {
 	if l.byCase == nil {
 		l.byCase = map[string][]int{}
 	}
@@ -432,7 +508,20 @@ func (l *Log) keep(recs ...Record) {
 			l.byCase[r.Case] = append(l.byCase[r.Case], len(l.records))
 		}
 		l.records = append(l.records, r)
+		l.ends = append(l.ends, end)
 	}
+}
+
+// Synced is how many records are certainly on disk: readers in this process see records as soon as they are
+// written, but anything signed outside the process (an anchor's checkpoint) must cover only these, or a power cut
+// could leave a checkpoint over records the disk never kept.
+func (l *Log) Synced() int {
+	l.sy.mu.Lock()
+	synced := l.sy.synced
+	l.sy.mu.Unlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return sort.Search(len(l.ends), func(i int) bool { return l.ends[i] > synced })
 }
 
 // Head is the number of records and the latest hash.

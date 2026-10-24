@@ -196,11 +196,7 @@ func (m *Mailer) Load() error {
 func (m *Mailer) Done() <-chan struct{} { return m.finished }
 
 func (m *Mailer) save() error {
-	tmp := m.Cursor + ".tmp"
-	if err := os.WriteFile(tmp, []byte(strconv.FormatInt(m.done, 10)+"\n"), 0o600); err != nil {
-		return err
-	}
-	return fsx.Replace(tmp, m.Cursor)
+	return fsx.WriteFile(m.Cursor, []byte(strconv.FormatInt(m.done, 10)+"\n"), 0o600)
 }
 
 // Once handles the records since the cursor, and returns how many notices it recorded. A retryable failure stops it at
