@@ -614,9 +614,14 @@ Claims a reviewer can verify without trusting BioDream, each with where to look:
 - **Standards conformance through Perfuse**: the Inferno Da Vinci PAS Server test kit (v2.2.1) run against Perfuse
   v0.1.16 with Vaglio as its decision service, weekly (workflow Conformance; `conformance/inferno/run.sh`). Result on
   2026-10-18, on GitHub's runner and on an M4 Mac alike: **82 pass, 2 fail**, the same as Perfuse alone. Vaglio decided the 4 items Perfuse's rules sent to it.
-  Both failures are "must support" elements the kit looked for in the response and did not find (adjudication,
-  ClaimResponse.extension:authorizedProvider and others). The kit tests the PAS server; the result shows Vaglio
-  behind it leaves its conformance unchanged, not that Vaglio itself is certified.
+  Both failures are the ClaimResponse "must support" checks, and they cannot be passed under PAS 2.2.1 as published:
+  three of the elements they look for (`extension:authorizedProvider`, `item.extension:communicatedDiagnosis`, and
+  `adjudication.extension:reviewAction` with its code) are extensions whose own definitions do not allow them where the
+  profile marks them must-support, so a response carrying them fails the validator that every other test runs. The
+  kit's maintainers and the guide's author agree it is the guide's error (HL7 Jira FHIR-57469, filed May 2026; Inferno
+  davinci-pas-test-kit issue 11); it waits for a corrected PAS release and a kit that follows it. Rechecked against the
+  published package on 2026-10-24: unchanged. The kit tests the PAS server; the result shows Vaglio behind it leaves
+  its conformance unchanged, not that Vaglio itself is certified.
 - **Does the policy language fit real policy?** 60 Medicare LCDs, a sample nobody chose, drafted through the policy
   gates: after three rounds of better feedback, 59 passed with DeepSeek V4 Pro and 48 with Llama 3.3 70B, every clause
   in the LCD's own words; two LCDs that hold their services to different criteria drafted as one policy per service. A
