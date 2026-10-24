@@ -78,9 +78,38 @@ code gate refused it because the code was not in the text it was given. That LCD
 the Coverage API's article code endpoint, so the study gave none. A gap or contradiction may be the LCD's own:
 `vaglio readings` reports those as possible ambiguities, and nobody has checked these.
 
+## Third round: one policy per service, and the DME articles' codes (2026-10-24)
+
+The second round's failures pointed at two more things, again the study's and the drafting loop's, not the language's:
+
+- **A document that holds different services to different criteria** (a gastric and a respiratory suction pump; a
+  splenectomy and four drugs for ITP) cannot be one policy: a policy's approval covers every code it lists, so the model
+  wrote an approval for one service beside a denial for another, and the checker rightly called that a contradiction.
+  The drafter now accepts one policy per service, each in its own block, its id the given one with a suffix, each gated
+  alone, and a code in only one of them (guide rule 9, `draft.GateAll`). The console and `vaglio draft` save each.
+- **The DME contractors' billing articles list their codes in the article's own text**, not under the Coverage API's
+  code endpoint, so the study gave the support surfaces LCD no codes at all. It now reads the HCPCS code numbers from
+  the article's text when the endpoint has none (numbers only).
+
+Every LCD that had not passed with a model was drafted again with it:
+
+| | Llama 3.3 70B | DeepSeek V4 Pro |
+|---|---|---|
+| Passed every gate, round 2 | 43 | 44 |
+| Passed every gate, round 3 | **48** | **59** |
+| Drafted as several policies | 0 | 2 (Suction Pumps: 8, one per HCPCS code; ITP therapy: 5) |
+
+59 of the 60 passed with one model or the other; only Cervical Disc Replacement (L38033) passed with neither (DeepSeek:
+a contradiction in its own reading of the two-level rule; Llama: a clause not word for word). The support surfaces LCD
+passed with both once it had its codes. Some of the gain is the reruns' own variance: the split and the codes explain
+three of DeepSeek's fifteen new passes for certain; the rest were drafted again with the same guide and feedback and
+passed where they had not, which is what a model's run-to-run variance looks like. One LCD (L38268) needed DeepSeek
+longer than the five minutes a model is given per answer and passed with fifteen (`lcdstudy -model-timeout`).
+
 ## What this shows, and does not
 
-- The language expressed 53 of 60 real LCDs (44 with one model alone), holding every clause to the LCD's own words.
+- The language expressed 59 of 60 real LCDs (59 with one model alone, in the third round), holding every clause to the
+  LCD's own words; two of them as one policy per service.
   The first run's failures were mostly the drafting loop's: clearer feedback roughly doubled the passes with the same
   model.
 - The 16-evidence limit looked like a real limit in the first run, but it was the model writing the absence of a fact
@@ -88,4 +117,5 @@ the Coverage API's article code endpoint, so the study gave none. A gap or contr
 - **A passing draft is not a correct policy.** The gates check form, quotes, codes and consistency, not meaning.
   Nobody has read these drafts against their LCDs. Each would need a clinician's sign-off, as every draft does, before
   it decided anything. The drafts are not in the repository.
-- Two models, one sample of 60, four rounds each. The models' answers vary from run to run; these are single runs.
+- Two models, one sample of 60, four rounds each, three study rounds. The models' answers vary from run to run; each
+  figure is a single run, and later rounds drafted only what had not passed before.

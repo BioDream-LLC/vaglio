@@ -618,8 +618,9 @@ Claims a reviewer can verify without trusting BioDream, each with where to look:
   ClaimResponse.extension:authorizedProvider and others). The kit tests the PAS server; the result shows Vaglio
   behind it leaves its conformance unchanged, not that Vaglio itself is certified.
 - **Does the policy language fit real policy?** 60 Medicare LCDs, a sample nobody chose, drafted through the policy
-  gates: 44 passed with DeepSeek V4 Pro and 43 with Llama 3.3 70B, 53 with one or the other, every clause in the LCD's
-  own words. A passing draft is well-formed, not checked for meaning. [docs/lcd-study.md](docs/lcd-study.md), `go run ./tools/lcdstudy`.
+  gates: after three rounds of better feedback, 59 passed with DeepSeek V4 Pro and 48 with Llama 3.3 70B, every clause
+  in the LCD's own words; two LCDs that hold their services to different criteria drafted as one policy per service. A
+  passing draft is well-formed, not checked for meaning. [docs/lcd-study.md](docs/lcd-study.md), `go run ./tools/lcdstudy`.
 - **The assurance pack**: a threat model, the HIPAA Security Rule's technical safeguards mapped to the code, and a
   hazard log for the decision logic. [docs/assurance](docs/assurance/README.md). Written by BioDream and reviewed by
   nobody outside it. A machine review (two language models reading it as an outside auditor would) found real gaps,
