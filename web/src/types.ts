@@ -971,3 +971,73 @@ export interface ShadowReport {
   overturned: number;
   note: string;
 }
+
+/** One adoption, withdrawal or review of a policy by a clinician. */
+export interface AdoptionAct {
+  action: "policy.adopted" | "policy.adoption_withdrawn" | "policy.reviewed";
+  policy: string;
+  version: string;
+  sha256: string;
+  by: string;
+  name: string;
+  npi: string;
+  credential: string;
+  as?: string;
+  reference?: string;
+  note?: string;
+  outcome?: "kept" | "change";
+  time: string;
+}
+
+/** A Medicare source document compared with its current version at CMS. */
+export interface SourceFinding {
+  policy: string;
+  changed: boolean;
+  unknown?: boolean;
+  missing?: boolean;
+  note: string;
+}
+
+/** Where a policy stands with the plan's clinicians. */
+export interface AdoptionState {
+  policy: string;
+  title: string;
+  version: string;
+  kind: "library" | "kept" | "plan";
+  sha256: string;
+  required: boolean;
+  need: number;
+  adopters: AdoptionAct[];
+  deciding: boolean;
+  waiting?: { version: string; sha256: string; adopters: AdoptionAct[] };
+  lastLook?: string;
+  due?: string;
+  overdue?: boolean;
+  dueSoon?: boolean;
+  source?: SourceFinding;
+  history: AdoptionAct[];
+}
+
+/** What a clinician reads before adopting or reviewing a policy. */
+export interface AdoptionPacket {
+  policy: string;
+  version: string;
+  sha256: string;
+  text: string;
+  basis?: string;
+  document?: string;
+  clauses: { argument: string; clause: string; at: number }[];
+  warnings: string[];
+  since?: string;
+  added?: string[];
+  removed?: string[];
+}
+
+export interface AdoptBody {
+  id: string;
+  as?: string;
+  reference?: string;
+  note?: string;
+  outcome?: "kept" | "change";
+  sha256?: string;
+}

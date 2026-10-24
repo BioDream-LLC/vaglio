@@ -5,31 +5,55 @@
       "file": "cpap_osa.vaglio",
       "source": "sources/L33718-E0601.txt",
       "basis": "Medicare LCD L33718 (DME MAC), initial coverage of E0601",
-      "category": "Durable medical equipment: sleep"
+      "category": "Durable medical equipment: sleep",
+      "cms": {
+        "type": "lcd",
+        "id": 33718
+      }
     },
     {
       "file": "tka.vaglio",
       "source": "sources/L36575-TKA.txt",
       "basis": "Medicare LCD L36575 (Noridian), primary total knee arthroplasty",
-      "category": "Musculoskeletal and orthopedics"
+      "category": "Musculoskeletal and orthopedics",
+      "cms": {
+        "type": "lcd",
+        "id": 36575,
+        "version": 21
+      }
     },
     {
       "file": "facet_rfa.vaglio",
       "source": "sources/L38773-facet.txt",
       "basis": "Medicare LCD L38773 (CGS), initial facet joint radiofrequency ablation",
-      "category": "Musculoskeletal and orthopedics: spine and pain"
+      "category": "Musculoskeletal and orthopedics: spine and pain",
+      "cms": {
+        "type": "lcd",
+        "id": 38773,
+        "version": 32
+      }
     },
     {
       "file": "ccta.vaglio",
       "source": "sources/L35121-CCTA.txt",
       "basis": "Medicare LCD L35121 (WPS), coronary CT angiography",
-      "category": "Advanced imaging (cardiac)"
+      "category": "Advanced imaging (cardiac)",
+      "cms": {
+        "type": "lcd",
+        "id": 35121,
+        "version": 35
+      }
     },
     {
       "file": "bariatric_ncd.vaglio",
       "source": "sources/NCD100.1-bariatric.txt",
       "basis": "Medicare NCD 100.1, with Claims Processing Manual ch. 32 section 150.2 for codes",
-      "category": "Surgery: bariatric"
+      "category": "Surgery: bariatric",
+      "cms": {
+        "type": "ncd",
+        "id": 57,
+        "version": 5
+      }
     },
     {
       "file": "adalimumab_ra_ut.vaglio",
@@ -47,31 +71,56 @@
       "file": "esi.vaglio",
       "source": "sources/L39240-ESI.txt",
       "basis": "Medicare LCD L39240 (Noridian), epidural steroid injections",
-      "category": "Musculoskeletal and orthopedics: spine and pain"
+      "category": "Musculoskeletal and orthopedics: spine and pain",
+      "cms": {
+        "type": "lcd",
+        "id": 39240,
+        "version": 15
+      }
     },
     {
       "file": "varicose_ablation.vaglio",
       "source": "sources/L34536-varicose.txt",
       "basis": "Medicare LCD L34536 (WPS), endovenous radiofrequency and laser ablation",
-      "category": "Vascular"
+      "category": "Vascular",
+      "cms": {
+        "type": "lcd",
+        "id": 34536,
+        "version": 36
+      }
     },
     {
       "file": "blepharoplasty.vaglio",
       "source": "sources/L34411-blepharoplasty.txt",
       "basis": "Medicare LCD L34411 (Palmetto GBA), functional upper blepharoplasty and blepharoptosis repair",
-      "category": "Potentially cosmetic procedures"
+      "category": "Potentially cosmetic procedures",
+      "cms": {
+        "type": "lcd",
+        "id": 34411,
+        "version": 46
+      }
     },
     {
       "file": "pov.vaglio",
       "source": "sources/L33789-power-mobility.txt",
       "basis": "Medicare LCD L33789 (DME MACs), Group 1 power operated vehicles",
-      "category": "Durable medical equipment: mobility"
+      "category": "Durable medical equipment: mobility",
+      "cms": {
+        "type": "lcd",
+        "id": 33789,
+        "version": 38
+      }
     },
     {
       "file": "hbo.vaglio",
       "source": "sources/NCD20.29-HBO.txt",
       "basis": "Medicare NCD 20.29, hyperbaric oxygen therapy",
-      "category": "Wound care"
+      "category": "Wound care",
+      "cms": {
+        "type": "ncd",
+        "id": 12,
+        "version": 4
+      }
     }
   ]
 }

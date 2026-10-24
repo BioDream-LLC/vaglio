@@ -36,7 +36,7 @@ func (cfg Config) drugPolicy(d ncpdp.Drug) (*policy.Policy, string, string) {
 		if c.code == "" {
 			continue
 		}
-		for _, p := range cfg.set.all() {
+		for _, p := range cfg.deciding() {
 			if p.Decides(c.sys, c.code) && p.InEffect(cfg.today()) {
 				return p, c.sys, c.code
 			}

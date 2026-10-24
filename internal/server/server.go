@@ -28,9 +28,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/biodream-llc/vaglio/internal/adoption"
 	"github.com/biodream-llc/vaglio/internal/audit"
 	"github.com/biodream-llc/vaglio/internal/auth"
 	"github.com/biodream-llc/vaglio/internal/cases"
+	"github.com/biodream-llc/vaglio/internal/cmswatch"
 	"github.com/biodream-llc/vaglio/internal/decide"
 	"github.com/biodream-llc/vaglio/internal/eligibility"
 	"github.com/biodream-llc/vaglio/internal/feed"
@@ -125,6 +127,15 @@ type Config struct {
 	// back. UMToken turns on POST /api/feeds/um, where that system pushes them.
 	UM      *um.Link
 	UMToken string
+	// Adoption is the plan's clinicians' adoptions and reviews of its policies (internal/adoption); nil records none.
+	// With RequireAdoption, a library policy decides only once AdoptionSignatures clinicians (1 when 0) have adopted its
+	// exact text. ReviewEvery is how often every policy is due for a clinician's review (0: no schedule). SourceWatch,
+	// when set, says which library policies' Medicare sources CMS has changed since.
+	Adoption           *adoption.Registry
+	RequireAdoption    bool
+	AdoptionSignatures int
+	ReviewEvery        time.Duration
+	SourceWatch        *cmswatch.Watcher
 	// FaxHooks are fax services' own webhooks (sinch, documo), at POST /api/feeds/fax/{service}; each checks its own
 	// credentials.
 	FaxHooks map[string]http.Handler
@@ -144,6 +155,7 @@ type Config struct {
 	Today func() string
 
 	set          *policySet
+	adopt        *adoptState
 	edit         *sync.Mutex
 	receiptLimit *limiter
 	// signInFails counts failed sign-ins per address: the per-name lockout (auth.ErrLocked) does not stop one address
@@ -166,6 +178,8 @@ func New(cfg Config) http.Handler {
 		}
 	}
 	cfg.Policies, cfg.Scheduled = nil, nil // read through cfg.set from here on, so a signed-off policy is seen everywhere
+	cfg.adopt = &adoptState{kept: map[string]keptPolicy{}}
+	cfg.startAdoption()
 	if cfg.AutoRead != nil && cfg.Reader != nil {
 		cfg.AutoRead.start(cfg)
 		// Pended cases no reading has touched yet, from before this start: read them too.
@@ -292,6 +306,12 @@ func New(cfg Config) http.Handler {
 	scoped("GET /api/export/events", auth.Admin, auth.ScopeAudit, cfg.exportEvents)
 	scoped("GET /api/export/status", auth.Admin, auth.ScopeAudit, cfg.exportStatus)
 	route("GET /api/um/status", auth.Reviewer, cfg.umStatus)
+	route("GET /api/adoption", auth.Viewer, cfg.adoptionReport)
+	route("GET /api/policies/{id}/adoption", auth.Viewer, cfg.policyAdoption)
+	route("GET /api/policies/{id}/packet", auth.Viewer, cfg.adoptionPacket)
+	route("POST /api/policies/{id}/adopt", auth.Reviewer, cfg.adoptPolicy)
+	route("POST /api/policies/{id}/withdraw", auth.Reviewer, cfg.withdrawAdoption)
+	route("POST /api/policies/{id}/review", auth.Reviewer, cfg.reviewPolicy)
 	route("POST /api/policies/check", auth.Viewer, cfg.checkSourceHandler)
 	route("POST /api/cases/{id}/extend", auth.Reviewer, cfg.extendCase)
 	mux.HandleFunc("POST /api/feeds/appeals", cfg.appealsFeed)

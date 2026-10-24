@@ -44,6 +44,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/audit"
 	"github.com/biodream-llc/vaglio/internal/auth"
 	"github.com/biodream-llc/vaglio/internal/cases"
+	"github.com/biodream-llc/vaglio/internal/cmswatch"
 	"github.com/biodream-llc/vaglio/internal/decide"
 	"github.com/biodream-llc/vaglio/internal/draft"
 	"github.com/biodream-llc/vaglio/internal/editor"
@@ -118,6 +119,8 @@ func main() {
 		err = shadowCmd(os.Args[2:], os.Stdout)
 	case "import-dtr":
 		err = importDTRCmd(os.Args[2:], os.Stdout)
+	case "sources":
+		err = sourcesCmd(os.Args[2:], os.Stdout)
 	case "version":
 		fmt.Println("vaglio", version)
 	case "help", "-h", "--help":
@@ -137,6 +140,7 @@ func usage(w io.Writer) {
   vaglio serve  [-addr 127.0.0.1:8740] [-policies DIR] [-data DIR] [-token-env VAR]
                 [-pas-url URL] [-pas-token-env VAR] [-pas-ca FILE] [-tls-cert FILE -tls-key FILE] [-hostname NAME]
                 [-goldcard FILE] [-clinician-denials] [-pas-api-url URL]
+                [-require-adoption [-adoption-signatures N]] [-review-every-days N] [-watch-sources]
                 [-document-model-url URL -document-model M [-document-model-key-env VAR] [-document-model-remote]]
                 [-edit-policies] [-oidc-issuer URL -oidc-client-id ID -oidc-client-secret-env VAR
                  -oidc-redirect-url URL [-oidc-name-claim C] [-oidc-group G] [-oidc-label TEXT]]
@@ -169,6 +173,7 @@ func usage(w io.Writer) {
   vaglio shadow -requests DIR [-outcomes FILE.csv] [-policies DIR] [-csv OUT.csv]
                                   a shadow pilot: past requests decided beside what the plan decided
   vaglio import-dtr -id ID -service "SYSTEM CODE..." -out FILE.vaglio QUESTIONNAIRE.json
+  vaglio sources                            # the library's Medicare sources against their current CMS versions
                                   a draft from a DTR Questionnaire the plan already has (its yes/no questions)
   vaglio readings [-json] A.vaglio B.vaglio    where two readings of one coverage document decide a record differently
   vaglio signoff -by "NAME, CREDENTIAL" [-date YYYY-MM-DD] FILE.vaglio
@@ -216,6 +221,16 @@ func serve(args []string) error {
 		"with /fhir replaced by /api, as Perfuse serves it)")
 	clinicianDenials := fs.Bool("clinician-denials", false, "the engine never denies on its own: it proposes a denial, "+
 		"and only an account recorded as a clinician may make it (for states that require a clinician to review AI denials)")
+	requireAdoption := fs.Bool("require-adoption", false, "a library policy decides only once the plan's clinicians have "+
+		"adopted its exact text in the console (each adoption recorded with name, NPI and credential); until then it "+
+		"decides nothing here, and a newer library version waits for adoption while the adopted one decides")
+	adoptionSignatures := fs.Int("adoption-signatures", 1, "with -require-adoption, how many different clinicians must adopt a "+
+		"library policy's text before it decides (a specialist and the medical director: 2)")
+	reviewEveryDays := fs.Int("review-every-days", 365, "every policy in force is due for a clinician's review this many days "+
+		"after its last adoption, review or sign-off (UM accreditation expects at least yearly); 0 for no schedule")
+	watchSources := fs.Bool("watch-sources", false, "once a day, ask the CMS Coverage API for the current version of each "+
+		"Medicare document the library's policies were drafted from, and flag the policies whose source has changed "+
+		"(two public reports are read; nothing about the plan is sent)")
 	draftURL := fs.String("draft-model-url", "", "an OpenAI-compatible chat completions API (https://openrouter.ai/api/v1, "+
 		"a local server): the console's policy editor drafts policies from uploaded coverage documents with it. The "+
 		"document is sent there: published coverage documents only, never patient records")
@@ -414,7 +429,20 @@ func serve(args []string) error {
 			return err2
 		}
 	}
-	sh := shared{docs: docs, clinicianDenials: *clinicianDenials, editPolicies: *editPolicies, demo: *demo}
+	sh := shared{docs: docs, clinicianDenials: *clinicianDenials, editPolicies: *editPolicies, demo: *demo,
+		requireAdoption: *requireAdoption, adoptionSignatures: *adoptionSignatures, reviewEveryDays: *reviewEveryDays}
+	if *adoptionSignatures < 1 || *reviewEveryDays < 0 {
+		return errors.New("-adoption-signatures is at least 1, and -review-every-days 0 or more")
+	}
+	if *watchSources {
+		sh.sources = &cmswatch.Watcher{OnFound: func(fs []cmswatch.Finding) {
+			for _, f := range fs {
+				if f.Changed || f.Missing {
+					log.Printf("library policy %s: %s", f.Policy, f.Note)
+				}
+			}
+		}}
+	}
 	if *useLibrary {
 		if sh.library, err2 = library.Policies(); err2 != nil {
 			return err2
@@ -480,6 +508,9 @@ func serve(args []string) error {
 	sh.readDocs, sh.approveDocs, sh.approveSample, sh.readWorkers = *readDocs, *approveDocs, *approveSample, *readWorkers
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if sh.sources != nil {
+		sh.sources.Start(ctx)
+	}
 	var opened []*openedPlan
 	defer func() {
 		for _, op := range opened {

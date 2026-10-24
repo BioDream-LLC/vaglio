@@ -17,8 +17,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/biodream-llc/vaglio/internal/adoption"
 	"github.com/biodream-llc/vaglio/internal/auth"
 	"github.com/biodream-llc/vaglio/internal/cases"
+	"github.com/biodream-llc/vaglio/internal/cmswatch"
 	"github.com/biodream-llc/vaglio/internal/deliver"
 	"github.com/biodream-llc/vaglio/internal/editor"
 	"github.com/biodream-llc/vaglio/internal/eligibility"
@@ -38,6 +40,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/um"
 	"github.com/biodream-llc/vaglio/internal/versions"
 	"github.com/biodream-llc/vaglio/internal/web"
+	"github.com/biodream-llc/vaglio/library"
 )
 
 // planSpec is one health plan a server decides for: its own policies, data (audit log, cases, accounts, versions,
@@ -73,6 +76,10 @@ type planSpec struct {
 	WebhookSecretEnv string `json:"webhookSecretEnv,omitempty"`
 	// ClinicianDenials: only clinicians deny this plan's requests (serve -clinician-denials turns it on for every plan).
 	ClinicianDenials bool `json:"clinicianDenials,omitempty"`
+	// RequireAdoption: this plan's library policies decide only once its clinicians adopt them (serve
+	// -require-adoption turns it on for every plan); AdoptionSignatures is how many must.
+	RequireAdoption    bool `json:"requireAdoption,omitempty"`
+	AdoptionSignatures int  `json:"adoptionSignatures,omitempty"`
 	// EditPolicies: this plan's console has the policy editor (serve -edit-policies turns it on for every plan).
 	EditPolicies bool `json:"editPolicies,omitempty"`
 	// SSO is the plan's single sign-on: its own identity provider, client and callback on its own hostname.
@@ -282,6 +289,11 @@ type shared struct {
 	approveDocs      bool
 	approveSample    int
 	readWorkers      int
+	// Adoption of library policies by the plan's clinicians, and periodic review (-require-adoption ...).
+	requireAdoption    bool
+	adoptionSignatures int
+	reviewEveryDays    int
+	sources            *cmswatch.Watcher
 }
 
 // openedPlan is a plan ready to serve.
@@ -465,16 +477,20 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 		Secure:       true,
 		GoldCard:     gold,
 		// Set where the server is started, never in the console: who may deny care is the deployment's to decide.
-		ClinicianDenials: sh.clinicianDenials || sp.ClinicianDenials,
-		Reader:           sh.docs,
-		Extractors:       sh.extractors,
-		Drafter:          sh.drafter,
-		ExtensionDays:    sh.extensionDays,
-		Scheduled:        scheduled,
-		PolicyRoot:       sp.Policies,
-		Outside:          src,
-		Members:          members,
-		Letters:          letters,
+		ClinicianDenials:   sh.clinicianDenials || sp.ClinicianDenials,
+		RequireAdoption:    sh.requireAdoption || sp.RequireAdoption,
+		AdoptionSignatures: max(sh.adoptionSignatures, sp.AdoptionSignatures),
+		ReviewEvery:        time.Duration(sh.reviewEveryDays) * 24 * time.Hour,
+		SourceWatch:        sh.sources,
+		Reader:             sh.docs,
+		Extractors:         sh.extractors,
+		Drafter:            sh.drafter,
+		ExtensionDays:      sh.extensionDays,
+		Scheduled:          scheduled,
+		PolicyRoot:         sp.Policies,
+		Outside:            src,
+		Members:            members,
+		Letters:            letters,
 	}
 	if sp.FaxTokenEnv != "" {
 		if cfg.FaxToken, err = secretFrom(sp.FaxTokenEnv); err != nil {
@@ -510,6 +526,9 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 			return fail(fmt.Errorf("webhook: %w", err))
 		}
 		cfg.Webhook = hook
+	}
+	if cfg.Adoption, err = adoption.Open(st.log, filepath.Join(sp.Data, "adopted")); err != nil {
+		return fail(fmt.Errorf("adoptions: %w", err))
 	}
 	if sp.UM != "" {
 		uc, err := um.LoadConfig(sp.UM)
@@ -678,6 +697,17 @@ func (op *openedPlan) report(origin string) {
 		}
 		log.Printf("%scase-review system %s: pended cases are opened there; its decisions are %s", who, l.Name, how)
 	}
+	if op.cfg.RequireAdoption {
+		waiting := 0
+		for id, lib := range op.cfg.Library {
+			if lib != nil && op.cfg.Adoption != nil && !op.cfg.Adoption.Adopted(id, adoption.Hash(mustSource(id)), max(op.cfg.AdoptionSignatures, 1)) {
+				waiting++
+			}
+		}
+		log.Printf("%sadoption required: a library policy decides once %d of the plan's clinicians adopt it; %d of %d "+
+			"library texts in this program are not adopted (an older adopted version may decide meanwhile)", who,
+			max(op.cfg.AdoptionSignatures, 1), waiting, len(op.cfg.Library))
+	}
 	if op.cfg.ClinicianDenials {
 		log.Printf("%sclinician denials: the engine proposes denials; only clinicians make them", who)
 	}
@@ -759,4 +789,10 @@ func shadowData(dir string, shadow bool, cases int) error {
 			"here was given to anyone.\n"), 0o600)
 	}
 	return nil
+}
+
+// mustSource is a library policy's text, empty when the library has none of that id.
+func mustSource(id string) []byte {
+	src, _ := library.Source(id)
+	return src
 }

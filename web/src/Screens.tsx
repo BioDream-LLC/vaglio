@@ -21,8 +21,11 @@ import {
   useReplayMutation,
   useVerifyQuery,
   type RootState,
+  usePolicyAdoptionQuery,
+  usePolicyPacketQuery,
+  useAdoptPolicyMutation,
 } from './store'
-import { can, type Argument, type AuditRecord, type Me, type PolicySummary, type ReplayReport } from './types'
+import { can, type AdoptionAct, type Argument, type AuditRecord, type Me, type PolicySummary, type ReplayReport } from './types'
 
 /** Try a policy on evidence entered by hand. Nothing is recorded. */
 export function Try() {
@@ -252,6 +255,7 @@ export function PolicyView({ id, me }: { id: string; me: Me }) {
       )}
       <PolicyMap key={`map-${id}`} id={id} />
       <Override id={id} me={me} />
+      <Adoption key={`adoption-${id}`} id={id} me={me} />
       {me.role !== 'viewer' && <TimeMachine key={`versions-${id}`} id={id} />}
       {source && me.role !== 'viewer' && <Replay key={`source-${id}`} source={source} />}
     </section>
@@ -493,6 +497,164 @@ export function Audit() {
         </button>{' '}
         <span className="meta">{data && `records ${after + 1}–${after + records.length} of ${data.total}`}</span>
       </p>
+    </section>
+  )
+}
+
+function actLine(a: AdoptionAct) {
+  const what =
+    a.action === 'policy.adopted'
+      ? `Adopted v${a.version}`
+      : a.action === 'policy.reviewed'
+        ? `Reviewed v${a.version}: ${a.outcome === 'kept' ? 'kept as it is' : 'needs changing'}`
+        : `Adoption of v${a.version} withdrawn`
+  return `${what} by ${a.name} (${a.credential}, NPI ${a.npi})${a.as ? `, as ${a.as}` : ''}${
+    a.reference ? `; ${a.reference}` : ''
+  }${a.note ? `: ${a.note}` : ''}, ${when(a.time)}`
+}
+
+/** The plan's clinicians' approval of the policy: who adopted which exact text, its yearly review, whether its Medicare
+ * source has changed, and the packet a clinician reads before adopting or reviewing it. */
+function Adoption({ id, me }: { id: string; me: Me }) {
+  const { data: st } = usePolicyAdoptionQuery(id)
+  const [open, setOpen] = useState(false)
+  const [act, { error, isLoading }] = useAdoptPolicyMutation()
+  const [as, setAs] = useState('')
+  const [reference, setReference] = useState('')
+  const [note, setNote] = useState('')
+  const { data: pk } = usePolicyPacketQuery(id, { skip: !open })
+  if (!st) return null
+  const clinician = !!me.npi && me.role !== 'viewer'
+  const mine = (list: AdoptionAct[]) => list.some((a) => a.npi === me.npi)
+  const pending = st.waiting ?? (st.kind !== 'plan' && !st.deciding ? { version: st.version, sha256: st.sha256, adopters: st.adopters } : undefined)
+  const tone = st.required && !st.deciding ? 'warn' : st.overdue || st.source?.changed ? 'warn' : 'ok'
+  const send = (what: 'adopt' | 'withdraw' | 'review', outcome?: 'kept' | 'change') =>
+    act({ id, act: what, as, reference, note, outcome, sha256: what === 'withdraw' ? undefined : pk?.sha256 })
+  return (
+    <section className={`note ${tone}`} aria-labelledby={`adoption-${id}-h`}>
+      <h3 id={`adoption-${id}-h`}>The plan's clinicians</h3>
+      {st.required && (
+        <p>
+          {st.deciding
+            ? `Adopted by ${st.adopters.length} of the ${st.need} clinician${st.need > 1 ? 's' : ''} needed: it decides.`
+            : `Not adopted: it decides nothing here until ${st.need} of the plan's clinician${st.need > 1 ? 's adopt' : ' adopts'} it (${st.adopters.length} so far).`}
+        </p>
+      )}
+      {st.waiting && (
+        <p>
+          This program carries v{st.waiting.version}; the plan adopted v{st.version}, which decides until v{st.waiting.version} is
+          adopted ({st.waiting.adopters.length} of {st.need}).
+        </p>
+      )}
+      {st.source && <p className={st.source.changed || st.source.missing ? 'warn' : 'meta'}>Source: {st.source.note}</p>}
+      {st.due && (
+        <p className={st.overdue ? 'warn' : 'meta'}>
+          {st.overdue ? 'Review overdue: was due ' : st.dueSoon ? 'Review due soon: ' : 'Next review due '}
+          {when(st.due)}
+          {st.lastLook ? `; last looked at ${when(st.lastLook)}.` : '.'}
+        </p>
+      )}
+      {st.history.length > 0 && (
+        <ul>
+          {st.history.map((a) => (
+            <li key={a.time + a.npi + a.action}>{actLine(a)}</li>
+          ))}
+        </ul>
+      )}
+      <p>
+        <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}>
+          {open ? 'Close the review packet' : 'Read the review packet'}
+        </button>
+      </p>
+      {open && pk && (
+        <div className="packet">
+          <p className="meta">
+            v{pk.version}, SHA-256 {pk.sha256.slice(0, 16)}… {pk.basis && `From ${pk.basis}.`}
+          </p>
+          {(pk.added?.length ?? 0) + (pk.removed?.length ?? 0) > 0 && (
+            <div>
+              <h4>Changed since the version last adopted</h4>
+              <pre className="source-code" tabIndex={0} aria-label="Changes">
+                {[...(pk.removed ?? []).map((l) => `- ${l}`), ...(pk.added ?? []).map((l) => `+ ${l}`)].join('\n')}
+              </pre>
+            </div>
+          )}
+          <h4>Each clause, and where the source says it</h4>
+          <ul>
+            {pk.clauses.map((c) => (
+              <li key={c.argument}>
+                <strong>{c.argument}</strong>: “{c.clause}”{' '}
+                <span className={c.at < 0 ? 'warn' : 'meta'}>
+                  {c.at < 0 ? (pk.document ? 'not found word for word in the source' : 'no copy of the source here') : 'in the source'}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {pk.warnings.length > 0 && (
+            <ul>
+              {pk.warnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          )}
+          <div className="side-by-side">
+            <pre className="source-code" tabIndex={0} aria-label="Policy text">
+              {pk.text}
+            </pre>
+            {pk.document && (
+              <pre className="source-code" tabIndex={0} aria-label="Source document">
+                {pk.document}
+              </pre>
+            )}
+          </div>
+          {clinician ? (
+            <form onSubmit={(e) => e.preventDefault()}>
+              <label>
+                Acting as <input value={as} onChange={(e) => setAs(e.target.value)} placeholder="medical director" />
+              </label>
+              <label>
+                Committee minutes or reference <input value={reference} onChange={(e) => setReference(e.target.value)} />
+              </label>
+              <label>
+                Note <textarea value={note} onChange={(e) => setNote(e.target.value)} />
+              </label>
+              <p>
+                {pending && !mine(pending.adopters) && st.kind !== 'plan' && (
+                  <button type="button" disabled={isLoading} onClick={() => send('adopt')}>
+                    Adopt v{pending.version} for the plan
+                  </button>
+                )}{' '}
+                {st.deciding && (
+                  <>
+                    <button type="button" disabled={isLoading} onClick={() => send('review', 'kept')}>
+                      Reviewed: keep it
+                    </button>{' '}
+                    <button type="button" disabled={isLoading || !note.trim()} onClick={() => send('review', 'change')}>
+                      Reviewed: it needs changing
+                    </button>{' '}
+                  </>
+                )}
+                {st.kind !== 'plan' && st.adopters.length > 0 && (
+                  <button
+                    type="button"
+                    disabled={isLoading || !note.trim()}
+                    onClick={() => {
+                      if (window.confirm(`Withdraw the plan's adoption of ${id} v${st.version}? It decides nothing until adopted again.`))
+                        send('withdraw')
+                    }}
+                  >
+                    Withdraw the adoption
+                  </button>
+                )}
+              </p>
+              <p className="meta">Recorded in the audit log under your name, NPI and credential, with the exact text's SHA-256.</p>
+              {error && <p role="alert">{errorText(error, 'Could not record it.')}</p>}
+            </form>
+          ) : (
+            <p className="meta">A clinician (an account with an NPI and a credential) adopts and reviews policies.</p>
+          )}
+        </div>
+      )}
     </section>
   )
 }

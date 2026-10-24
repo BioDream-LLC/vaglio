@@ -238,7 +238,7 @@ func patientState(req *pas.Request) string {
 func (cfg Config) policyFor(svc pas.Service, req *pas.Request) (precedence.Choice, string) {
 	cfg.activateDue()
 	rq := precedence.Request{Day: cfg.today(), Line: precedence.LineOfBusiness(req), State: patientState(req)}
-	all := cfg.set.all()
+	all := cfg.deciding()
 	for _, cc := range svc.Codes {
 		for _, c := range pas.Slice(cc["coding"]) {
 			cm := pas.Map(c)

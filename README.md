@@ -48,7 +48,8 @@ front of the reviewer, and builds the published metrics from its own log.
 **Policies are short text files that keep the plan's own words.** Each rule quotes its source sentence exactly, and
 every policy is tested on every combination of evidence it can be given before it may decide anything. A plan's own
 policy decides only once a clinician signs it off. The built-in library, drafted from public Medicare and Medicaid
-documents, decides as published, and a plan that reads a rule differently overrides it in the console.
+documents, decides as published, and a plan that reads a rule differently overrides it in the console. A plan can
+also require that each library policy decide only once its own clinicians adopt it.
 
 **People stay in charge.** Whatever the rules cannot settle goes to a reviewer, with the evidence found, what is
 missing and the due date. A plan can require that only a clinician ever denies. Every decision, review, override and
@@ -342,7 +343,14 @@ Short text files in the plan's own words, checked on every combination before th
   a plan reads a rule differently, it overrides the policy: **Override** on the policy's screen (with `-edit-policies`)
   starts a draft of the next version, and once a clinician signs it off the plan's version decides instead of the
   library's. **Remove the override**, a clinician's act too, puts the published one back. Both are in the audit log, and
-  the policy list marks each library policy "as published" or "overrides library vX". The AHIP/BCBSA documentation standards for 66 services are
+  the policy list marks each library policy "as published" or "overrides library vX". With `serve -require-adoption`
+  ([docs/adoption.md](docs/adoption.md)), a library policy decides nothing until the plan's clinicians adopt its exact
+  text (name, NPI, credential, capacity, committee reference and the text's SHA-256 recorded; `-adoption-signatures 2`
+  for a specialist and the medical director). A newer library version in a new release waits for adoption while the
+  adopted one goes on deciding. Every policy falls due for a clinician's review yearly (`-review-every-days`), with a
+  warning 30 days before. `serve -watch-sources` (or `vaglio sources`) asks the CMS Coverage API whether a source LCD or
+  NCD has a newer version. The policy's screen has the review packet: the text beside its source, each clause found in
+  it, the check, and what changed since the version last adopted. The AHIP/BCBSA documentation standards for 66 services are
   published, but they set the most documentation a plan may ask for, not coverage criteria, and carry no licence to
   include them, so the library is built from public coverage documents:
 
@@ -907,7 +915,8 @@ whose NPI and credential the decision records.
 Yes: they decide as published. Each is drafted from a public coverage document kept beside it and quoted word for word,
 and passes every gate. Where a plan's medical director reads a rule differently, they override that policy in the
 console, and the plan's signed version decides instead; removing the override puts the published one back. A plan that
-wants none of them runs with `-library=false`. The policies in `policies/` are illustrative only.
+wants its own clinicians to approve each one first runs with `-require-adoption`, and one that wants none of them runs
+with `-library=false`. The policies in `policies/` are illustrative only.
 
 </details>
 

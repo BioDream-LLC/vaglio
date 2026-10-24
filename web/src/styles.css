@@ -1180,3 +1180,7 @@ button.tm-row:hover {
   image-rendering: pixelated;
   box-shadow: 0 0 0 1px var(--line);
 }
+
+.side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.side-by-side pre { max-height: 32rem; overflow: auto; }
+@media (max-width: 900px) { .side-by-side { grid-template-columns: 1fr; } }

@@ -219,7 +219,7 @@ func writeFHIR(w http.ResponseWriter, v any) {
 // policyForCode is whether a policy in force here decides a code, without a request to weigh precedence on.
 func (cfg Config) policyForCode(system, code string) (string, bool) {
 	cfg.activateDue()
-	for _, p := range cfg.set.all() {
+	for _, p := range cfg.deciding() {
 		if p.Decides(system, code) {
 			return p.ID, true
 		}

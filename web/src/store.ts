@@ -9,6 +9,9 @@ import {
   setupListeners,
 } from "@reduxjs/toolkit/query/react";
 import type {
+  AdoptBody,
+  AdoptionPacket,
+  AdoptionState,
   AuditPage,
   CaseDetail,
   CaseStatus,
@@ -142,6 +145,22 @@ export const api = createApi({
     policyCheck: b.query<CheckReport, string>({
       query: (id) => `policies/${encodeURIComponent(id)}/check`,
       providesTags: ["Policy"],
+    }),
+    policyAdoption: b.query<AdoptionState, string>({
+      query: (id) => `policies/${encodeURIComponent(id)}/adoption`,
+      providesTags: ["Policy"],
+    }),
+    policyPacket: b.query<AdoptionPacket, string>({
+      query: (id) => `policies/${encodeURIComponent(id)}/packet`,
+      providesTags: ["Policy"],
+    }),
+    adoptPolicy: b.mutation<AdoptionState, AdoptBody & { act: "adopt" | "withdraw" | "review" }>({
+      query: ({ id, act, ...body }) => ({
+        url: `policies/${encodeURIComponent(id)}/${act}`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Policy", "Audit"],
     }),
     checkSource: b.mutation<SourceCheck, string>({
       query: (source) => ({
@@ -512,6 +531,9 @@ export const {
   useLogoutMutation,
   usePoliciesQuery,
   useRemoveOverrideMutation,
+  usePolicyAdoptionQuery,
+  usePolicyPacketQuery,
+  useAdoptPolicyMutation,
   usePolicySourceQuery,
   usePolicyCheckQuery,
   useDecideMutation,

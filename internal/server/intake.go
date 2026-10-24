@@ -45,7 +45,7 @@ func (cfg Config) intakeForm(w http.ResponseWriter, r *http.Request, _ auth.Sess
 		sys = url
 	}
 	out := []IntakePolicy{}
-	for _, p := range cfg.set.all() {
+	for _, p := range cfg.deciding() {
 		if !p.Decides(sys, code) || !p.InEffect(cfg.today()) {
 			continue
 		}
