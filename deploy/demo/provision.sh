@@ -24,14 +24,14 @@ trap 'rm -rf "$build"' EXIT
 if [ -n "${VERSION:-}" ]; then
   # A published release, as anyone would install it: the archive checked against the release's SHA256SUMS.
   rel="https://github.com/BioDream-LLC/vaglio/releases/download/$VERSION"
-  name="vaglio-$VERSION-linux-amd64.tar.gz"
-  curl -fsSL -o "$build/$name" "$rel/$name"
+  archive="vaglio-$VERSION-linux-amd64.tar.gz"
+  curl -fsSL -o "$build/$archive" "$rel/$archive"
   curl -fsSL -o "$build/SHA256SUMS" "$rel/SHA256SUMS"
-  (cd "$build" && grep " $name\$" SHA256SUMS | { if command -v sha256sum >/dev/null; then sha256sum -c -; else shasum -a 256 -c -; fi; }) ||
-    { echo "$name does not match the release's SHA256SUMS" >&2; exit 1; }
-  tar -xzf "$build/$name" -C "$build"
+  (cd "$build" && grep " $archive\$" SHA256SUMS | { if command -v sha256sum >/dev/null; then sha256sum -c -; else shasum -a 256 -c -; fi; }) ||
+    { echo "$archive does not match the release's SHA256SUMS" >&2; exit 1; }
+  tar -xzf "$build/$archive" -C "$build"
   mv "$build/vaglio-$VERSION-linux-amd64/vaglio" "$build/vaglio"
-  rm -rf "$build/$name" "$build/SHA256SUMS" "$build/vaglio-$VERSION-linux-amd64"
+  rm -rf "$build/$archive" "$build/SHA256SUMS" "$build/vaglio-$VERSION-linux-amd64"
   echo "installing the release $VERSION"
 else
   (cd "$root" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -buildid= -X main.version=demo-$(git rev-parse --short HEAD)" -o "$build/vaglio" ./cmd/vaglio)
