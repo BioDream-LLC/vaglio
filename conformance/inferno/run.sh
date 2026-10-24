@@ -7,7 +7,7 @@
 # kit's X12 service type 2, which its rules leave to a reviewer) and Perfuse's rules the rest.
 #
 # Uses Perfuse's own Inferno harness (its conformance/inferno, Apache-2.0), copied to a work directory and run unchanged
-# but for the extra flags. Needs Docker, Python 3, openssl, git, a Perfuse binary and its source tree:
+# but for the extra flags and the token lifetime it tells Inferno (below). Needs Docker, Python 3, openssl, git, a Perfuse binary and its source tree:
 #
 #   PERFUSE=/path/to/perfuse PERFUSE_SRC=/path/to/perfuse-source conformance/inferno/run.sh
 set -eu
@@ -20,6 +20,12 @@ mkdir -p "$work"
 rm -rf "$work/harness" "$work/vaglio"
 cp -R "$PERFUSE_SRC/conformance/inferno" "$work/harness"
 rm -rf "$work/harness/.work"
+# The one change to the harness: it tells Inferno the backend token lasts an hour, but Perfuse issues it for five
+# minutes, so a run slower than that (a busy runner) got 401s on its last tests. Told the truth, Inferno fetches a new
+# one itself with its own registered key.
+sed 's/"expires_in": 3600/"expires_in": 300/' "$work/harness/pas/run.py" > "$work/harness/pas/run.py.new" &&
+  mv "$work/harness/pas/run.py.new" "$work/harness/pas/run.py"
+grep -q '"expires_in": 300' "$work/harness/pas/run.py" || { echo "run.sh: the harness's token lifetime was not found" >&2; exit 1; }
 
 # Vaglio, on loopback: only the test policy, a token Perfuse sends, a fresh data directory.
 (cd "$root" && go build -o "$work/vaglio-bin" ./cmd/vaglio)
