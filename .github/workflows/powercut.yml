@@ -1,0 +1,45 @@
+name: Power cut
+
+# tools/powercut: Vaglio on a filesystem over dm-log-writes, the record replayed to every flush (as if the power went
+# just after it) and to marks after answers. Needs root and the dm-log-writes module, so on GitHub's Linux runner,
+# weekly and on demand. replay-log is built from xfstests (GPL-2.0, used here only, never shipped) at a pinned commit.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 7 * * 0'
+
+permissions:
+  contents: read
+
+jobs:
+  powercut:
+    name: Power cut (${{ matrix.fs }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        fs: [ext4, xfs]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: The kernel's dm-log-writes and dm-snapshot
+        run: |
+          sudo modprobe dm-log-writes || { sudo apt-get update -qq && sudo apt-get install -y -qq "linux-modules-extra-$(uname -r)" && sudo modprobe dm-log-writes; }
+          sudo modprobe dm-snapshot
+          sudo apt-get install -y -qq xfsprogs
+      - name: replay-log, from xfstests
+        run: |
+          git init -q x && cd x
+          git fetch -q --depth 1 https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git 22348afe338c0f6d540c0d7ef0db749eaa51b218
+          git checkout -q FETCH_HEAD
+          gcc -O2 -D_GNU_SOURCE -o ../replay-log src/log-writes/replay-log.c src/log-writes/log-writes.c
+      - name: Build
+        run: |
+          go build -o vaglio ./cmd/vaglio
+          go build -o powercut ./tools/powercut
+      - name: Power cut at every flush
+        run: sudo ./powercut -vaglio ./vaglio -policies policies -replay-log ./replay-log -answers 60 -over 75s -mark-every 10 -fs ${{ matrix.fs }}

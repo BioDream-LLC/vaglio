@@ -198,3 +198,17 @@ func TestSeveralPolicies(t *testing.T) {
 		t.Errorf("a failure not named by its policy: %v", f)
 	}
 }
+
+// A clause quoting a sentence that runs on through its list is the document's own words: only the bullets are left
+// out. A clause the document does not hold is still refused.
+func TestQuoteThroughAList(t *testing.T) {
+	doc := "Coverage requires that the Beneficiary has EITHER:\n  • Intractable pain which has failed 6 weeks of treatment\n  OR\n  2. Severe or rapidly progressive symptoms\n"
+	for clause, want := range map[string]bool{
+		"The Beneficiary has EITHER: Intractable pain which has failed 6 weeks of treatment OR Severe or rapidly progressive symptoms": true,
+		"The Beneficiary has EITHER: Intractable pain which has failed 12 weeks of treatment":                                       false,
+	} {
+		if got := Quoted(doc, clause); got != want {
+			t.Errorf("%q: quoted %v, want %v", clause, got, want)
+		}
+	}
+}

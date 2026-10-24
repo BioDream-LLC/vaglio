@@ -250,9 +250,8 @@ func Gate(req Request, answer string) (*policy.Policy, []string) {
 	if p.ID != req.ID {
 		failures = append(failures, fmt.Sprintf("the policy id is %q; it must be %q", p.ID, req.ID))
 	}
-	doc := Normalize(req.Document)
 	for _, a := range p.Arguments {
-		if !strings.Contains(doc, Normalize(a.Clause)) {
+		if !Quoted(req.Document, a.Clause) {
 			msg := fmt.Sprintf("the clause of %s is not quoted word for word from the document: %q. "+
 				"Copy the sentence it encodes exactly.", a.Name, a.Clause)
 			if near := nearest(req.Document, a.Clause); near != "" {
@@ -396,6 +395,21 @@ func Normalize(s string) string {
 		"\u00a0", " ").Replace(s)
 	return strings.ToLower(strings.Join(strings.Fields(s), " "))
 }
+
+// listMarker is a list item's marker at the start of a line: a bullet, or a number or letter with a point or bracket.
+var listMarker = regexp.MustCompile(`(?m)^[ \t]*(?:[•◦▪▫·‣⁃∙○●■□\-*o]|\(?(?:\d{1,2}|[a-zA-Z]|[ivxIVX]{1,4})[.)])[ \t]+`)
+
+// Quoted is whether clause is in the document word for word: spacing, typographic quotes and dashes, case and list
+// items' markers aside.
+func Quoted(doc, clause string) bool {
+	c := Normalize(clause)
+	return strings.Contains(Normalize(doc), c) || strings.Contains(Normalize(withoutListMarkers(doc)), c)
+}
+
+// withoutListMarkers is the document with list items' markers dropped, so a clause quoting a sentence that runs on
+// through its list ("The Beneficiary has EITHER: ... OR ...") is still quoted in the document's own words, in order:
+// only the bullets are not repeated.
+func withoutListMarkers(doc string) string { return listMarker.ReplaceAllString(doc, "") }
 
 // tokens is every word in the document, split at anything a code cannot contain.
 func tokens(doc string) map[string]bool {
