@@ -6,11 +6,15 @@ image:
   pullPolicy: IfNotPresent
 # The name browsers and the PAS server reach Vaglio by (required off loopback).
 hostname: vaglio.example.org
-# Extra serve flags, one per item: ["-clinician-denials", "-token-env", "VAGLIO_TOKEN"].
+# The bearer token the PAS server sends on /api/pas/. Without existingSecret, the chart makes one (Secret
+# RELEASE-pas-token, key token) and keeps it across upgrades; give the same value to the PAS server.
+pasToken:
+  existingSecret: ""
+# Extra serve flags, one per item: ["-clinician-denials"].
 args: []
 # Environment for the flags that name variables (-token-env, -appeals-token-env ...), from existing Secrets:
-#   - name: VAGLIO_TOKEN
-#     valueFrom: {secretKeyRef: {name: vaglio, key: token}}
+#   - name: VAGLIO_APPEALS
+#     valueFrom: {secretKeyRef: {name: vaglio, key: appeals-token}}
 env: []
 # The plan's policies: the name of a ConfigMap holding the .vaglio files, mounted read-only at /policies. Empty: the
 # built-in library only.

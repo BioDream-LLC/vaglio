@@ -167,3 +167,41 @@ func TestErrors(t *testing.T) {
 		}
 	}
 }
+
+// TestLimits: a library that recurses without end, or does too much work, is stopped with an error.
+func TestLimits(t *testing.T) {
+	l, err := Compile("library L\ndefine function F(x Integer): F(x + 1)\ndefine A: F(1)\n" +
+		"define Big: Count(({1,2,3,4,5,6,7,8,9,10}) a, ({1,2,3,4,5,6,7,8,9,10}) b, ({1,2,3,4,5,6,7,8,9,10}) c, " +
+		"({1,2,3,4,5,6,7,8,9,10}) d, ({1,2,3,4,5,6,7,8,9,10}) e2 where a + b + c + d + e2 > 0)\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := &Env{Libraries: map[string]*Library{"L": l}}
+	if _, err := env.Evaluate("L", "A"); err == nil || !strings.Contains(err.Error(), "deep") {
+		t.Errorf("endless recursion: %v", err)
+	}
+	env = &Env{Libraries: map[string]*Library{"L": l}, MaxSteps: 50_000}
+	if _, err := env.Evaluate("L", "Big"); err == nil || !strings.Contains(err.Error(), "limit of work") {
+		t.Errorf("too much work: %v", err)
+	}
+}
+
+// TestNesting: deep nesting in the text, or a parameter whose default names itself, is an error, not a crash.
+func TestNesting(t *testing.T) {
+	if _, err := Compile("library X\ndefine A: " + strings.Repeat("(", 100000) + "1" + strings.Repeat(")", 100000)); err == nil {
+		t.Error("100,000 parentheses compiled")
+	}
+	if _, err := Compile("library X\ndefine A: " + strings.Repeat("not ", 100000) + "true"); err == nil {
+		t.Error("100,000 nots compiled")
+	}
+	if _, err := Compile("library X\ndefine A: " + strings.Repeat("-", 100000) + "1"); err == nil {
+		t.Error("100,000 minus signs compiled")
+	}
+	l, err := Compile("library X\nparameter P default P\ndefine A: P\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (&Env{Libraries: map[string]*Library{"X": l}}).Evaluate("X", "A"); err == nil {
+		t.Error("a parameter defaulting to itself gave a value")
+	}
+}

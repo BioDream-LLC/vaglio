@@ -7,6 +7,7 @@ None of it has been reviewed by anyone outside BioDream; it is the material for 
 - [HIPAA Security Rule](hipaa-security-rule.md): 45 CFR 164.312's technical safeguards, mapped to the code.
 - [Hazard log](hazard-log.md): ways the decision logic could harm a patient, the controls against each, and their tests.
 - [Recovery, measured](recovery.md): what a crash and a standby takeover lose and take, from the recovery drill.
+- [Review](review.md): what a machine review of this pack found and what was done, and the packet for an outside one.
 
 Checkable by anyone, in the repository's Actions tab: tests on Linux, macOS and Windows; the recovery drill;
 govulncheck and npm audit; CodeQL; fuzzing; OWASP ZAP's baseline scan; the OpenSSF Scorecard; the installers and the

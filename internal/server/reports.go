@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/biodream-llc/vaglio/internal/auth"
@@ -209,6 +210,14 @@ func (cfg Config) appealCase(w http.ResponseWriter, r *http.Request, s auth.Sess
 			return
 		} else if !acct.Clinician() {
 			writeError(w, http.StatusForbidden, "a denial is upheld on appeal by a physician: a clinician records it")
+			return
+		}
+	}
+	if pc, ok := cfg.Cases.Get(r.PathValue("id")); ok && pc.AppealTaken != nil && pc.Appeal == nil {
+		if acct, ok, err := cfg.Sessions.Account(s.User); err == nil && ok && pc.AppealTaken.TookPart(acct.Name, acct.NPI) &&
+			!strings.EqualFold(acct.Name, pc.AppealTaken.Denier) {
+			// 42 CFR 422.590(h)(2): decided by someone who took no part in the denial, under any of their accounts.
+			writeError(w, http.StatusForbidden, "this denial was made under your NPI: its appeal is decided by someone else")
 			return
 		}
 	}

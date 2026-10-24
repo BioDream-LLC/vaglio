@@ -49,6 +49,14 @@ func (e *Env) builtin(name string, args []any, n *node, sc *scope) any {
 		}
 		return out
 	}
+	if len(args) == 0 {
+		switch name {
+		case "Today", "Now", "TimeOfDay", "AgeInYears", "AgeInMonths", "AgeInWeeks", "AgeInDays", "Date", "DateTime",
+			"Coalesce":
+		default:
+			e.fail(sc.lib, n, "%s needs an argument", name)
+		}
+	}
 	switch name {
 	case "Today":
 		return e.today()

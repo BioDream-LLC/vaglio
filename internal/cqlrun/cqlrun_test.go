@@ -141,3 +141,27 @@ func TestPins(t *testing.T) {
 		t.Errorf("a cql source with no pinned library: %v", err)
 	}
 }
+
+// TestStoppedIsNotAddressed: a define stopped by the engine's limits (here, endless recursion) is not addressed,
+// which never denies: no finding, and a note saying why.
+func TestStoppedIsNotAddressed(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "loop.cql"), []byte("library Loop\ndefine function F(x Integer): F(x + 1)\n"+
+		"define \"Endless\": F(1) > 0\n"), 0o644)
+	pin, _ := Pin(dir, "loop.cql")
+	p, err := policy.Parse("loop.vaglio", "policy loop\n  title \"L\"\n  version 1\n  source \"S\"\n  service cpt 1\n  "+pin+
+		"\nevidence a\n  text \"A\"\n  clause \"C\"\n  find cql Loop \"Endless\"\ncriterion no_a\n  text \"N\"\n  clause \"C\"\n"+
+		"  defeated by a\ndecision ok approves\n  text \"O\"\n  clause \"C\"\n  defeated by no_a\n"+
+		"decision no denies\n  text \"N\"\n  clause \"C\"\n  defeated by a\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	prog, err := Load(p, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fs, notes := prog.Run(p, request(t))
+	if len(fs) != 0 || len(notes) != 1 || !strings.Contains(notes[0], "deep") {
+		t.Fatalf("%+v %v", fs, notes)
+	}
+}

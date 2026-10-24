@@ -68,6 +68,7 @@ func main() {
 	workers := flag.Int("workers", 4, "LCDs drafted at once")
 	redo := flag.String("redo", "", "a CSV from an earlier run: keep its rows, and draft again only those that ended in an error")
 	redoFailed := flag.Bool("redo-failed", false, "with -redo: draft again every row that did not pass, not only errors")
+	modelTimeout := flag.Duration("model-timeout", 5*time.Minute, "how long one answer from the model may take")
 	maxChars := flag.Int("max-chars", 40000, "LCDs longer than this are left out (the model's context)")
 	flag.Parse()
 
@@ -80,7 +81,8 @@ func main() {
 		log.Fatal(err)
 	}
 	sample := spread(all, *n)
-	m := retrying{&draft.OpenAI{Base: *url, Key: os.Getenv(*keyEnv), Model: *model}}
+	m := retrying{&draft.OpenAI{Base: *url, Key: os.Getenv(*keyEnv), Model: *model,
+		HTTP: &http.Client{Timeout: *modelTimeout}}}
 	if *drafts != "" {
 		if err := os.MkdirAll(*drafts, 0o700); err != nil {
 			log.Fatal(err)

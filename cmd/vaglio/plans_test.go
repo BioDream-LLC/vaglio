@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -173,5 +174,31 @@ func TestShadowDataKeptApart(t *testing.T) {
 	}
 	if shadowAllowed(planSpec{Shadow: true, OutcomesTokenEnv: "X"}) != nil {
 		t.Error("refused a plain pilot")
+	}
+}
+
+// TestPASTokenOffLoopback: off loopback a plan will not open without a PAS token, unless -pas-no-token says something
+// in front of it authenticates the PAS server; a token file others may read, or a short token, is refused.
+func TestPASTokenOffLoopback(t *testing.T) {
+	sp := planSpec{Hostname: "vaglio.plan.example", Policies: t.TempDir(), Data: t.TempDir()}
+	if _, err := openPlan(context.Background(), sp, shared{}); err == nil ||
+		!strings.Contains(err.Error(), "PAS token is required off loopback") {
+		t.Fatalf("no token off loopback: %v", err)
+	}
+	f := filepath.Join(t.TempDir(), "pas-token")
+	os.WriteFile(f, []byte("0123456789abcdef0123\n"), 0o644)
+	sp.TokenFile = f
+	if runtime.GOOS != "windows" {
+		if _, err := openPlan(context.Background(), sp, shared{}); err == nil || !strings.Contains(err.Error(), "read by others") {
+			t.Errorf("a token file others may read: %v", err)
+		}
+	}
+	os.WriteFile(f, []byte("short"), 0o600)
+	os.Chmod(f, 0o600)
+	if _, err := openPlan(context.Background(), sp, shared{}); err == nil || !strings.Contains(err.Error(), "under 16") {
+		t.Errorf("a short token: %v", err)
+	}
+	if got, err := secretFile(f); err != nil || got != "short" {
+		t.Errorf("secretFile: %q %v", got, err)
 	}
 }

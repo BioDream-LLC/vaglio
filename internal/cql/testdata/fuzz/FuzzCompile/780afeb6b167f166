@@ -1,0 +1,2 @@
+go test fuzz v1
+string("concept\"\":{\"\"}define\"2\":\"\"A return A.A as A.e")

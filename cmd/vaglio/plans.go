@@ -58,6 +58,7 @@ type planSpec struct {
 	// Data is the plan's data directory; empty, DATA/plans/<id> under serve's -data.
 	Data            string `json:"data,omitempty"`
 	TokenEnv        string `json:"tokenEnv,omitempty"`
+	TokenFile       string `json:"tokenFile,omitempty"` // the same token, from a private file
 	PASURL          string `json:"pasUrl,omitempty"`
 	PASAPI          string `json:"pasApiUrl,omitempty"`
 	PASTokenEnv     string `json:"pasTokenEnv,omitempty"`
@@ -285,18 +286,19 @@ func openOutside(sp planSpec, policies map[string]*policy.Policy) (*outside.Sour
 
 // shared are the settings every plan of a server takes from serve's flags.
 type shared struct {
-	docs             *server.DocumentModel
-	drafter          *server.Drafter
-	extractors       reader.Extractors
-	extensionDays    int
-	clinicianDenials bool
-	editPolicies     bool
-	library          map[string]*policy.Policy // serve -library: the published library, nil when off
-	demo             string
-	readDocs         bool
-	approveDocs      bool
-	approveSample    int
-	readWorkers      int
+	loopback, pasNoToken bool // listening on loopback only; -pas-no-token
+	docs                 *server.DocumentModel
+	drafter              *server.Drafter
+	extractors           reader.Extractors
+	extensionDays        int
+	clinicianDenials     bool
+	editPolicies         bool
+	library              map[string]*policy.Policy // serve -library: the published library, nil when off
+	demo                 string
+	readDocs             bool
+	approveDocs          bool
+	approveSample        int
+	readWorkers          int
 	// Adoption of library policies by the plan's clinicians, and periodic review (-require-adoption ...).
 	requireAdoption    bool
 	adoptionSignatures int
@@ -396,6 +398,22 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 	token, err := secretFrom(sp.TokenEnv)
 	if err != nil {
 		return fail(fmt.Errorf("token-env: %w", err))
+	}
+	if sp.TokenFile != "" {
+		if sp.TokenEnv != "" {
+			return fail(errors.New("give tokenEnv or tokenFile, not both"))
+		}
+		if token, err = secretFile(sp.TokenFile); err != nil {
+			return fail(fmt.Errorf("token-file: %w", err))
+		}
+	}
+	if token == "" && !sh.loopback && !sh.pasNoToken {
+		return fail(errors.New("a PAS token is required off loopback (-token-env or -token-file): without one, anyone who " +
+			"reaches this server may submit requests and read the answers. Give -pas-no-token only where something in front " +
+			"of it authenticates the PAS server"))
+	}
+	if token != "" && len(token) < 16 {
+		return fail(errors.New("the PAS token is under 16 characters"))
 	}
 	pasToken, err := secretFrom(sp.PASTokenEnv)
 	if err != nil {

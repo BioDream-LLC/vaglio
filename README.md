@@ -622,7 +622,8 @@ Claims a reviewer can verify without trusting BioDream, each with where to look:
   own words. A passing draft is well-formed, not checked for meaning. [docs/lcd-study.md](docs/lcd-study.md), `go run ./tools/lcdstudy`.
 - **The assurance pack**: a threat model, the HIPAA Security Rule's technical safeguards mapped to the code, and a
   hazard log for the decision logic. [docs/assurance](docs/assurance/README.md). Written by BioDream and reviewed by
-  nobody outside it.
+  nobody outside it. A machine review (two language models reading it as an outside auditor would) found real gaps,
+  fixed in code and in the pack: [review.md](docs/assurance/review.md), with the packet for a real outside review.
 
 Not established by anything here: SOC 2 or HITRUST, an independent penetration test, a business associate agreement,
 service levels, certification, clinical validation in production, or any production site.
@@ -680,7 +681,11 @@ curl -fsSL https://raw.githubusercontent.com/BioDream-LLC/vaglio/main/deploy/ins
 
 On Windows, `deploy/install.ps1 -Version vX.Y.Z` from an elevated PowerShell. As a container, the `Dockerfile`
 (distroless, non-root, data in a volume); on Kubernetes, `deploy/helm/vaglio` (one replica: one process holds the log).
-By hand:
+Off loopback, `/api/pas/` needs a bearer token, and the server will not start without one (`-token-env` or
+`-token-file`; `-pas-no-token` only where something in front of it authenticates the PAS server). The installers
+make a random one, readable by the service alone (`/etc/vaglio/pas-token`; `ProgramData\Vaglio\pas-token` on
+Windows), the chart a Secret (`RELEASE-pas-token`); give the same value to the PAS server. A container takes it as an
+environment variable: `docker run -e VAGLIO_PAS_TOKEN=... IMAGE -hostname NAME -token-env VAGLIO_PAS_TOKEN`. By hand:
 
 ```
 vaglio serve -data data -policies policies -token-env VAGLIO_TOKEN \
@@ -815,7 +820,9 @@ Measured with `vaglio bench` (temporary data, invented lumbar MRI requests; run 
 
 The engine's figure is a decision with its full proof and every route to approval. A whole request reads the PAS Bundle,
 finds the evidence, decides, writes the request and then the case to disk, synced, before answering, so the disk's sync
-time, not the engine, sets the pace. Requests arriving together share one sync of the audit log (group commit): each is
+time, not the engine, sets the pace. Since 2026-10-24 the directory is synced too after each new request is renamed into
+it, so the file's name survives a power cut as well as its bytes: on the M4 that cost about a sixth of the throughput
+(the same run, 10 in flight: 675-705 requests/s before, 571-611 after). The table's figures are from before it. Requests arriving together share one sync of the audit log (group commit): each is
 still answered only once its record is on disk, but ten in flight need far fewer syncs than ten one after another.
 Not included: TLS, the network and the PAS server in front. For
 scale, 1,000 requests a second is over 80 million a day.

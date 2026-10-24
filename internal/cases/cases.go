@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/biodream-llc/vaglio/internal/fsx"
 	"github.com/biodream-llc/vaglio/internal/seal"
 	"os"
 	"path/filepath"
@@ -517,6 +518,10 @@ func (s *Store) Open(o Opening, bundle []byte) (*Case, error) {
 			}
 			os.Remove(tmp)
 		}
+		// The name too, not only the bytes: a Bundle renamed into place survives a power cut with its record.
+		if err := fsx.SyncDir(s.bundles); err != nil {
+			return nil, err
+		}
 	}
 	c, wait, err := func() (*Case, func() error, error) {
 		s.mu.Lock()
@@ -797,7 +802,10 @@ func (s *Store) Receive(id string, entries []map[string]any) (*Case, error) {
 	}
 	sum := sha256.Sum256(b)
 	name := hex.EncodeToString(sum[:])
-	if err := seal.WriteFile(filepath.Join(s.bundles, name+".json"), "bundle", b, 0o600); err != nil {
+	if err := seal.WriteFileSync(filepath.Join(s.bundles, name+".json"), "bundle", b, 0o600); err != nil {
+		return nil, err
+	}
+	if err := fsx.SyncDir(s.bundles); err != nil {
 		return nil, err
 	}
 	s.mu.Lock()

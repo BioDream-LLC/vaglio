@@ -68,6 +68,9 @@ type AppealRequest struct {
 	Due       string `json:"due"`    // RFC 3339
 	// Denier is who made the denial being appealed ("engine" for an automated one): the appeal is decided by someone else.
 	Denier string `json:"denier"`
+	// DenierNPI is the denying reviewer's NPI when they were a clinician: the same person under another account does
+	// not decide the appeal either.
+	DenierNPI string `json:"denierNpi,omitempty"`
 }
 
 // AppealTimeframe is how long an appeal (a Medicare Advantage reconsideration, or a Part D redetermination for a drug)
@@ -89,6 +92,11 @@ var ErrNotOpen = errors.New("this case is not waiting for a decision or an appea
 // Open is whether someone must still act: the request waits for a decision, or an appeal for its outcome.
 func (c *Case) Open() bool {
 	return c.Status == Pended || (c.AppealTaken != nil && c.Appeal == nil)
+}
+
+// TookPart is whether the account (by name, or by NPI) made the denial being appealed.
+func (a *AppealRequest) TookPart(user, npi string) bool {
+	return a != nil && (strings.EqualFold(user, a.Denier) || (npi != "" && npi == a.DenierNPI))
 }
 
 // Denier is who made the case's denial: the reviewer, or "engine" when the engine denied it.
@@ -239,6 +247,9 @@ func (s *Store) TakeAppeal(id, user string, a AppealRequest) (*Case, error) {
 		return nil, errors.New("this case's appeal is recorded already")
 	}
 	a.By, a.Denier = user, c.Denier()
+	if c.Status == Reviewed && c.Review != nil {
+		a.DenierNPI = c.Review.ReviewerNPI
+	}
 	a.Due = got.Add(AppealTimeframe(c.Drug, a.Expedited)).UTC().Format(time.RFC3339)
 	if _, err := s.write("user:"+user, ActAppealTaken, id, a); err != nil {
 		return nil, err

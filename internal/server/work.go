@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/biodream-llc/vaglio/internal/auth"
@@ -43,8 +42,8 @@ func (cfg Config) mayWork(acct auth.User, c *cases.Case) bool {
 	if cfg.needsClinician(c) && !acct.Clinician() {
 		return false
 	}
-	if t := c.AppealTaken; t != nil && c.Appeal == nil && strings.EqualFold(t.Denier, acct.Name) {
-		return false // the denier does not decide its appeal
+	if t := c.AppealTaken; t != nil && c.Appeal == nil && t.TookPart(acct.Name, acct.NPI) {
+		return false // the denier does not decide its appeal, under any account
 	}
 	return true
 }

@@ -29,3 +29,20 @@ func Replace(from, to string) error {
 	}
 	return err
 }
+
+// SyncDir makes a directory's entries durable: a file created or renamed into it survives a power cut, not only its
+// contents. Windows has no way to sync a directory and needs none (NTFS journals its metadata): there it does nothing.
+func SyncDir(dir string) error {
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	err = d.Sync()
+	if cerr := d.Close(); err == nil {
+		err = cerr
+	}
+	return err
+}

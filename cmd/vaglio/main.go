@@ -196,6 +196,11 @@ func serve(args []string) error {
 	data := fs.String("data", "data", "directory for the audit log, the cases' request Bundles and the user accounts")
 	tokenEnv := fs.String("token-env", "", "name of an environment variable holding the bearer token /api/pas/ requires "+
 		"(the token itself is never a flag)")
+	tokenFile := fs.String("token-file", "", "a file holding the bearer token /api/pas/ requires, readable by this server "+
+		"alone (the installers make one); instead of -token-env")
+	pasNoToken := fs.Bool("pas-no-token", false, "off loopback, accept requests on /api/pas/ with no bearer token: only "+
+		"where something in front of this server authenticates the PAS server (without a token, anyone who reaches the "+
+		"address may submit requests and read the answers)")
 	pasURL := fs.String("pas-url", "", "the PAS server's FHIR base (such as https://127.0.0.1:8443/fhir): reviewers' decisions "+
 		"on pended cases are sent there as Claim/$decide")
 	pasTokenEnv := fs.String("pas-token-env", "", "name of an environment variable holding the bearer token for -pas-url")
@@ -335,7 +340,7 @@ func serve(args []string) error {
 	set := map[string]bool{}
 	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
 	if *plansFile != "" {
-		for _, f := range []string{"policies", "hostname", "token-env", "pas-url", "pas-token-env", "pas-ca", "pas-api-url",
+		for _, f := range []string{"policies", "hostname", "token-env", "token-file", "pas-url", "pas-token-env", "pas-ca", "pas-api-url",
 			"goldcard", "fax-token-env", "appeals-token-env", "demo-account", "oidc-issuer", "oidc-client-id", "oidc-client-secret-env", "oidc-redirect-url", "oidc-group", "oidc-groups-claim", "oidc-label", "saml-metadata", "saml-entity-id", "saml-acs-url", "saml-name-attribute", "saml-group", "saml-groups-attribute", "saml-label", "criteria", "criteria-token-env",
 			"network", "npi-registry", "members", "letters", "notices", "webhook", "webhook-secret-env", "fax-connectors", "replica-token-env", "um", "um-token-env"} {
 			if set[f] {
@@ -373,7 +378,7 @@ func serve(args []string) error {
 			cs.TokenEnv = v
 			crit[name] = cs
 		}
-		plans = []planSpec{{Hostname: strings.ToLower(*hostname), Policies: *dir, Data: *data, TokenEnv: *tokenEnv,
+		plans = []planSpec{{Hostname: strings.ToLower(*hostname), Policies: *dir, Data: *data, TokenEnv: *tokenEnv, TokenFile: *tokenFile,
 			PASURL: *pasURL, PASAPI: *pasAPI, PASTokenEnv: *pasTokenEnv, PASCA: *pasCA, GoldCard: *goldCardFile,
 			FaxTokenEnv: *faxTokenEnv, AppealsTokenEnv: *appealsTokenEnv, Criteria: crit, Network: *network, Members: *members, Letters: *letters,
 			Webhook: *webhook, Notices: *notices, WebhookSecretEnv: *webhookSecretEnv, FaxConnectors: *faxConnectorsFile,
@@ -448,7 +453,10 @@ func serve(args []string) error {
 			return err2
 		}
 	}
-	sh := shared{docs: docs, clinicianDenials: *clinicianDenials, editPolicies: *editPolicies, demo: *demo,
+	if *tokenEnv != "" && *tokenFile != "" {
+		return errors.New("give -token-env or -token-file, not both")
+	}
+	sh := shared{loopback: loopback, pasNoToken: *pasNoToken, docs: docs, clinicianDenials: *clinicianDenials, editPolicies: *editPolicies, demo: *demo,
 		requireAdoption: *requireAdoption, adoptionSignatures: *adoptionSignatures, reviewEveryDays: *reviewEveryDays}
 	if *adoptionSignatures < 1 || *reviewEveryDays < 0 {
 		return errors.New("-adoption-signatures is at least 1, and -review-every-days 0 or more")
@@ -720,6 +728,26 @@ func secretFrom(env string) (string, error) {
 	v := strings.TrimSpace(os.Getenv(env))
 	if v == "" {
 		return "", fmt.Errorf("names %s, which is empty", env)
+	}
+	return v, nil
+}
+
+// secretFile reads a token from a file only this server's account may read (on Unix: no group or other access).
+func secretFile(path string) (string, error) {
+	st, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if runtime.GOOS != "windows" && st.Mode().Perm()&0o077 != 0 {
+		return "", fmt.Errorf("%s may be read by others (mode %o): make it 600", path, st.Mode().Perm())
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	v := strings.TrimSpace(string(raw))
+	if v == "" {
+		return "", fmt.Errorf("%s is empty", path)
 	}
 	return v, nil
 }

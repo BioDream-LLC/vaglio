@@ -18,9 +18,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/biodream-llc/vaglio/internal/fsx"
 	"github.com/biodream-llc/vaglio/internal/seal"
 	"io"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -107,9 +109,17 @@ const maxLine = 4 << 20
 // Open opens the log at path, creating it if need be, and verifies its whole chain. A broken chain is an error: the
 // server must not carry on writing to a log it cannot vouch for.
 func Open(path string) (*Log, error) {
+	_, statErr := os.Stat(path)
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o600)
 	if err != nil {
 		return nil, err
+	}
+	if errors.Is(statErr, os.ErrNotExist) {
+		// A new log: its name made durable, so its first synced records are never in a file a power cut forgets.
+		if err := fsx.SyncDir(filepath.Dir(path)); err != nil {
+			f.Close()
+			return nil, err
+		}
 	}
 	l := &Log{f: f, now: time.Now}
 	l.sy.cond = sync.NewCond(&l.sy.mu)

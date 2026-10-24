@@ -84,6 +84,15 @@ func TestWorkQueue(t *testing.T) {
 		!strings.Contains(w.Body.String(), "someone else") {
 		t.Errorf("the denier decided the appeal: %d %s", w.Code, w.Body)
 	}
+	// The same clinician under a second account (the same NPI) does not decide it either.
+	pw2, _ := e.users.Set("doc2", auth.Reviewer)
+	e.users.SetClinician("doc2", docNPI(t, e), "MD")
+	e.passwords["doc2"] = pw2
+	doc2 := e.signedIn(t, "doc2")
+	if w := do(doc2, "POST", "/api/cases/"+a.Case+"/appeal", `{"outcome":"upheld","reason":"x"}`); w.Code != http.StatusForbidden ||
+		!strings.Contains(w.Body.String(), "under your NPI") {
+		t.Errorf("the denier, under another account, decided the appeal: %d %s", w.Code, w.Body)
+	}
 	if w := do(reviewer, "POST", "/api/cases/"+a.Case+"/appeal", `{"outcome":"upheld","reason":"x"}`); w.Code != http.StatusForbidden {
 		t.Errorf("a non-clinician upheld a denial: %d", w.Code)
 	}
@@ -94,4 +103,14 @@ func TestWorkQueue(t *testing.T) {
 	if len(q) != 0 {
 		t.Errorf("queue after the appeal: %+v", q)
 	}
+}
+
+// docNPI is the NPI the "doc" account was given.
+func docNPI(t *testing.T, e *env) string {
+	t.Helper()
+	u, ok, err := e.users.Get("doc")
+	if err != nil || !ok || u.NPI == "" {
+		t.Fatal("doc has no NPI")
+	}
+	return u.NPI
 }

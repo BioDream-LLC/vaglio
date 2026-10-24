@@ -25,9 +25,13 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           # The volume's root is the cluster's (group-writable under fsGroup); Vaglio keeps its data in a directory of
           # its own inside it, which it makes private. A later -data overrides the image's.
-          args: ["-data", "/data/vaglio", "-hostname", {{ .Values.hostname | quote }}{{ range .Values.args }}, {{ . | quote }}{{ end }}]
+          args: ["-data", "/data/vaglio", "-hostname", {{ .Values.hostname | quote }}, "-token-env", "VAGLIO_PAS_TOKEN"{{ range .Values.args }}, {{ . | quote }}{{ end }}]
+          env:
+            # The bearer token the PAS server sends on /api/pas/ (templates/secret.yaml, or the plan's own Secret).
+            - name: VAGLIO_PAS_TOKEN
+              valueFrom: {secretKeyRef: {name: {{ .Values.pasToken.existingSecret | default (printf "%s-pas-token" .Release.Name) | quote }}, key: token}}
           {{- with .Values.env }}
-          env: {{- toYaml . | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
           ports: [{name: https, containerPort: 8740}]
           readinessProbe:

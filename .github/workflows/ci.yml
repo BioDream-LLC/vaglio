@@ -112,11 +112,11 @@ jobs:
           kind load docker-image vaglio:ci --name vaglio
       - name: The image alone keeps its data across containers
         run: |
-          docker run -d --name one -v vdata:/data -p 18740:8740 vaglio:ci -hostname localhost
+          docker run -d --name one -e VAGLIO_PAS_TOKEN=ci-pas-token-0123456789 -v vdata:/data -p 18740:8740 vaglio:ci -hostname localhost -token-env VAGLIO_PAS_TOKEN
           for i in $(seq 30); do curl -sk -o /dev/null -H 'Host: localhost' https://127.0.0.1:18740/api/me && break; sleep 1; done
           docker logs one 2>&1 | grep -q 'No users existed'
           docker rm -f one
-          docker run -d --name two -v vdata:/data -p 18740:8740 vaglio:ci -hostname localhost
+          docker run -d --name two -e VAGLIO_PAS_TOKEN=ci-pas-token-0123456789 -v vdata:/data -p 18740:8740 vaglio:ci -hostname localhost -token-env VAGLIO_PAS_TOKEN
           sleep 5
           if docker logs two 2>&1 | grep -q 'No users existed'; then echo 'the data was lost'; exit 1; fi
           curl -sk -o /dev/null -w '%{http_code}\n' -H 'Host: localhost' https://127.0.0.1:18740/api/me | grep 401

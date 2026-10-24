@@ -54,7 +54,16 @@ try {
   Copy-Item (Join-Path $tmp "$name\vaglio.exe") (Join-Path $prog 'vaglio.exe') -Force
   # Data: SYSTEM, Administrators and the service's account only; nothing inherited.
   icacls $data /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' 'NT AUTHORITY\LocalService:(OI)(CI)M' | Out-Null
-  $vargs = "serve -data `"$data`" -policies `"$policies`" -addr $Addr"
+  # The bearer token the PAS server sends on /api/pas/: made once, random, readable by the service's account,
+  # SYSTEM and Administrators only. Give the same value to the PAS server.
+  $tokenFile = Join-Path $root 'pas-token'
+  if (-not (Test-Path $tokenFile) -or (Get-Item $tokenFile).Length -eq 0) {
+    $bytes = New-Object byte[] 32
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+    [System.IO.File]::WriteAllText($tokenFile, (($bytes | ForEach-Object { $_.ToString('x2') }) -join ''))
+  }
+  icacls $tokenFile /inheritance:r /grant:r 'SYSTEM:F' 'Administrators:F' 'NT AUTHORITY\LocalService:R' | Out-Null
+  $vargs = "serve -data `"$data`" -policies `"$policies`" -addr $Addr -token-file `"$tokenFile`""
   if ($HostName -ne '') { $vargs += " -hostname $HostName" }
   # A scheduled task at startup, as LocalService, restarted when it stops: vaglio.exe is a program, not a Windows
   # service binary, and the service manager would kill it for not answering its protocol.
@@ -68,6 +77,7 @@ try {
   if (-not $NoStart) { Start-ScheduledTask -TaskName Vaglio }
   & (Join-Path $prog 'vaglio.exe') version
   Write-Host "Installed. Put the plan's policies in $policies. The console's certificate authority, to trust once, is $data\tls\ca.crt."
+  Write-Host "The PAS server's bearer token is in $tokenFile (give it to the PAS server; it is never printed)."
   Write-Host "The first start made an administrator, admin, whose password went unseen. Give it one with:"
   Write-Host "  & '$prog\vaglio.exe' user reset -data '$data' admin"
 } finally {

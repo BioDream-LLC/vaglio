@@ -18,14 +18,31 @@ type Env struct {
 	Resources  []map[string]any     // the patient's FHIR resources (a Bundle's entries), the Patient among them
 	Parameters map[string]any       // the main library's parameters, by name
 	Now        time.Time            // Now() and Today(); the zero time is the current time
+	// MaxSteps bounds the work one Evaluate may do (expressions evaluated); 0 is DefaultMaxSteps. A library that
+	// recurses without end, or multiplies queries past it, is an error for that define, never a hung server.
+	MaxSteps int
 
 	patient map[string]any
+	steps   int
+	depth   int
+	nest    int
 	memo    map[string]any
 	busy    map[string]bool
 	read    map[string]bool
 	reads   []string
 	started bool
 }
+
+// DefaultMaxSteps is the work an Evaluate may do unless Env says otherwise: far more than a DTR library needs (the
+// largest real one tried takes a few thousand), far less than a request may wait for.
+const DefaultMaxSteps = 2_000_000
+
+// maxDepth bounds nested function calls, maxNest nested evaluation of any kind (a parameter whose default names
+// itself, a define through a parameter): the Go stack is never what stops a library.
+const (
+	maxDepth = 200
+	maxNest  = 5000
+)
 
 // Read is the references (Type/id) of every resource a retrieve returned while evaluating: what an answer rests on.
 func (e *Env) Read() []string { return append([]string{}, e.reads...) }
@@ -125,6 +142,7 @@ func (e *Env) Evaluate(library, define string) (v any, err error) {
 			v, err = nil, ce
 		}
 	}()
+	e.steps = 0
 	return e.define(lib, define, nil), nil
 }
 
@@ -183,11 +201,15 @@ func (e *Env) member(lib *Library, name string, n *node) (any, bool) {
 	if c, ok := lib.Concepts[name]; ok {
 		out := Concept{Display: c.Display}
 		for _, cn := range c.Codes {
-			v, _ := e.member(lib, cn, n)
-			code, ok := v.(Code)
+			cd, ok := lib.Codes[cn]
 			if !ok {
 				e.fail(lib, n, "concept %q lists %q, which is not a code", name, cn)
 			}
+			sys, ok := lib.CodeSystems[cd.System]
+			if !ok {
+				e.fail(lib, n, "code %q names code system %q, which is not declared", cn, cd.System)
+			}
+			code := Code{Code: cd.Code, System: sys.ID, Display: cd.Display, Version: sys.Version}
 			out.Codes = append(out.Codes, code)
 		}
 		return out, true
@@ -208,7 +230,25 @@ func (e *Env) member(lib *Library, name string, n *node) (any, bool) {
 // mainOf: parameters given to Env are the main library's; every library's are taken by name.
 func (e *Env) mainOf(lib *Library) *Library { return lib }
 
+// tick counts one unit of work, and stops the evaluation past the limit.
+func (e *Env) tick(sc *scope, n *node) {
+	e.steps++
+	limit := e.MaxSteps
+	if limit <= 0 {
+		limit = DefaultMaxSteps
+	}
+	if e.steps > limit {
+		e.fail(sc.lib, n, "the evaluation took more than its limit of work, and was stopped")
+	}
+}
+
 func (e *Env) eval(n *node, sc *scope) any {
+	e.tick(sc, n)
+	e.nest++
+	defer func() { e.nest-- }()
+	if e.nest > maxNest {
+		e.fail(sc.lib, n, "the expression nests more than %d deep, and was stopped", maxNest)
+	}
 	switch n.op {
 	case "lit":
 		return n.val
@@ -470,6 +510,11 @@ func (e *Env) apply(lib *Library, f *function, args []any, n *node) any {
 	for i, p := range f.params {
 		vars[p] = args[i]
 	}
+	e.depth++
+	defer func() { e.depth-- }()
+	if e.depth > maxDepth {
+		e.fail(lib, n, "functions call each other more than %d deep, and were stopped", maxDepth)
+	}
 	return e.eval(f.body, &scope{lib: lib, vars: vars})
 }
 
@@ -591,6 +636,7 @@ func (e *Env) query(n *node, sc *scope) any {
 	var rows []map[string]any
 	var walk func(i int, row map[string]any)
 	walk = func(i int, row map[string]any) {
+		e.tick(sc, n)
 		if i == len(srcs) {
 			cp := map[string]any{}
 			for k, v := range row {

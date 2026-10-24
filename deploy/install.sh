@@ -56,12 +56,16 @@ install -m 755 "$tmp/$name/vaglio" /usr/local/bin/vaglio.new && mv /usr/local/bi
 
 mkdir -p /etc/vaglio/policies
 if [ "$os" = linux ]; then data=/var/lib/vaglio; else data=/usr/local/var/vaglio; fi
-flags="serve -data $data -policies /etc/vaglio/policies -addr $addr"
+flags="serve -data $data -policies /etc/vaglio/policies -addr $addr -token-file /etc/vaglio/pas-token"
 [ -n "$hostname" ] && flags="$flags -hostname $hostname"
 
+# The bearer token the PAS server sends on /api/pas/: made once, random, readable by the service alone. Give the
+# same value to the PAS server (Perfuse's -pas-decider-token-env).
+newtoken() { [ -s /etc/vaglio/pas-token ] || (umask 077; od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > /etc/vaglio/pas-token); }
 if [ "$os" = linux ]; then
   id vaglio >/dev/null 2>&1 || useradd --system --home-dir "$data" --shell /usr/sbin/nologin vaglio
   mkdir -p "$data" && chown vaglio:vaglio "$data" && chmod 700 "$data"
+  newtoken && chown vaglio:vaglio /etc/vaglio/pas-token && chmod 600 /etc/vaglio/pas-token
   cat > /etc/systemd/system/vaglio.service <<EOF
 [Unit]
 Description=Vaglio prior authorization decisions
@@ -108,6 +112,7 @@ else
     dscl . -create /Users/_vaglio NFSHomeDirectory "$data"
   }
   mkdir -p "$data" && chown _vaglio:_vaglio "$data" && chmod 700 "$data"
+  newtoken && chown _vaglio:_vaglio /etc/vaglio/pas-token && chmod 600 /etc/vaglio/pas-token
   args=$(for a in /usr/local/bin/vaglio $flags; do printf '    <string>%s</string>\n' "$a"; done)
   cat > /Library/LaunchDaemons/health.biodream.vaglio.plist <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -138,3 +143,4 @@ fi
 /usr/local/bin/vaglio version
 echo "Installed. Put the plan's policies in /etc/vaglio/policies. The first start prints the administrator's password: $logs"
 echo "The console's certificate authority, to trust once, is $data/tls/ca.crt."
+echo "The PAS server's bearer token is in /etc/vaglio/pas-token (give it to the PAS server; it is never printed)."

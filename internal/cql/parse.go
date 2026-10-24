@@ -90,10 +90,14 @@ type function struct {
 func (l *Library) Defines() []string { return append([]string{}, l.order...) }
 
 type parser struct {
-	toks []token
-	i    int
-	lib  string
+	toks  []token
+	i     int
+	lib   string
+	depth int
 }
+
+// maxParseDepth bounds how deep an expression may nest in the text.
+const maxParseDepth = 500
 
 func (p *parser) peek() token       { return p.toks[p.i] }
 func (p *parser) peekN(n int) token { return p.toks[min(p.i+n, len(p.toks)-1)] }
@@ -381,7 +385,14 @@ func (p *parser) mk(op string, args ...*node) *node {
 	return &node{op: op, line: p.peek().line, args: args}
 }
 
-func (p *parser) expr() *node { return p.implies() }
+func (p *parser) expr() *node {
+	p.depth++
+	defer func() { p.depth-- }()
+	if p.depth > maxParseDepth {
+		p.fail("the expression nests more than %d deep", maxParseDepth)
+	}
+	return p.implies()
+}
 
 func (p *parser) implies() *node {
 	l := p.or()
@@ -414,6 +425,11 @@ func (p *parser) and() *node {
 }
 
 func (p *parser) not() *node {
+	p.depth++
+	defer func() { p.depth-- }()
+	if p.depth > maxParseDepth {
+		p.fail("the expression nests more than %d deep", maxParseDepth)
+	}
 	if p.accept("not") {
 		return &node{op: "unary", s: "not", line: p.peek().line, args: []*node{p.not()}}
 	}
@@ -671,6 +687,11 @@ func (p *parser) power() *node {
 }
 
 func (p *parser) unary() *node {
+	p.depth++
+	defer func() { p.depth-- }()
+	if p.depth > maxParseDepth {
+		p.fail("the expression nests more than %d deep", maxParseDepth)
+	}
 	line := p.peek().line
 	u := func(op string) *node { return &node{op: "unary", s: op, line: line, args: []*node{p.unary()}} }
 	switch {
