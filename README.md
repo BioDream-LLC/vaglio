@@ -833,18 +833,20 @@ Measured with `vaglio bench` (temporary data, invented lumbar MRI requests; run 
 
 | | Apple M4, 16 GB, internal SSD | Amazon Lightsail nano, 2 vCPUs (burstable), 512 MB, about $5 a month |
 |---|---|---|
-| Engine alone, one core | 84,000 decisions/s (12 µs each) | 25,000 decisions/s (40 µs each) |
-| Whole PAS requests, one at a time | 213/s; p50 4.0 ms, p99 10 ms | 269/s; p50 3.6 ms, p99 6.9 ms |
-| Whole PAS requests, several in flight | 544/s; p50 19 ms, p99 54 ms (10 in flight) | 1,077/s; p50 7.1 ms, p99 17 ms (8 in flight) |
+| Engine alone, one core | 95,000 decisions/s (10.5 µs each) | 26,000 decisions/s (39 µs each) |
+| Whole PAS requests, one at a time | 125/s; p50 8.0 ms, p99 9.0 ms | 151/s; p50 6.5 ms, p99 8.8 ms |
+| Whole PAS requests, several in flight | 290/s; p50 35 ms, p99 46 ms (10 in flight) | 564/s; p50 13 ms, p99 31 ms (8 in flight) |
 
 The engine's figure is a decision with its full proof and every route to approval. A whole request reads the PAS Bundle,
-finds the evidence, decides, writes the request and then the case to disk, synced, before answering, so the disk's sync
-time, not the engine, sets the pace. Since 2026-10-24 the directory is synced too after each new request is renamed into
-it, so the file's name survives a power cut as well as its bytes: on the M4 that cost about a sixth of the throughput
-(the same run, 10 in flight: 675-705 requests/s before, 571-611 after). The table's figures are from before it. Requests arriving together share one sync of the audit log (group commit): each is
-still answered only once its record is on disk, but ten in flight need far fewer syncs than ten one after another.
-Not included: TLS, the network and the PAS server in front. For
-scale, 1,000 requests a second is over 80 million a day.
+finds the evidence, decides, keeps the request and then writes the case to the audit log, both synced to disk, before
+answering, so the disk's sync time, not the engine, sets the pace. Each request is a new Bundle, as real traffic is.
+Requests arriving together share their syncs: the Bundles go into pack files synced once for all that arrived together,
+then the records into the log the same way (group commit), and each request is answered only once both are on disk.
+Before 2026-10-24 each Bundle was a file of its own with two syncs nobody could share, and the figures here were
+measured sending the same 64 Bundles again and again, which never wrote one after the first: sent new Bundles, that
+older design managed about 150 requests a second on the M4 (the table's figures before were 213 and 544 there, 269 and 1,077 on the nano). On macOS a
+write to a file waits while that file is being synced, which limits how far requests overlap there; Linux does not.
+Measured 2026-10-24. Not included: TLS, the network and the PAS server in front. For scale, 500 requests a second is 43 million a day.
 
 **A standby** (`vaglio standby -from https://PRIMARY -token-env VAR -data DIR [-ca FILE]`, with the primary started
 with `-replica-token-env VAR`) keeps a copy of the primary's data on another machine, usually milliseconds behind: the audit
