@@ -1,5 +1,7 @@
 /bin/
 /vaglio
+# release.sh writes the archives here: ignored, so the builds after the first are not stamped "+dirty"
+/dist/
 
 # front end
 web/node_modules/
