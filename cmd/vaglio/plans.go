@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/biodream-llc/vaglio/internal/adoption"
+	"github.com/biodream-llc/vaglio/internal/anchor"
 	"github.com/biodream-llc/vaglio/internal/auth"
 	"github.com/biodream-llc/vaglio/internal/cases"
 	"github.com/biodream-llc/vaglio/internal/cmswatch"
@@ -294,6 +296,9 @@ type shared struct {
 	adoptionSignatures int
 	reviewEveryDays    int
 	sources            *cmswatch.Watcher
+	// Checkpoints of each plan's audit log, and their witnesses (-anchor-every ...).
+	anchorEvery time.Duration
+	witnesses   []anchor.Witness
 }
 
 // openedPlan is a plan ready to serve.
@@ -527,6 +532,22 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 		}
 		cfg.Webhook = hook
 	}
+	if sh.anchorEvery > 0 {
+		name := sp.Hostname
+		if name == "" {
+			name = "vaglio"
+		}
+		an := &anchor.Anchor{Dir: filepath.Join(sp.Data, "anchor"), Log: st.log, Name: name, Every: sh.anchorEvery,
+			Witnesses: sh.witnesses}
+		if err := an.Open(); err != nil {
+			return fail(fmt.Errorf("anchor: %w", err))
+		}
+		if p := an.Problem(); p != "" {
+			log.Printf("%sWARNING: the audit log does not match its signed checkpoints: %s", where, p)
+		}
+		an.Start(ctx)
+		cfg.Anchor = an
+	}
 	if cfg.Adoption, err = adoption.Open(st.log, filepath.Join(sp.Data, "adopted")); err != nil {
 		return fail(fmt.Errorf("adoptions: %w", err))
 	}
@@ -696,6 +717,17 @@ func (op *openedPlan) report(origin string) {
 			}
 		}
 		log.Printf("%scase-review system %s: pended cases are opened there; its decisions are %s", who, l.Name, how)
+	}
+	if an := op.cfg.Anchor; an != nil {
+		var names []string
+		for _, w := range an.Witnesses {
+			names = append(names, w.Name())
+		}
+		if len(names) == 0 {
+			names = []string{"none (checkpoints are signed and kept here only)"}
+		}
+		log.Printf("%saudit log anchored: a signed checkpoint every %s; key %s; witnesses: %s", who, an.Every,
+			base64.StdEncoding.EncodeToString(an.Public()), strings.Join(names, ", "))
 	}
 	if op.cfg.RequireAdoption {
 		waiting := 0

@@ -58,7 +58,7 @@ func (cfg Config) checkReceipt(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		writeError(w, http.StatusBadRequest, err.Error())
 	default:
-		writeJSON(w, http.StatusOK, c)
+		writeJSON(w, http.StatusOK, cfg.receiptProof(c))
 	}
 }
 

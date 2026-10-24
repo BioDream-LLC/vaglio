@@ -204,6 +204,37 @@ function ReceiptResult({ r }: { r: ReceiptCheck }) {
           <div className="meta break-all font-mono text-xs">record {r.record.hash}</div>
           <div className="meta break-all font-mono text-xs">head {r.chain.head}</div>
         </dd>
+        {r.anchor && (
+          <>
+            <dt>Anchored</dt>
+            <dd>
+              {r.anchor.problem ? (
+                <p role="alert" className="warn">
+                  <strong>The log does not match a checkpoint this server signed:</strong> {r.anchor.problem}
+                </p>
+              ) : r.anchor.pending || !r.anchor.checkpoint ? (
+                'Not yet: the next signed checkpoint of the log will cover this record. Check again later.'
+              ) : (
+                <>
+                  In the checkpoint of {when(r.anchor.checkpoint.time)} ({r.anchor.checkpoint.size} records), signed by{' '}
+                  {r.anchor.checkpoint.name}
+                  {(r.anchor.witnesses ?? []).filter((w) => w.ok).length > 0 &&
+                    `, and witnessed by ${(r.anchor.witnesses ?? [])
+                      .filter((w) => w.ok)
+                      .map((w) => `${w.witness} (${when(w.time)})`)
+                      .join(', ')}`}
+                  . The record cannot have changed since without the checkpoint failing to match.
+                  <div className="meta break-all font-mono text-xs">root {r.anchor.checkpoint.root}</div>
+                  <div className="meta break-all font-mono text-xs">key {r.anchor.checkpoint.key}</div>
+                  <p className="meta">
+                    Save this page&apos;s answer (<a href={`/api/receipts/${encodeURIComponent(r.receipt)}`}>JSON</a>) and check
+                    it offline with <code>vaglio anchor verify -key KEY FILE</code>, the plan&apos;s published key as KEY.
+                  </p>
+                </>
+              )}
+            </dd>
+          </>
+        )}
       </dl>
       {r.later && r.later.length > 0 && (
         <div className="note mt-3">

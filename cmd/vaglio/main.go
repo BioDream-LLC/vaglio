@@ -41,6 +41,7 @@ import (
 	"time"
 
 	"github.com/biodream-llc/vaglio/internal/acme"
+	"github.com/biodream-llc/vaglio/internal/anchor"
 	"github.com/biodream-llc/vaglio/internal/audit"
 	"github.com/biodream-llc/vaglio/internal/auth"
 	"github.com/biodream-llc/vaglio/internal/cases"
@@ -48,6 +49,7 @@ import (
 	"github.com/biodream-llc/vaglio/internal/decide"
 	"github.com/biodream-llc/vaglio/internal/draft"
 	"github.com/biodream-llc/vaglio/internal/editor"
+	"github.com/biodream-llc/vaglio/internal/feed"
 	"github.com/biodream-llc/vaglio/internal/policy"
 	"github.com/biodream-llc/vaglio/internal/precedence"
 	"github.com/biodream-llc/vaglio/internal/reader"
@@ -121,6 +123,8 @@ func main() {
 		err = importDTRCmd(os.Args[2:], os.Stdout)
 	case "sources":
 		err = sourcesCmd(os.Args[2:], os.Stdout)
+	case "anchor":
+		err = anchorCmd(os.Args[2:], os.Stdout)
 	case "version":
 		fmt.Println("vaglio", version)
 	case "help", "-h", "--help":
@@ -141,6 +145,7 @@ func usage(w io.Writer) {
                 [-pas-url URL] [-pas-token-env VAR] [-pas-ca FILE] [-tls-cert FILE -tls-key FILE] [-hostname NAME]
                 [-goldcard FILE] [-clinician-denials] [-pas-api-url URL]
                 [-require-adoption [-adoption-signatures N]] [-review-every-days N] [-watch-sources]
+                [-anchor-every DUR [-anchor-ots] [-anchor-tsa URLS] [-anchor-witness URL [-anchor-witness-token-env VAR]]]
                 [-document-model-url URL -document-model M [-document-model-key-env VAR] [-document-model-remote]]
                 [-edit-policies] [-oidc-issuer URL -oidc-client-id ID -oidc-client-secret-env VAR
                  -oidc-redirect-url URL [-oidc-name-claim C] [-oidc-group G] [-oidc-label TEXT]]
@@ -174,6 +179,7 @@ func usage(w io.Writer) {
                                   a shadow pilot: past requests decided beside what the plan decided
   vaglio import-dtr -id ID -service "SYSTEM CODE..." -out FILE.vaglio QUESTIONNAIRE.json
   vaglio sources                            # the library's Medicare sources against their current CMS versions
+  vaglio anchor verify [-key BASE64] FILE.json...  # a receipt's answer or a consistency proof, checked offline
                                   a draft from a DTR Questionnaire the plan already has (its yes/no questions)
   vaglio readings [-json] A.vaglio B.vaglio    where two readings of one coverage document decide a record differently
   vaglio signoff -by "NAME, CREDENTIAL" [-date YYYY-MM-DD] FILE.vaglio
@@ -228,6 +234,17 @@ func serve(args []string) error {
 		"library policy's text before it decides (a specialist and the medical director: 2)")
 	reviewEveryDays := fs.Int("review-every-days", 365, "every policy in force is due for a clinician's review this many days "+
 		"after its last adoption, review or sign-off (UM accreditation expects at least yearly); 0 for no schedule")
+	anchorEvery := fs.Duration("anchor-every", 0, "sign a checkpoint of the audit log this often (1h): its size and a "+
+		"Merkle root over its records, with the server's own key; receipts then carry a proof against it, and a log "+
+		"rewritten after a checkpoint no longer matches it (0: no checkpoints)")
+	anchorOTS := fs.Bool("anchor-ots", false, "send each checkpoint's digest (a hash, nothing else) to OpenTimestamps "+
+		"calendars, which anchor it in Bitcoin")
+	anchorTSA := fs.String("anchor-tsa", "", "RFC 3161 time-stamping authorities (comma-separated URLs) to time-stamp each "+
+		"checkpoint's digest")
+	anchorWitness := fs.String("anchor-witness", "", "an https endpoint (a regulator's, a partner's) each signed "+
+		"checkpoint is posted to; -anchor-witness-token-env names its bearer token")
+	anchorWitnessToken := fs.String("anchor-witness-token-env", "", "name of an environment variable holding "+
+		"-anchor-witness's bearer token")
 	watchSources := fs.Bool("watch-sources", false, "once a day, ask the CMS Coverage API for the current version of each "+
 		"Medicare document the library's policies were drafted from, and flag the policies whose source has changed "+
 		"(two public reports are read; nothing about the plan is sent)")
@@ -433,6 +450,37 @@ func serve(args []string) error {
 		requireAdoption: *requireAdoption, adoptionSignatures: *adoptionSignatures, reviewEveryDays: *reviewEveryDays}
 	if *adoptionSignatures < 1 || *reviewEveryDays < 0 {
 		return errors.New("-adoption-signatures is at least 1, and -review-every-days 0 or more")
+	}
+	sh.anchorEvery = *anchorEvery
+	if *anchorEvery < 0 || (*anchorEvery > 0 && *anchorEvery < time.Minute) {
+		return errors.New("-anchor-every is a minute or more")
+	}
+	if *anchorEvery == 0 && (*anchorOTS || *anchorTSA != "" || *anchorWitness != "") {
+		return errors.New("witnesses witness checkpoints: set -anchor-every too")
+	}
+	if *anchorOTS {
+		for _, cal := range []string{"https://a.pool.opentimestamps.org", "https://b.pool.opentimestamps.org"} {
+			sh.witnesses = append(sh.witnesses, anchor.OpenTimestamps{Calendar: cal})
+		}
+	}
+	for _, u := range strings.Split(*anchorTSA, ",") {
+		if u = strings.TrimSpace(u); u != "" {
+			// Plain http is allowed here: only a digest goes out, and the token that comes back is signed.
+			if pu, err := url.Parse(u); err != nil || (pu.Scheme != "https" && pu.Scheme != "http") || pu.Host == "" {
+				return fmt.Errorf("-anchor-tsa: %q is not a URL", u)
+			}
+			sh.witnesses = append(sh.witnesses, anchor.TSA{URL: u})
+		}
+	}
+	if *anchorWitness != "" {
+		if err := feed.Check(*anchorWitness); err != nil {
+			return fmt.Errorf("-anchor-witness: %w", err)
+		}
+		tok, err := secretFrom(*anchorWitnessToken)
+		if err != nil {
+			return fmt.Errorf("-anchor-witness-token-env: %w", err)
+		}
+		sh.witnesses = append(sh.witnesses, anchor.HTTPWitness{Label: "witness " + *anchorWitness, URL: *anchorWitness, Token: tok})
 	}
 	if *watchSources {
 		sh.sources = &cmswatch.Watcher{OnFound: func(fs []cmswatch.Finding) {

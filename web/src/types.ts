@@ -424,6 +424,14 @@ export interface ReceiptCheck {
   }[];
   record: { seq: number; hash: string; prev: string };
   chain: { verified: boolean; records: number; head: string };
+  /** The record's proof against the log's signed checkpoints, when the server keeps them. */
+  anchor?: {
+    seq: number;
+    pending?: boolean;
+    problem?: string;
+    checkpoint?: { name: string; size: number; root: string; time: string; key: string };
+    witnesses?: { witness: string; kind: string; time: string; ok: boolean; note?: string; file?: string }[];
+  };
 }
 
 export interface Appeal {

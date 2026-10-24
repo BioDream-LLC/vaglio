@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/biodream-llc/vaglio/internal/adoption"
+	"github.com/biodream-llc/vaglio/internal/anchor"
 	"github.com/biodream-llc/vaglio/internal/audit"
 	"github.com/biodream-llc/vaglio/internal/auth"
 	"github.com/biodream-llc/vaglio/internal/cases"
@@ -136,6 +137,9 @@ type Config struct {
 	AdoptionSignatures int
 	ReviewEvery        time.Duration
 	SourceWatch        *cmswatch.Watcher
+	// Anchor keeps signed checkpoints of the audit log and sends them to the plan's witnesses (internal/anchor); a
+	// receipt's answer then carries its record's proof. nil keeps none.
+	Anchor *anchor.Anchor
 	// FaxHooks are fax services' own webhooks (sinch, documo), at POST /api/feeds/fax/{service}; each checks its own
 	// credentials.
 	FaxHooks map[string]http.Handler
@@ -233,6 +237,10 @@ func New(cfg Config) http.Handler {
 	mux.HandleFunc("GET /api/sso/callback", cfg.ssoCallback)
 	mux.HandleFunc("POST /api/sso/saml", cfg.samlACS)
 	mux.HandleFunc("GET /api/receipts/{code}", cfg.checkReceipt)
+	mux.HandleFunc("GET /api/anchor", cfg.anchorStatus)
+	mux.HandleFunc("GET /api/anchor/checkpoints", cfg.anchorCheckpoints)
+	mux.HandleFunc("GET /api/anchor/consistency", cfg.anchorConsistency)
+	mux.HandleFunc("GET /api/anchor/witness/{file}", cfg.anchorWitness)
 	mux.HandleFunc("GET /api/demo", cfg.demoInfo)
 	mux.HandleFunc("GET /api/me", cfg.anySession(cfg.me))
 	mux.HandleFunc("GET /api/portal/me", cfg.portal(cfg.portalMe))
@@ -307,6 +315,7 @@ func New(cfg Config) http.Handler {
 	scoped("GET /api/export/status", auth.Admin, auth.ScopeAudit, cfg.exportStatus)
 	route("GET /api/um/status", auth.Reviewer, cfg.umStatus)
 	route("GET /api/adoption", auth.Viewer, cfg.adoptionReport)
+	route("POST /api/anchor/checkpoint", auth.Admin, cfg.anchorNow)
 	route("GET /api/policies/{id}/adoption", auth.Viewer, cfg.policyAdoption)
 	route("GET /api/policies/{id}/packet", auth.Viewer, cfg.adoptionPacket)
 	route("POST /api/policies/{id}/adopt", auth.Reviewer, cfg.adoptPolicy)
