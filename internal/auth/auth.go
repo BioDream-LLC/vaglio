@@ -547,19 +547,22 @@ func sameGrant(us User, sess *Session) bool {
 
 // Sessions are the signed-in users, and the guard against guessing passwords.
 type Sessions struct {
-	users    *Users
-	mu       sync.Mutex
-	byToken  map[string]*Session
-	failures map[string][]time.Time
-	now      func() time.Time
-	Idle     time.Duration // signed out after this long without a request
-	Max      time.Duration // and after this long regardless
+	users     *Users
+	mu        sync.Mutex
+	byToken   map[string]*Session
+	failures  map[string][]time.Time // by name, or by known browser (device.go) for attempts from one
+	deviceKey []byte
+	now       func() time.Time
+	Idle      time.Duration // signed out after this long without a request
+	Max       time.Duration // and after this long regardless
 }
 
 // NewSessions returns an empty session table over the accounts.
 func NewSessions(users *Users) *Sessions {
+	k := make([]byte, 32)
+	_, _ = rand.Read(k)
 	return &Sessions{users: users, byToken: map[string]*Session{}, failures: map[string][]time.Time{}, now: time.Now,
-		Idle: 30 * time.Minute, Max: 12 * time.Hour}
+		deviceKey: k, Idle: 30 * time.Minute, Max: 12 * time.Hour}
 }
 
 // Guessing limits: this many failed sign-ins for one name within the window locks the name for the rest of the window.
@@ -576,24 +579,36 @@ var ErrBadCredentials = errors.New("wrong name or password")
 
 // SignIn checks a name and password and returns a new session token.
 func (s *Sessions) SignIn(name, password string) (string, *Session, error) {
+	token, sess, _, err := s.SignInDevice(name, password, "")
+	return token, sess, err
+}
+
+// SignInDevice is SignIn from a browser that may carry a device cookie (device.go): failures from a browser known to
+// the name are counted for that browser alone, and a stranger's failures do not lock it out. It returns, beside the
+// session, a fresh device cookie for the browser to keep.
+func (s *Sessions) SignInDevice(name, password, deviceCookie string) (string, *Session, string, error) {
 	now := s.now()
 	s.mu.Lock()
-	recent := s.failures[name][:0]
-	for _, t := range s.failures[name] {
+	key := name
+	if id := s.device(name, deviceCookie, now); id != "" {
+		key = "device\x00" + id
+	}
+	recent := s.failures[key][:0]
+	for _, t := range s.failures[key] {
 		if now.Sub(t) < failureWindow {
 			recent = append(recent, t)
 		}
 	}
-	s.failures[name] = recent
+	s.failures[key] = recent
 	locked := len(recent) >= maxFailures
 	s.mu.Unlock()
 	if locked {
-		return "", nil, ErrLocked
+		return "", nil, "", ErrLocked
 	}
 
 	us, ok, err := s.users.lookup(name)
 	if err != nil {
-		return "", nil, err
+		return "", nil, "", err
 	}
 	if !ok || us.SSO || us.Hash == "" {
 		check(dummy, password) // the same work as a real check, so an SSO-only name is not told apart by timing
@@ -601,9 +616,9 @@ func (s *Sessions) SignIn(name, password string) (string, *Session, error) {
 	}
 	if !ok || !check(us, password) {
 		s.mu.Lock()
-		s.failures[name] = append(s.failures[name], now)
+		s.failures[key] = append(s.failures[key], now)
 		s.mu.Unlock()
-		return "", nil, ErrBadCredentials
+		return "", nil, "", ErrBadCredentials
 	}
 
 	b := make([]byte, 32)
@@ -611,10 +626,11 @@ func (s *Sessions) SignIn(name, password string) (string, *Session, error) {
 	token := base64.RawURLEncoding.EncodeToString(b)
 	sess := &Session{User: us.Name, Role: us.Role, Scopes: us.Scopes, Via: "password", Created: now, seen: now}
 	s.mu.Lock()
-	delete(s.failures, name)
+	delete(s.failures, key)
 	s.byToken[token] = sess
+	device := s.newDevice(name, now)
 	s.mu.Unlock()
-	return token, sess, nil
+	return token, sess, device, nil
 }
 
 // ErrNotSSO is a single sign-on for a name that has no account allowed to sign in that way.

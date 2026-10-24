@@ -203,3 +203,37 @@ func TestSignInRefusedPerAddress(t *testing.T) {
 		t.Errorf("the 21st attempt, from the same address: %d", w.Code)
 	}
 }
+
+// The lockout gap closed: a stranger's guesses lock a name, and fill the address's allowance, but the browser its owner
+// signed in from before still signs in, and its failed attempt is recorded as from a known browser.
+func TestKnownBrowserSignsInDespiteLock(t *testing.T) {
+	e := newEnvWith(t, "", nil)
+	right := fmt.Sprintf(`{"name":"viewer","password":%q}`, e.passwords["viewer"])
+	w := e.raw("POST", "/api/login", right, nil, "application/json")
+	var device *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		if c.Name == deviceCookie {
+			device = c
+		}
+	}
+	if w.Code != 200 || device == nil || !device.HttpOnly || device.Path != "/api/login" {
+		t.Fatalf("first sign-in: %d, device cookie %+v", w.Code, device)
+	}
+	for i := 0; i < signInFailsPerAddress; i++ {
+		e.raw("POST", "/api/login", `{"name":"viewer","password":"guess"}`, nil, "application/json")
+	}
+	if w := e.raw("POST", "/api/login", right, nil, "application/json"); w.Code == 200 {
+		t.Fatalf("a stranger's browser signed in after the guesses: %d", w.Code)
+	}
+	if w := e.raw("POST", "/api/login", right, device, "application/json"); w.Code != 200 {
+		t.Fatalf("the owner's browser was locked out: %d %s", w.Code, w.Body)
+	}
+	if w := e.raw("POST", "/api/login", `{"name":"viewer","password":"guess"}`, device, "application/json"); w.Code != 401 {
+		t.Fatalf("a wrong password from the known browser: %d", w.Code)
+	}
+	recs := e.log.Records(0, 0)
+	last := recs[len(recs)-1]
+	if last.Action != "user.sign_in_failed" || !strings.Contains(string(last.Data), "a browser that has signed in as this name before") {
+		t.Errorf("the failure was recorded as %s %s", last.Action, last.Data)
+	}
+}

@@ -54,6 +54,10 @@ const maxBody = 1 << 20
 // cookieName is the session cookie.
 const cookieName = "vaglio_session"
 
+// deviceCookie marks a browser that has signed in as a name before (auth/device.go): its sign-in attempts are counted
+// apart, so someone who knows the name cannot lock its owner out of the browsers they already use.
+const deviceCookie = "vaglio_device"
+
 // Config is what the server serves and to whom.
 type Config struct {
 	Policies map[string]*policy.Policy
@@ -528,18 +532,32 @@ func (cfg Config) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ip := clientIP(r)
-	if cfg.signInFails.over(ip, time.Now()) {
+	device := ""
+	if c, err := r.Cookie(deviceCookie); err == nil {
+		device = c.Value
+	}
+	// A browser known to this name has its own count (auth.Sessions.SignInDevice), so neither a stranger's failures on
+	// the name nor a busy shared address (a hospital's one outward address) keeps it out.
+	known := device != "" && cfg.Sessions.KnownDevice(body.Name, device)
+	if !known && cfg.signInFails.over(ip, time.Now()) {
 		cfg.Audit.Append("system", "user.sign_in_refused", "", map[string]string{"name": body.Name, "address": ip,
 			"why": "too many failed sign-ins from this address"})
 		w.Header().Set("Retry-After", "900")
 		writeError(w, http.StatusTooManyRequests, "too many failed sign-ins from this address; try again in 15 minutes")
 		return
 	}
-	token, sess, err := cfg.Sessions.SignIn(body.Name, body.Password)
+	token, sess, newDevice, err := cfg.Sessions.SignInDevice(body.Name, body.Password, device)
 	if err != nil {
 		if errors.Is(err, auth.ErrBadCredentials) || errors.Is(err, auth.ErrLocked) {
-			cfg.signInFails.add(ip, time.Now())
-			cfg.Audit.Append("system", "user.sign_in_failed", "", map[string]string{"name": body.Name, "why": err.Error()})
+			if !known {
+				cfg.signInFails.add(ip, time.Now())
+			}
+			from := "an unknown browser"
+			if known {
+				from = "a browser that has signed in as this name before"
+			}
+			cfg.Audit.Append("system", "user.sign_in_failed", "", map[string]string{"name": body.Name, "why": err.Error(),
+				"address": ip, "from": from})
 			writeError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
@@ -553,6 +571,8 @@ func (cfg Config) login(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: token, Path: "/", HttpOnly: true, Secure: cfg.Secure,
 		SameSite: http.SameSiteStrictMode})
+	http.SetCookie(w, &http.Cookie{Name: deviceCookie, Value: newDevice, Path: "/api/login", HttpOnly: true,
+		Secure: cfg.Secure, SameSite: http.SameSiteStrictMode, MaxAge: int(auth.DeviceLife / time.Second)})
 	writeJSON(w, http.StatusOK, Me{User: sess.User, Role: sess.Role})
 }
 

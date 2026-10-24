@@ -220,3 +220,59 @@ func TestSSOAccounts(t *testing.T) {
 		t.Error("an SSO session outlived the account's SSO")
 	}
 }
+
+// A stranger who knows a name can lock it, but not out of a browser its owner has signed in from before; that browser
+// has its own count, and a forged, old or borrowed cookie counts as a stranger's.
+func TestKnownBrowserIsNotLockedOut(t *testing.T) {
+	u, _ := users(t)
+	pw, _ := u.Set("dr.lee", Reviewer)
+	pw2, _ := u.Set("dr.kim", Reviewer)
+	s := NewSessions(u)
+	clock := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	s.now = func() time.Time { return clock }
+	_, _, device, err := s.SignInDevice("dr.lee", pw, "")
+	if err != nil || device == "" {
+		t.Fatalf("first sign-in: %q %v", device, err)
+	}
+	_, _, kimDevice, _ := s.SignInDevice("dr.kim", pw2, "")
+	for i := 0; i < maxFailures+3; i++ {
+		s.SignIn("dr.lee", "guess")
+	}
+	if _, _, err := s.SignIn("dr.lee", pw); !errors.Is(err, ErrLocked) {
+		t.Fatalf("a stranger's browser after the guesses: %v", err)
+	}
+	if _, _, _, err := s.SignInDevice("dr.lee", pw, device); err != nil {
+		t.Fatalf("the owner's browser was locked out by a stranger: %v", err)
+	}
+	// Someone else's browser, a forged cookie and an expired one are strangers.
+	for name, c := range map[string]string{"another name's": kimDevice, "forged": device[:len(device)-2] + "xx",
+		"empty": ""} {
+		if _, _, _, err := s.SignInDevice("dr.lee", pw, c); !errors.Is(err, ErrLocked) {
+			t.Errorf("a %s cookie got past the lock: %v", name, err)
+		}
+	}
+	// Guessing from the known browser is limited too, on its own count.
+	_, _, device, _ = s.SignInDevice("dr.lee", pw, device)
+	for i := 0; i < maxFailures; i++ {
+		s.SignInDevice("dr.lee", "guess", device)
+	}
+	if _, _, _, err := s.SignInDevice("dr.lee", pw, device); !errors.Is(err, ErrLocked) {
+		t.Fatalf("guesses from a known browser are not limited: %v", err)
+	}
+	clock = clock.Add(DeviceLife + time.Hour)
+	if s.KnownDevice("dr.lee", device) {
+		t.Error("a device cookie older than DeviceLife is still known")
+	}
+}
+
+func TestDeviceKeyKept(t *testing.T) {
+	dir := t.TempDir()
+	a, err := DeviceKey(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := DeviceKey(dir)
+	if err != nil || string(a) != string(b) || len(a) != 32 {
+		t.Fatalf("the key was not kept: %v", err)
+	}
+}

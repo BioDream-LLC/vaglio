@@ -54,8 +54,11 @@ tested by one. What has been run is listed at the end.
 - No outside review of this threat model ([review.md](review.md) is the packet for one, and what a machine review found).
 - Windows does not check the data directory's permissions (Windows reports no Unix modes); the installer sets its ACL.
 - Sessions live in one process's memory: a restart signs everyone out (safe, but not a cluster).
-- The per-name lockout lets someone who knows a name lock that account for a while (the safer of the two failures;
-  the per-address limit and the audit of every failure are what show it).
+- The per-name lockout still lets someone who knows a name lock it for 15 minutes in a browser that has never signed
+  in as that name (a new computer, a cleared browser). Browsers that have signed in as it before keep working: since
+  2026-10-24 each carries a device cookie for the name, signed by the server, and their attempts are counted on their
+  own (five per 15 minutes each) and pass the per-address limit, so a shared outward address cannot keep them out
+  either. Single sign-on is not affected.
 - By default the standby is asynchronous: a primary lost under load can lose the decisions of the last milliseconds.
   `serve -standby-sync` makes each answer wait for the standby, and falls back to asynchronous, recorded, while the
   standby is down (measured: [recovery.md](recovery.md)).

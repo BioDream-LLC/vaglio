@@ -494,13 +494,19 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 		fmt.Printf("  %sNo users existed, so an administrator has been created.\n    username:  admin\n    password:  %s\n"+
 			"  It is shown only now. Add reviewers with: vaglio user add -data %s -role reviewer <name>\n", where, pw, sp.Data)
 	}
+	sessions := auth.NewSessions(st.users)
+	if k, err := auth.DeviceKey(sp.Data); err != nil {
+		return fail(fmt.Errorf("the key for known browsers: %w", err))
+	} else {
+		sessions.SetDeviceKey(k)
+	}
 	cfg := server.Config{
 		Policies:     policies,
 		Library:      sh.library,
 		Assets:       web.Assets(),
 		AllowedHosts: sp.allowed,
 		Token:        token,
-		Sessions:     auth.NewSessions(st.users),
+		Sessions:     sessions,
 		Audit:        st.log,
 		AuditPath:    st.auditPath,
 		Cases:        st.cases,
