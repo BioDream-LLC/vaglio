@@ -1,35 +1,30 @@
-# Vaglio v0.1.1
+# Vaglio v0.2.0
 
 Early: not yet in production anywhere. Vaglio is source-available under PolyForm Shield 1.0.0.
 
-## What changed since v0.1.0
+## What changed since v0.1.1
 
-- **Power cuts.** A new test (`tools/powercut`) replays what the disk was told to keep at every flush, as if the power
-  went just after it; it found that a power cut just after the first start could leave an empty accounts file, so the
-  server would not start. Every state file is now written durably (synced, renamed, directory synced); a record cut
-  off mid-write is set aside on the next start instead of stopping it; anchors sign over synced records only. On ext4
-  and XFS every one of about 670 replayed states starts, verifies and decides, and no answered decision is lost.
-- **Faster where it counts.** Request Bundles are kept in pack files synced together, not one file and two syncs each:
-  290 requests a second on an Apple M4 and 564 on a $5 Lightsail nano with a new Bundle per request, against about
-  150 before. Bundles kept as single files by v0.1.0 are still read. A standby copies them several at a time.
-  `vaglio audit verify` now checks every case's request too.
-- **No more lockout by a stranger.** A browser that has signed in as a name before keeps its own count of failed
-  sign-ins, so someone who knows the name cannot lock its owner out of it.
-- **CQL.** 2,003 of HL7's 2,037 CQL conformance tests pass (Time, Long, Ratio, durations that are uncertain because a
-  date is partial, the aggregate clause, interval and list operators, unit-aware quantities). `import-dtr -tx URL`
-  expands value sets through a terminology server, `-libraries DIR` supplies included libraries a package lacks.
-- **Let's Encrypt beside another program on port 80**: `-acme-http-on-demand` opens it only while fetching.
-- **Drafting**: a clause quoting a sentence that runs on through its list is accepted with its bullets left out.
+- **The library's policies now wait for the plan's clinicians.** Each built-in library policy decides only once the
+  plan's own clinicians adopt its exact text in the console (name, NPI, credential and the text's hash recorded), as
+  Medicare Advantage rules (42 CFR 422.137) and NCQA accreditation expect of the criteria a plan runs on. Until then its
+  services are answered "decides nothing", so the PAS server in front decides or queues them as it would without
+  Vaglio. Before, library policies decided as published unless `-require-adoption` was given.
+  **To keep the old behaviour** (a demonstration or a trial), start the server with `-require-adoption=false`, or put
+  `"requireAdoption": false` on a plan in a `-plans` file. The plan's own clinician-signed policies are unaffected.
+- **Drafting**: a clause quoting a sentence that runs on through its list is accepted with its bullets left out; with
+  it, a model drafted every one of the 60 LCDs in the study.
+- Fixes to the tests and the demo's deployment script.
 
-**Upgrading**: stop the server, replace the program, start it. A v0.1.1 server writes pack files that v0.1.0 cannot
-read: do not go back to v0.1.0 on the same data.
+**Upgrading from v0.1.x**: stop the server, replace the program, start it, then either have the plan's clinicians adopt
+the library policies it runs on (the console's "The plan's clinicians" panel lists them) or add
+`-require-adoption=false`. Data written by v0.1.1 is read as is; do not go back to v0.1.0 on data v0.1.1 or later wrote.
 
 ## Checking what you downloaded
 
 Each archive is listed in `SHA256SUMS`. Every archive also has a build provenance attestation from GitHub Actions,
 signed through Sigstore, saying which commit and workflow built it:
 
-    gh attestation verify vaglio-v0.1.1-linux-amd64.tar.gz --repo BioDream-LLC/vaglio
+    gh attestation verify vaglio-v0.2.0-linux-amd64.tar.gz --repo BioDream-LLC/vaglio
 
 The archives are reproducible: the release workflow builds them twice, on x86 and Arm runners, and publishes nothing
 unless the two are byte for byte the same. Building `deploy/release.sh v0.1.0` from the tagged commit with the Go

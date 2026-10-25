@@ -234,9 +234,10 @@ func serve(args []string) error {
 		"with /fhir replaced by /api, as Perfuse serves it)")
 	clinicianDenials := fs.Bool("clinician-denials", false, "the engine never denies on its own: it proposes a denial, "+
 		"and only an account recorded as a clinician may make it (for states that require a clinician to review AI denials)")
-	requireAdoption := fs.Bool("require-adoption", false, "a library policy decides only once the plan's clinicians have "+
+	requireAdoption := fs.Bool("require-adoption", true, "a library policy decides only once the plan's clinicians have "+
 		"adopted its exact text in the console (each adoption recorded with name, NPI and credential); until then it "+
-		"decides nothing here, and a newer library version waits for adoption while the adopted one decides")
+		"decides nothing here, and a newer library version waits for adoption while the adopted one decides. "+
+		"-require-adoption=false lets library policies decide as published (a demonstration, a trial)")
 	adoptionSignatures := fs.Int("adoption-signatures", 1, "with -require-adoption, how many different clinicians must adopt a "+
 		"library policy's text before it decides (a specialist and the medical director: 2)")
 	reviewEveryDays := fs.Int("review-every-days", 365, "every policy in force is due for a clinician's review this many days "+

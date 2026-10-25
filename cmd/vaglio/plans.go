@@ -80,10 +80,10 @@ type planSpec struct {
 	WebhookSecretEnv string `json:"webhookSecretEnv,omitempty"`
 	// ClinicianDenials: only clinicians deny this plan's requests (serve -clinician-denials turns it on for every plan).
 	ClinicianDenials bool `json:"clinicianDenials,omitempty"`
-	// RequireAdoption: this plan's library policies decide only once its clinicians adopt them (serve
-	// -require-adoption turns it on for every plan); AdoptionSignatures is how many must.
-	RequireAdoption    bool `json:"requireAdoption,omitempty"`
-	AdoptionSignatures int  `json:"adoptionSignatures,omitempty"`
+	// RequireAdoption: whether this plan's library policies decide only once its clinicians adopt them; unset, as
+	// serve -require-adoption says (on unless -require-adoption=false). AdoptionSignatures is how many must.
+	RequireAdoption    *bool `json:"requireAdoption,omitempty"`
+	AdoptionSignatures int   `json:"adoptionSignatures,omitempty"`
 	// EditPolicies: this plan's console has the policy editor (serve -edit-policies turns it on for every plan).
 	EditPolicies bool `json:"editPolicies,omitempty"`
 	// SSO is the plan's single sign-on: its own identity provider, client and callback on its own hostname.
@@ -514,7 +514,7 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 		GoldCard:     gold,
 		// Set where the server is started, never in the console: who may deny care is the deployment's to decide.
 		ClinicianDenials:   sh.clinicianDenials || sp.ClinicianDenials,
-		RequireAdoption:    sh.requireAdoption || sp.RequireAdoption,
+		RequireAdoption:    pick(sp.RequireAdoption, sh.requireAdoption),
 		AdoptionSignatures: max(sh.adoptionSignatures, sp.AdoptionSignatures),
 		ReviewEvery:        time.Duration(sh.reviewEveryDays) * 24 * time.Hour,
 		SourceWatch:        sh.sources,
@@ -873,4 +873,12 @@ func shadowData(dir string, shadow bool, cases int) error {
 func mustSource(id string) []byte {
 	src, _ := library.Source(id)
 	return src
+}
+
+// pick is a plan's own setting when its -plans entry has one, else the server's.
+func pick(plan *bool, server bool) bool {
+	if plan != nil {
+		return *plan
+	}
+	return server
 }

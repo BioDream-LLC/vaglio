@@ -1,12 +1,14 @@
 # The plan's clinicians approve the policies it runs on
 
 Vaglio's library policies are drafted from public Medicare documents (LCDs and NCDs) and public Medicaid criteria. By
-default they decide as published, and a plan that reads a rule differently overrides one with its own clinician-signed
-version. A plan's own physicians must approve whatever it actually runs on, so a server can require that.
+themselves they decide nothing: a plan's own physicians must approve whatever it actually runs on (Medicare Advantage:
+a utilization management committee reviewing its policies at least yearly, 42 CFR 422.137; NCQA: practitioners
+involved in adopting and reviewing criteria). A plan that reads a rule differently overrides one with its own
+clinician-signed version instead.
 
-## Adoption (`serve -require-adoption`)
+## Adoption (on by default; `serve -require-adoption=false` turns it off)
 
-With `-require-adoption`, a library policy decides only once the plan's clinicians have adopted its exact text.
+A library policy decides only once the plan's clinicians have adopted its exact text.
 Until then it decides nothing here: the PAS decision service answers "decides nothing" (404) for its services, so the
 PAS server answers as it would without Vaglio, and advice before submitting says the same.
 
@@ -24,9 +26,10 @@ PAS server answers as it would without Vaglio, and advice before submitting says
 - **Withdrawal.** A clinician withdraws an adoption, with a reason, and the policy decides nothing again.
 - **The plan's own policies.** The clinician's sign-off on the plan's own policies (overrides included) is their
   adoption; they need nothing more.
-- **Off by default.** Without the flag, library policies decide as published, as before, and the public demo keeps
-  that. A plan turns this on, for every plan with the flag or per plan with `"requireAdoption": true` and
-  `"adoptionSignatures"` in a `-plans` file.
+- **On by default** (since after v0.1.1; before, library policies decided as published unless `-require-adoption` was
+  given). `-require-adoption=false` lets them decide as published, for a demonstration or a trial, as the public demo
+  does; per plan, `"requireAdoption": false` or `true` in a `-plans` file overrides the flag, with
+  `"adoptionSignatures"` beside it.
 
 ## When the program brings a new version
 
