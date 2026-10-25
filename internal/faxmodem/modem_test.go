@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -145,10 +146,20 @@ func encode(t *testing.T, twoD bool) []byte {
 func standIn(t *testing.T, conn net.Conn, class string, pages [][]byte, twoD, lsb bool) {
 	defer conn.Close()
 	r := bufio.NewReader(conn)
+	// One stream, as a modem's serial line is: every write whole and in turn (the rings come from another goroutine,
+	// and a second RING landing inside a page's data once corrupted it).
+	var mu sync.Mutex
+	write := func(b []byte) {
+		mu.Lock()
+		defer mu.Unlock()
+		conn.Write(b)
+	}
 	say := func(lines ...string) {
+		var b strings.Builder
 		for _, l := range lines {
-			io.WriteString(conn, "\r\n"+l+"\r\n")
+			b.WriteString("\r\n" + l + "\r\n")
 		}
+		write([]byte(b.String()))
 	}
 	prefix := func(two, one string) string {
 		if class == "2.0" {
@@ -200,7 +211,7 @@ func standIn(t *testing.T, conn net.Conn, class string, pages [][]byte, twoD, ls
 				w.WriteByte(b)
 			}
 			w.Write([]byte{0x10, 0x03})
-			conn.Write(w.Bytes())
+			write(w.Bytes())
 			next++
 			et := "0"
 			if next == len(pages) {
