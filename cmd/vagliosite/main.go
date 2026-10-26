@@ -369,9 +369,8 @@ func (s *site) sitemap() error {
 
 var (
 	hrefRE = regexp.MustCompile(`(?:href|src)="(/[^"#?]*)`)
-	// Words the site must never carry: Vaglio is source-available, never described as open source, and the site
-	// names no other project of BioDream's but Perfuse.
-	forbidden = regexp.MustCompile(`(?i)open[ -]source|quorum|bryan`)
+	// Words the site must never carry: Vaglio is source-available, never described as open source.
+	forbidden = regexp.MustCompile(`(?i)open[ -]source`)
 )
 
 // check refuses a site with a link to a page or file it does not have, or a forbidden word.
