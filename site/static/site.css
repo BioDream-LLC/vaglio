@@ -333,3 +333,8 @@ p { margin: 0 0 1em; }
   body { background: #fff; }
 }
 .pc-steps code, .pc-foot code, .hero-note code { white-space: nowrap; }
+
+/* Links on dark backgrounds keep a light colour on hover (the general a:hover turns text ink, which vanishes there). */
+.top .brand:hover, .foot .brand:hover, .mobile-panel a:hover, .maker a:hover { color: #fff; }
+.top .brand:hover span, .foot .brand:hover span { color: #c9b5ff; }
+.try .btn-solid:hover, .top .btn-solid:hover { background: var(--violet-2); }
