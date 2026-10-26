@@ -9,6 +9,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -67,7 +69,12 @@ func build(root, out, base string) (int, error) {
 	if err := os.RemoveAll(out); err != nil {
 		return 0, err
 	}
-	site := &site{root: root, out: out, base: base, version: version, arts: arts}
+	css, err := os.ReadFile(filepath.Join(root, "site/static/site.css"))
+	if err != nil {
+		return 0, err
+	}
+	sum := sha256.Sum256(css)
+	site := &site{root: root, out: out, base: base, version: version, arts: arts, cssVersion: hex.EncodeToString(sum[:4])}
 	for _, p := range []struct{ src, path, title, desc string }{
 		{"home.html", "/", "Vaglio: prior authorization decisions that show their work",
 			"Vaglio is a source-available prior authorization decision engine by BioDream LLC. Every answer is a proof, and missing evidence never denies care."},
@@ -112,6 +119,7 @@ func build(root, out, base string) (int, error) {
 
 type site struct {
 	root, out, base, version string
+	cssVersion               string // the start of the stylesheet's SHA-256, so a changed one is never served from cache
 	arts                     []article
 	paths                    []string
 }
@@ -318,8 +326,9 @@ func (s *site) write(rel, content string) error {
 // assets copies the stylesheet, the logo and the screenshots the pages use.
 func (s *site) assets() error {
 	copies := map[string]string{
-		"site/static/site.css":        "site.css",
-		"docs/assets/vaglio-logo.svg": "logo.svg",
+		"site/static/site.css":              "site.css",
+		"docs/assets/vaglio-logo.svg":       "logo.svg",
+		"docs/assets/biodream-wordmark.png": "biodream-wordmark.png",
 	}
 	shots, err := filepath.Glob(filepath.Join(s.root, "docs/assets/screens/*.png"))
 	if err != nil {

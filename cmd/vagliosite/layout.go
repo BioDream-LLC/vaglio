@@ -76,7 +76,7 @@ func (s *site) layout(path, title, desc, body string) string {
 <meta name="description" content="%s">
 <link rel="canonical" href="%s">
 <link rel="icon" href="/logo.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/site.css">
+<link rel="stylesheet" href="/site.css?v=%s">
 <meta property="og:title" content="%s">
 <meta property="og:description" content="%s">
 <meta property="og:type" content="website">
@@ -98,7 +98,7 @@ func (s *site) layout(path, title, desc, body string) string {
 %s
 </body>
 </html>
-`, html.EscapeString(title), html.EscapeString(desc), canonical, html.EscapeString(title), html.EscapeString(desc), canonical,
+`, html.EscapeString(title), html.EscapeString(desc), canonical, s.cssVersion, html.EscapeString(title), html.EscapeString(desc), canonical,
 		s.menu(path), repo, icon("github"), demo, icon("menu"), s.mobileMenu(), body, s.footer())
 	return b.String()
 }
@@ -117,7 +117,7 @@ func (s *site) mobileMenu() string {
 
 func (s *site) footer() string {
 	var b strings.Builder
-	b.WriteString(`<footer class="foot"><div class="wrap foot-grid"><div class="foot-brand"><a class="brand" href="/"><img src="/logo.svg" alt="" width="30" height="30"><span>Vaglio</span></a><p>A prior authorization decision engine that cannot deny care without proving why. Made by BioDream LLC.</p><p class="foot-small">Source-available under the PolyForm Shield License 1.0.0. Pull requests are not accepted; bug reports and private security reports are welcome.</p></div>`)
+	b.WriteString(`<footer class="foot"><div class="wrap foot-grid"><div class="foot-brand"><a class="brand" href="/"><img src="/logo.svg" alt="" width="30" height="30"><span>Vaglio</span></a><p>A prior authorization decision engine that cannot deny care without proving why.</p><p class="foot-small">Source-available under the PolyForm Shield License 1.0.0. Pull requests are not accepted; bug reports and private security reports are welcome.</p></div>`)
 	for _, ar := range areas {
 		fmt.Fprintf(&b, `<div><b>%s</b>`, html.EscapeString(ar.menu))
 		for _, a := range s.byArea(ar.name) {
@@ -127,6 +127,7 @@ func (s *site) footer() string {
 	}
 	fmt.Fprintf(&b, `<div><b>Get it</b><a href="/download/">Download %s</a><a href="%s">Source on GitHub</a><a href="%s/releases">Releases</a><a href="%s">The demonstration</a><a href="https://perfuse.health">Perfuse, the PAS server in front</a><a href="%s/blob/main/LICENSE.md">The licence</a><a href="%s/security">Report a security problem</a></div></div>`,
 		s.version, repo, repo, demo, repo, repo)
+	b.WriteString(`<div class="wrap maker"><a href="https://biodream.io" aria-label="BioDream LLC"><img src="/biodream-wordmark.png" alt="BioDream" width="88" height="60"></a><p>Vaglio is a product of <a href="https://biodream.io">BioDream LLC</a>, which builds free and source-available software for healthcare, telecom and 911, and the support to run it. Commercial licences: <a href="mailto:firstmind@biodream.ai">firstmind@biodream.ai</a>. <a href="https://biodream.io/support/">Support from BioDream</a></p></div>`)
 	b.WriteString(`<div class="wrap foot-legal"><p>© 2026 BioDream LLC. Vaglio is not affiliated with or endorsed by CMS, HL7, the Da Vinci Project, AHIP, BCBSA or any company named on this site. HL7 and FHIR are registered trademarks of Health Level Seven International. Nothing on this site is medical or legal advice; the example policies are illustrative and are not any plan's coverage policy.</p></div></footer>`)
 	return b.String()
 }
