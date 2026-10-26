@@ -21,9 +21,9 @@ type Report struct {
 // OK is whether the policy can be put in front of a request.
 func (r *Report) OK() bool { return len(r.Defects) == 0 && len(r.Unreachable) == 0 }
 
-// Check solves the policy on every combination of evidence present, as cbc's validation pass does for a casebook: a
-// policy is not trusted on the strength of the cases its author thought of. It fails a policy that contradicts itself
-// or rejects everything on some evidence, or that declares a decision that never holds.
+// Check solves the policy on every combination of evidence present: a policy is not trusted on the strength of the
+// cases its author thought of. It fails a policy that contradicts itself or rejects everything on some evidence, or
+// that declares a decision that never holds.
 func Check(p *policy.Policy) *Report {
 	ev := p.EvidenceNames()
 	total := 1 << uint(len(ev)) // policy.Validate bounds len(ev)

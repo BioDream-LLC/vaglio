@@ -1,0 +1,82 @@
+<section class="hero">
+<div class="wrap hero-grid">
+<div class="hero-copy">
+<p class="eyebrow">Source-available · On the plan's own servers · Works behind Perfuse</p>
+<h1>Prior authorization that has to <em>show its work</em>.</h1>
+<p class="lede">Vaglio decides a health plan's prior authorization requests, and every answer it gives is a proof: the plan's own policy quoted word for word, the place in the patient's record each finding came from, and every step between them. When the record leaves a gap, Vaglio does not deny. It asks for the missing evidence by name.</p>
+<div class="hero-actions"><a class="btn btn-solid" href="{{DEMO}}">{{ICON:play}}Try the live demo</a><a class="btn btn-ghost" href="/learn/how-vaglio-decides/">How it decides {{ICON:arrow}}</a></div>
+<p class="hero-note">Demo sign-in <code>demo</code> / <code>try-vaglio-demo</code>. Invented requests only; look at everything, change nothing.</p>
+</div>
+<figure class="proof-card" aria-label="An example of a decision Vaglio gives">
+<div class="pc-head"><span class="pc-case"><i>Example</i> Lumbar spine MRI · CPT 72148</span><span class="pill pill-pend">Pended</span></div>
+<p class="pc-answer">Not denied. Two pieces of evidence would settle it.</p>
+<ol class="pc-steps">
+<li class="ok"><span class="pc-mark">{{ICON:check}}</span><div><b>Six weeks of conservative therapy, without relief</b><small>Found: the provider's questionnaire answer, item <code>conservative-therapy</code></small></div></li>
+<li class="ok"><span class="pc-mark">{{ICON:check}}</span><div><b>No red-flag finding is claimed</b><small>Found: no qualifying diagnosis in the request's conditions</small></div></li>
+<li class="ask"><span class="pc-mark">?</span><div><b>A lumbar MRI in the last six months</b><small>The record does not say either way. <em>Asked for by name.</em></small></div></li>
+<li class="ask"><span class="pc-mark">?</span><div><b>New or worsening symptoms since then</b><small>Needed only if there was a recent MRI. <em>Asked for by name.</em></small></div></li>
+</ol>
+<blockquote class="pc-clause">“A repeat MRI within six months of a prior study is not indicated unless the condition has changed.”<cite>The plan's policy, quoted exactly</cite></blockquote>
+<div class="pc-foot"><span>Receipt <code>VG-7K2D-Q9XM-4HTB-R3WC</code></span><span>Checkable against the log</span></div>
+</figure>
+</div>
+</section>
+
+<section class="strip">
+<div class="wrap strip-grid">
+<div><b>One rule above all</b><span>A denial may rest on evidence of absence, never on absence of evidence.</span></div>
+<div><b>Every combination</b><span>Each policy is tried on every combination of evidence it can be given before it may decide.</span></div>
+<div><b>95,000 a second</b><span>Decisions with their full proof, on one core of an Apple M4. About 26,000 on a $5 server.</span></div>
+<div><b>One 11 MB program</b><span>Reviewers' console, policy editor, reports and audit log built in. Nothing else to install.</span></div>
+</div>
+</section>
+
+<section class="band" id="what">
+<div class="wrap">
+<div class="section-head"><p class="eyebrow">What it does</p><h2>Twelve ideas, each explained from the beginning</h2><p>Every square opens a long article in plain words. Start anywhere; each one stands on its own.</p></div>
+{{TILES}}
+</div>
+</section>
+
+<section class="band band-ink" id="how">
+<div class="wrap">
+<div class="section-head on-ink"><p class="eyebrow">How a request is decided</p><h2>From a doctor's request to an answer anyone can check</h2></div>
+<ol class="steps">
+<li><span class="step-n">1</span><h3>It arrives</h3><p>Through the plan's prior authorization server, such as Perfuse, in the Da Vinci PAS standard, or keyed in from a fax, a call or the provider portal. Every route reaches the same engine.</p></li>
+<li><span class="step-n">2</span><h3>The evidence is found</h3><p>Vaglio reads the patient's record in the request and finds each piece of evidence the policy names, noting exactly where it came from.</p></li>
+<li><span class="step-n">3</span><h3>It decides, with proof</h3><p>The plan's signed policy is applied. The answer is approve, deny with its proof, or pend with the missing evidence named. Anything uncertain goes to a person.</p></li>
+<li><span class="step-n">4</span><h3>It is recorded</h3><p>The decision goes into a tamper-evident log before the answer is sent, with a receipt anyone holding it can check later.</p></li>
+</ol>
+</div>
+</section>
+
+<section class="band">
+<div class="wrap shots">
+<div class="section-head"><p class="eyebrow">What it looks like</p><h2>The reviewer sees why, not just what</h2><p>The console is built into the program. These are screens from the public demonstration.</p></div>
+<figure class="shot shot-main"><img src="/img/whatif.png" alt="The what-if sandbox on a denied case: one piece of evidence switched to present turns the denial into an approval, and the proof redraws." width="1600" height="1000" loading="lazy"><figcaption><b>What would change it.</b> Switch any piece of evidence on or off and watch the decision and its proof redraw.</figcaption></figure>
+<div class="shot-row">
+<figure class="shot"><img src="/img/pend.png" alt="A pended case, listing the evidence the record leaves unaddressed." width="1600" height="1000" loading="lazy"><figcaption><b>A pend that says what is missing.</b></figcaption></figure>
+<figure class="shot"><img src="/img/receipt.png" alt="The public receipt page, checking a decision's receipt against the log." width="1600" height="1000" loading="lazy"><figcaption><b>A receipt anyone can check.</b></figcaption></figure>
+<figure class="shot"><img src="/img/map.png" alt="The policy map, a grid of every combination of evidence and the decision each one gets." width="1600" height="1000" loading="lazy"><figcaption><b>Every combination, on one map.</b></figcaption></figure>
+</div>
+</div>
+</section>
+
+<section class="band band-tint" id="limits">
+<div class="wrap limits">
+<div><p class="eyebrow">Said plainly</p><h2>What Vaglio has not done yet</h2><p>We would rather you heard it here first.</p><a class="btn btn-ghost" href="/learn/what-it-has-not-done/">The whole list {{ICON:arrow}}</a></div>
+<ul class="limit-list">
+<li><b>No health plan runs it in production.</b> Everything has been built and tested, on invented requests and against standard test kits, but no real patient's request has been decided by it.</li>
+<li><b>It ships no licensed clinical criteria.</b> InterQual and MCG are licensed products. Vaglio's library is drafted from public Medicare documents; a plan brings its own policies or its own licence.</li>
+<li><b>Nobody outside BioDream has reviewed it.</b> Its threat model, safety hazard log and HIPAA mapping are written down and published, but no independent auditor or clinician has signed them.</li>
+<li><b>It is not certified.</b> No SOC 2, no HITRUST, no penetration test by an outside firm, and no service levels: it is software a plan runs, not a service someone runs for it.</li>
+</ul>
+</div>
+</section>
+
+<section class="band cta">
+<div class="wrap cta-grid">
+<div><h2>See it decide a request</h2><p>The demonstration decides an invented lumbar MRI request every 20 minutes, and starts again every night. Open a case, flip its evidence, read its letter in English or Spanish, and check its receipt.</p></div>
+<div class="cta-actions"><a class="btn btn-solid" href="{{DEMO}}">{{ICON:play}}Try the demo</a><a class="btn btn-ghost" href="/download/">{{ICON:download}}Download {{VERSION}}</a><a class="btn btn-ghost" href="{{REPO}}">{{ICON:github}}Read the source</a></div>
+</div>
+</section>

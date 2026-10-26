@@ -1,0 +1,56 @@
+<section class="page-hero">
+<div class="wrap narrow">
+<p class="eyebrow">Download</p>
+<h1>Vaglio {{VERSION}}</h1>
+<p class="lede">One program for Linux, macOS and Windows, on x86 and Arm. The reviewers' console, policy editor, policy library, reports and audit log are all inside it. There is no database to install and no other runtime to set up.</p>
+<div class="hero-actions"><a class="btn btn-solid" href="{{REPO}}/releases/tag/{{VERSION}}">{{ICON:download}}The {{VERSION}} release on GitHub</a><a class="btn btn-ghost" href="{{DEMO}}">{{ICON:play}}Or try the demo first</a></div>
+</div>
+</section>
+
+<section class="band">
+<div class="wrap narrow prose">
+<h2 id="archives">The archives</h2>
+<div class="table"><table>
+<thead><tr><th>System</th><th>x86 (Intel, AMD)</th><th>Arm</th></tr></thead>
+<tbody>
+<tr><td>Linux</td><td><a href="{{REPO}}/releases/download/{{VERSION}}/vaglio-{{VERSION}}-linux-amd64.tar.gz">linux-amd64.tar.gz</a></td><td><a href="{{REPO}}/releases/download/{{VERSION}}/vaglio-{{VERSION}}-linux-arm64.tar.gz">linux-arm64.tar.gz</a></td></tr>
+<tr><td>macOS</td><td><a href="{{REPO}}/releases/download/{{VERSION}}/vaglio-{{VERSION}}-darwin-amd64.tar.gz">darwin-amd64.tar.gz</a></td><td><a href="{{REPO}}/releases/download/{{VERSION}}/vaglio-{{VERSION}}-darwin-arm64.tar.gz">darwin-arm64.tar.gz</a> (Apple silicon)</td></tr>
+<tr><td>Windows</td><td><a href="{{REPO}}/releases/download/{{VERSION}}/vaglio-{{VERSION}}-windows-amd64.zip">windows-amd64.zip</a></td><td><a href="{{REPO}}/releases/download/{{VERSION}}/vaglio-{{VERSION}}-windows-arm64.zip">windows-arm64.zip</a></td></tr>
+</tbody>
+</table></div>
+<p>Beside them in the release: <a href="{{REPO}}/releases/download/{{VERSION}}/SHA256SUMS">SHA256SUMS</a>, and two software bills of materials in the CycloneDX format, one for the program and one for its console.</p>
+
+<h2 id="install">Install it as a service, in one command</h2>
+<p>On Linux (systemd) or macOS (launchd), as root:</p>
+<pre><code>curl -fsSL https://raw.githubusercontent.com/BioDream-LLC/vaglio/main/deploy/install.sh | sudo sh -s -- -version {{VERSION}}</code></pre>
+<p>On Windows, from an elevated PowerShell:</p>
+<pre><code>&amp; ([scriptblock]::Create((irm https://raw.githubusercontent.com/BioDream-LLC/vaglio/main/deploy/install.ps1))) -Version {{VERSION}}</code></pre>
+<p>The installer downloads the archive for your machine and refuses it unless its fingerprint (SHA-256) matches the one the release lists. When the GitHub command-line tool is installed, it also checks GitHub's record of which build made the archive. It then runs Vaglio as an unprivileged account, keeps its data in a folder only that account can read, and makes a random access token for the PAS server in front of it. Running it again with a newer version upgrades it and keeps the data and policies.</p>
+<p>A container image (distroless, non-root) and a Helm chart for Kubernetes are in the repository, under <code>Dockerfile</code> and <code>deploy/helm/vaglio</code>.</p>
+
+<h2 id="first-start">The first start</h2>
+<p>The first start creates an <code>admin</code> account and prints its password once. Vaglio answers on HTTPS only. By default it uses a certificate authority of its own, made for this server alone, whose certificate you trust once; it can also use the plan's own certificate, or get one from Let's Encrypt by itself.</p>
+<p>From version 0.2.0 the built-in library's policies decide nothing until the plan's clinicians adopt them in the console. For a quick trial, start the server with <code>-require-adoption=false</code> and they decide as published. <a href="/learn/clinicians-stay-in-charge/">Why it works this way</a>.</p>
+
+<h2 id="check">Check what you downloaded</h2>
+<p>You do not have to take our word for what is in an archive.</p>
+<ul>
+<li><b>Its fingerprint.</b> <code>shasum -a 256 -c SHA256SUMS --ignore-missing</code> checks each archive you downloaded against the list.</li>
+<li><b>Who built it.</b> Each archive carries a signed statement from GitHub Actions saying which commit and which workflow built it: <code>gh attestation verify vaglio-{{VERSION}}-linux-amd64.tar.gz --repo BioDream-LLC/vaglio</code>.</li>
+<li><b>That the source makes it.</b> The archives are reproducible. The release workflow builds them twice, on x86 and on Arm, and publishes nothing unless both builds are the same, byte for byte. Running <code>deploy/release.sh {{VERSION}}</code> from the tagged commit gives the same bytes on your machine.</li>
+</ul>
+
+<h2 id="source">Build it from source</h2>
+<p>It needs Go 1.27, and Node 20 only if you want to rebuild the console (the built console is in the repository, so Go alone is enough).</p>
+<pre><code>git clone https://github.com/BioDream-LLC/vaglio &amp;&amp; cd vaglio
+make check      # formatting, vet, every test with the race detector, the console's tests
+make build      # bin/vaglio: one static program</code></pre>
+
+<h2 id="licence">The licence</h2>
+<p>Vaglio is source-available under the <a href="{{REPO}}/blob/main/LICENSE.md">PolyForm Shield License 1.0.0</a>. Anyone may use it, change it and share it, a health plan deciding its own prior authorization requests included. What it does not allow is using Vaglio to offer a product that competes with Vaglio, or with a product BioDream LLC offers using it. For anything else, ask BioDream LLC for a commercial licence.</p>
+<p>The source is published so that anyone can read how a decision is made. Outside contributions are not accepted, so pull requests are not reviewed or merged; bug reports and private security reports are welcome.</p>
+
+<h2 id="not">What this release is not</h2>
+<p>It is not certified by anyone, not penetration tested by an outside firm, and not validated clinically in production. <a href="/learn/what-it-has-not-done/">Everything it has not done yet</a>, said plainly.</p>
+</div>
+</section>

@@ -6,7 +6,7 @@ VERSION ?= v0.0.1
 EXT     := .vaglio
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: all build web test vet fmt check check-policies serve clean
+.PHONY: all build web test vet fmt check check-policies serve clean site
 
 all: check build
 
@@ -46,3 +46,7 @@ serve: build
 
 clean:
 	rm -rf bin
+
+# The website, vaglio.health, into dist-site (deploy/site.sh publishes it).
+site:
+	$(GO) run ./cmd/vagliosite -out dist-site

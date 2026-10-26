@@ -18,6 +18,8 @@ calls and portal requests too.
 
 [![License](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-8b5cf6.svg)](LICENSE.md) [![Go](https://img.shields.io/badge/Go-1.27%2B-00ADD8.svg?logo=go&logoColor=white)](https://go.dev) [![Version](https://img.shields.io/badge/version-v0.0.1-orange.svg)](#status) [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)](#build) [![Works with](https://img.shields.io/badge/works%20with-Perfuse-3b82f6.svg)](https://github.com/BioDream-LLC/perfuse)
 
+**Website: [vaglio.health](https://vaglio.health)**, with plain-words articles on how it decides and what it has not done yet.
+
 <a href="https://vaglio.perfuse.health:8443"><img src="docs/assets/buttons/try.svg" alt="Try Vaglio now: the live demonstration, no install" width="300"></a>
 
 <sub><b>Sign in as</b> <code>demo</code> <b>with password</b> <code>try-vaglio-demo</code> · invented requests only · look at everything, change nothing</sub>
@@ -583,6 +585,7 @@ How the code is laid out:
   `internal/notice`: letters mailed to members. `internal/fsx`: replacing files the same way on Unix and Windows. `internal/seal`: encryption
   at rest. `cmd/vaglio/standby.go`: the standby.
 - `deploy/demo/`: how the public demonstration at vaglio.perfuse.health:8443 is run.
+- `cmd/vagliosite` + `site/`: the website, vaglio.health (`make site`, then `deploy/site.sh`); no JavaScript.
 - `library/`: drafted policies, their sources and `library.json`; `library/drafts/` keeps the machine's own drafts.
 - `internal/server` + `web/`: the API and the React/Redux console (cases and review, policies and their check, trying a
   policy by hand, the audit log), embedded in the binary.
