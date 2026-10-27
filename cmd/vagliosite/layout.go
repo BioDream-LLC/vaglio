@@ -82,6 +82,11 @@ func (s *site) layout(path, title, desc, body string) string {
 <meta property="og:type" content="website">
 <meta property="og:url" content="%s">
 <meta property="og:site_name" content="Vaglio">
+<meta property="og:image" content="https://vaglio.health/social-card.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="Vaglio: prior authorization that has to show its work.">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#0f1729">
 </head>
 <body>

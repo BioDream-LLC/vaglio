@@ -329,6 +329,7 @@ func (s *site) assets() error {
 		"site/static/site.css":              "site.css",
 		"docs/assets/vaglio-logo.svg":       "logo.svg",
 		"docs/assets/biodream-wordmark.png": "biodream-wordmark.png",
+		"docs/assets/social-card.png":       "social-card.png",
 	}
 	shots, err := filepath.Glob(filepath.Join(s.root, "docs/assets/screens/*.png"))
 	if err != nil {

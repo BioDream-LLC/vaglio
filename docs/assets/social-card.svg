@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-label="Vaglio: prior authorization that has to show its work">
+  <defs>
+    <linearGradient id="bgv" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0f1729"/><stop offset="60%" stop-color="#121a33"/><stop offset="100%" stop-color="#0a1020"/></linearGradient>
+    <radialGradient id="glow" cx="0.85" cy="0.1" r="0.7"><stop offset="0%" stop-color="#6a3fd4" stop-opacity="0.38"/><stop offset="100%" stop-color="#6a3fd4" stop-opacity="0"/></radialGradient>
+    <linearGradient id="rulev" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#a98bff"/><stop offset="100%" stop-color="#a98bff" stop-opacity="0"/></linearGradient>
+  </defs>
+  <rect width="1280" height="640" fill="url(#bgv)"/>
+  <rect width="1280" height="640" fill="url(#glow)"/>
+  <g stroke="#ffffff" stroke-opacity="0.035"><path d="M0 40H1280"/><path d="M0 80H1280"/><path d="M0 120H1280"/><path d="M0 160H1280"/><path d="M0 200H1280"/><path d="M0 240H1280"/><path d="M0 280H1280"/><path d="M0 320H1280"/><path d="M0 360H1280"/><path d="M0 400H1280"/><path d="M0 440H1280"/><path d="M0 480H1280"/><path d="M0 520H1280"/><path d="M0 560H1280"/><path d="M0 600H1280"/></g>
+  <g transform="translate(96,84) scale(0.9)">
+  
+  
+  <rect x="4" y="4" width="88" height="88" rx="20" fill="#0b1220"/>
+  <rect x="4.75" y="4.75" width="86.5" height="86.5" rx="19.25" fill="none" stroke="#1e293b" stroke-width="1.5"/>
+  <defs><linearGradient id="vg" gradientUnits="userSpaceOnUse" x1="20" y1="14" x2="76" y2="70"><stop offset="0" stop-color="#f0abfc"/><stop offset=".5" stop-color="#c084fc"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient><clipPath id="bowl"><path d="M22 38 A26 26 0 0 0 74 38 Z"/></clipPath></defs><g fill="url(#vg)"><circle cx="36" cy="21" r="3.6"/><circle cx="48" cy="15" r="3.6"/><circle cx="60" cy="23" r="3.6"/></g><g clip-path="url(#bowl)" stroke="#c4b5fd" stroke-opacity=".55" stroke-width="1.8"><path d="M32 38 V66 M40 38 V66 M48 38 V66 M56 38 V66 M64 38 V66 M20 47 H76 M20 55 H76"/></g><path d="M22 38 A26 26 0 0 0 74 38" fill="none" stroke="url(#vg)" stroke-width="4.5" stroke-linecap="round"/><path d="M16 38 H80" stroke="url(#vg)" stroke-width="4.5" stroke-linecap="round"/><path d="M38 75 l7 7 l14 -14" fill="none" stroke="#34d399" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+  <text x="196" y="148" font-family="Georgia, 'Iowan Old Style', serif" font-size="56" fill="#ffffff">Vaglio</text>
+  <text x="96" y="268" font-family="Georgia, 'Iowan Old Style', serif" font-size="68" fill="#ffffff">Prior authorization</text>
+  <text x="96" y="350" font-family="Georgia, 'Iowan Old Style', serif" font-size="68" fill="#ffffff">that has to <tspan fill="#b9a2ff" font-style="italic">show its work.</tspan></text>
+  <rect x="96" y="392" width="520" height="3" fill="url(#rulev)"/>
+  <text font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="27" fill="#c7cde0">
+    <tspan x="96" y="448">Every answer is a proof: the plan's policy quoted, the record</tspan>
+    <tspan x="96" y="486">cited. Missing evidence never denies; it is asked for by name.</tspan>
+  </text>
+  <text x="96" y="568" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" font-weight="600" letter-spacing="2.5" fill="#a98bff">VAGLIO.HEALTH</text>
+  <text x="318" y="568" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" fill="#8b93ab">Source-available · runs on the plan's own servers · BioDream LLC</text>
+</svg>
