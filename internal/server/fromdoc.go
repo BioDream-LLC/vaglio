@@ -23,6 +23,11 @@ type Drafter struct {
 	Name  string // the model, as the draft's header and the log name it
 	// Rounds is how many drafts the model may try; 0 is 6.
 	Rounds int
+	// Twice drafts each document a second time, with Second (Model again when nil), and compares the two readings
+	// record by record (serve -draft-twice): where they disagree, the job says where and the saved draft is headed so.
+	Twice      bool
+	Second     draft.Model
+	SecondName string
 
 	mu   sync.Mutex
 	jobs map[string]*DraftJob
@@ -45,6 +50,15 @@ type DraftJob struct {
 	// Also is the other policies a passing draft holds, saved as drafts beside the first: a document holding its
 	// services to different criteria is drafted as one policy per service.
 	Also []string `json:"also,omitempty"`
+	// Twice is, when the document was drafted twice, whether the two readings agree and where they do not.
+	Twice *TwiceResult `json:"twice,omitempty"`
+}
+
+// TwiceResult is the comparison of two drafts of one document.
+type TwiceResult struct {
+	Agree    bool     `json:"agree"`
+	Problems []string `json:"problems,omitempty"`
+	Report   string   `json:"report"`
 }
 
 // DraftRound is one round's findings, sorted by kind (draft.Kind).
@@ -151,7 +165,7 @@ func (cfg Config) runDraft(job *DraftJob, text, user string) {
 	d := cfg.Drafter
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
-	res, err := draft.Draft(ctx, d.Model, draft.Request{ID: job.Policy, Document: text,
+	req := draft.Request{ID: job.Policy, Document: text,
 		Name: job.Document + " with " + d.Name, Rounds: rounds(d.Rounds),
 		OnRound: func(_ int, a draft.Attempt) {
 			round := DraftRound{Findings: []Finding{}}
@@ -161,13 +175,35 @@ func (cfg Config) runDraft(job *DraftJob, text, user string) {
 			d.mu.Lock()
 			job.Rounds = append(job.Rounds, round)
 			d.mu.Unlock()
-		}})
+		}}
+	var res *draft.Result
+	var twin *draft.Twin
+	var err error
+	if d.Twice {
+		second := d.Second
+		if second == nil {
+			second = d.Model
+		} else {
+			req.Name += " and " + d.SecondName
+		}
+		twin, err = draft.Twice(ctx, d.Model, second, req)
+		res = twin.First
+		if res == nil {
+			res = &draft.Result{}
+		}
+	} else {
+		res, err = draft.Draft(ctx, d.Model, req)
+	}
+	head := ""
+	if twin != nil && err == nil {
+		head = twin.Commented()
+	}
 	// The last draft is saved either way: a passing one to be read and signed off, a failing one for an author to fix
 	// with the checker beside it. A failing one says so at its top.
 	src := ""
 	switch {
 	case err == nil:
-		src = res.Source
+		src = head + res.Source
 	case res != nil && len(res.Attempts) > 0:
 		last := res.Attempts[len(res.Attempts)-1]
 		src = "# DRAFT that does NOT pass its checks, machine-drafted from " + job.Document + " with " + d.Name +
@@ -193,7 +229,7 @@ func (cfg Config) runDraft(job *DraftJob, text, user string) {
 	var also []string
 	if err == nil {
 		for _, p := range res.Policies[1:] {
-			if save(p.ID, res.Sources[p.ID]) {
+			if save(p.ID, head+res.Sources[p.ID]) {
 				also = append(also, p.ID)
 			}
 		}
@@ -204,12 +240,16 @@ func (cfg Config) runDraft(job *DraftJob, text, user string) {
 	}
 	passed := err == nil
 	_, _ = cfg.Audit.Append("user:"+user, "policy.drafted", "", map[string]any{"policy": job.Policy,
-		"sha256": job.SHA256, "model": d.Name, "rounds": len(job.Rounds), "passed": passed})
+		"sha256": job.SHA256, "model": d.Name, "rounds": len(job.Rounds), "passed": passed,
+		"twice": twin != nil, "readingsAgree": twin != nil && err == nil && twin.Agree()})
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.busy = false
 	job.Saved, job.Check, job.Also = saved, check, also
+	if twin != nil && err == nil {
+		job.Twice = &TwiceResult{Agree: twin.Agree(), Problems: twin.Problems, Report: twin.Report()}
+	}
 	job.Policy = firstID // a split draft's first policy is named ID_service
 	if passed {
 		job.State = "passed"

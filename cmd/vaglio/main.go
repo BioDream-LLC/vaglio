@@ -151,7 +151,7 @@ func usage(w io.Writer) {
                  -oidc-redirect-url URL [-oidc-name-claim C] [-oidc-group G] [-oidc-label TEXT]]
                 [-saml-metadata URL|FILE -saml-entity-id ID -saml-acs-url URL [-saml-name-attribute A] [-saml-group G]]
                 [-extension-days N] [-appeals-token-env VAR] [-extract pdftotext,tesseract,model [-extract-model M]]
-                [-draft-model-url URL [-draft-model M] [-draft-key-env VAR]] [-demo-account NAME:PASSWORD]
+                [-draft-model-url URL [-draft-model M] [-draft-key-env VAR] [-draft-twice [-draft-second-model M2]]] [-demo-account NAME:PASSWORD]
                 [-fax-token-env VAR] [-acme [-acme-email ADDR] [-acme-directory URL]] [-plans FILE]
                 [-read-documents [-approve-from-documents [-approve-sample PCT]] [-read-workers N]]
                 [-criteria NAME=URL [-criteria-token-env NAME=VAR]] [-network FILE] [-npi-registry nppes|FILE] [-members FILE]
@@ -169,7 +169,7 @@ func usage(w io.Writer) {
   vaglio check  FILE...
   vaglio compile FILE.vaglio
   vaglio fmt    FILE...
-  vaglio draft  -id ID -out FILE.vaglio [-model M] [-url URL] [-key-env VAR] DOCUMENT.txt
+  vaglio draft  -id ID -out FILE.vaglio [-model M] [-twice [-second-model M2]] [-url URL] [-key-env VAR] DOCUMENT.txt
   vaglio questionnaire [-put FHIR-BASE -token-env VAR [-ca FILE]] FILE.vaglio
   vaglio report metrics|pends|overrides -data DIR [-from YYYY-MM-DD] [-to YYYY-MM-DD] [-csv] [-by clause|provider|state]
   vaglio goldcard -data DIR -config FILE
@@ -263,6 +263,9 @@ func serve(args []string) error {
 		"document is sent there: published coverage documents only, never patient records")
 	draftModel := fs.String("draft-model", "meta-llama/llama-3.3-70b-instruct", "the model for -draft-model-url")
 	draftKeyEnv := fs.String("draft-key-env", "", "name of an environment variable holding -draft-model-url's API key")
+	draftTwice := fs.Bool("draft-twice", false, "with -draft-model-url, draft each document a second time and compare the "+
+		"two readings record by record; the console shows where they disagree")
+	draftSecond := fs.String("draft-second-model", "", "with -draft-twice, the model for the second draft (default: -draft-model)")
 	demo := fs.String("demo-account", "", "NAME:PASSWORD - a public demonstration on invented data: a viewer account with "+
 		"this published password, shown on the sign-in page, and a banner on every screen. Never on real patient data")
 	useLibrary := fs.Bool("library", true, "decide with the policy library built into the program, as published, beside "+
@@ -525,7 +528,11 @@ func serve(args []string) error {
 				return fmt.Errorf("-draft-key-env: %w", err2)
 			}
 		}
-		sh.drafter = &server.Drafter{Model: &draft.OpenAI{Base: *draftURL, Key: key, Model: *draftModel}, Name: *draftModel}
+		sh.drafter = &server.Drafter{Model: &draft.OpenAI{Base: *draftURL, Key: key, Model: *draftModel}, Name: *draftModel,
+			Twice: *draftTwice}
+		if *draftSecond != "" {
+			sh.drafter.Second, sh.drafter.SecondName = &draft.OpenAI{Base: *draftURL, Key: key, Model: *draftSecond}, *draftSecond
+		}
 	}
 	if *extract != "" {
 		if docs == nil && *draftURL == "" && *faxTokenEnv == "" && *plansFile == "" {
@@ -1233,9 +1240,13 @@ func draftCmd(args []string, w, errw io.Writer) error {
 	base := fs.String("url", "https://openrouter.ai/api/v1", "an OpenAI-compatible chat completions API; the document is sent there")
 	keyEnv := fs.String("key-env", "OPENROUTER_API_KEY", "name of an environment variable holding the API key")
 	rounds := fs.Int("rounds", 4, "drafts to try before giving up")
+	twice := fs.Bool("twice", false, "draft the document a second time and compare the two readings record by record; "+
+		"where they disagree, the file says where, and the command fails")
+	second := fs.String("second-model", "", "with -twice, the model for the second draft (default: -model again)")
 	fs.Parse(args)
 	if *id == "" || *out == "" || fs.NArg() != 1 {
-		return errors.New("usage: vaglio draft -id ID -out FILE.vaglio [-model M] [-url URL] [-key-env VAR] DOCUMENT.txt")
+		return errors.New("usage: vaglio draft -id ID -out FILE.vaglio [-model M] [-twice [-second-model M2]] [-url URL] " +
+			"[-key-env VAR] DOCUMENT.txt")
 	}
 	if !strings.HasSuffix(*out, policy.Ext) {
 		return fmt.Errorf("-out is a %s file", policy.Ext)
@@ -1252,8 +1263,26 @@ func draftCmd(args []string, w, errw io.Writer) error {
 		return fmt.Errorf("-key-env: %w", err)
 	}
 	m := &draft.OpenAI{Base: *base, Key: key, Model: *model}
-	res, err := draft.Draft(context.Background(), m, draft.Request{ID: *id, Document: string(doc),
-		Name: filepath.Base(fs.Arg(0)) + " with " + *model, Rounds: *rounds})
+	req := draft.Request{ID: *id, Document: string(doc), Name: filepath.Base(fs.Arg(0)) + " with " + *model, Rounds: *rounds}
+	var res *draft.Result
+	var tw *draft.Twin
+	if *twice {
+		m2 := m
+		if *second != "" {
+			m2 = &draft.OpenAI{Base: *base, Key: key, Model: *second}
+			req.Name += " and " + *second
+		}
+		tw, err = draft.Twice(context.Background(), m, m2, req)
+		res = tw.First
+		if err == nil {
+			fmt.Fprint(errw, tw.Report())
+		}
+	} else {
+		res, err = draft.Draft(context.Background(), m, req)
+	}
+	if res == nil {
+		return err
+	}
 	for i, a := range res.Attempts {
 		if len(a.Failures) == 0 {
 			fmt.Fprintf(errw, "round %d: passed every check\n", i+1)
@@ -1278,10 +1307,17 @@ func draftCmd(args []string, w, errw io.Writer) error {
 		files[p.ID] = f
 	}
 	for _, p := range res.Policies {
-		if err := os.WriteFile(files[p.ID], []byte(res.Sources[p.ID]), 0o644); err != nil {
+		text := res.Sources[p.ID]
+		if tw != nil {
+			text = tw.Commented() + text // the comparison heads the file, for whoever reads it next
+		}
+		if err := os.WriteFile(files[p.ID], []byte(text), 0o644); err != nil {
 			return err
 		}
 		fmt.Fprintf(w, "wrote %s (status draft). Read every rule against the document before signing it off.\n", files[p.ID])
+	}
+	if tw != nil && !tw.Agree() {
+		return errors.New("the two drafts disagree: the first is written, with where they differ at its head")
 	}
 	return nil
 }

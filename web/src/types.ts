@@ -827,6 +827,8 @@ export interface DraftJob {
   check?: { combinations: number; outcomes: Record<string, number> };
   /** The other policies a split draft holds (one per service), saved as drafts too. */
   also?: string[];
+  /** When the document was drafted twice: whether the two readings agree record by record, and where not. */
+  twice?: { agree: boolean; problems?: string[]; report: string };
 }
 
 /** A policy a keyed-in request may fall under, and its questions. */

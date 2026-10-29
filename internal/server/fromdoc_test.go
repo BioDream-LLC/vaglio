@@ -74,3 +74,37 @@ func TestDraftFromDocument(t *testing.T) {
 		t.Errorf("a viewer drafted: %d", w.Code)
 	}
 }
+
+// TestDraftTwiceFromDocument: with Twice, the console's drafting reads the document two times; the library's TKA
+// reading against its second reading (library/readings/tka.b.vaglio) disagrees, and the job and the saved draft say
+// where.
+func TestDraftTwiceFromDocument(t *testing.T) {
+	doc, err := os.ReadFile("../../library/sources/L36575-TKA.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, _ := os.ReadFile("../../library/tka.vaglio")
+	b, _ := os.ReadFile("../../library/readings/tka.b.vaglio")
+	second := strings.Replace(string(b), "policy tka_b", "policy tka", 1)
+	e2 := newEnvWith(t, "", func(c *Config) {
+		c.PolicyDir = t.TempDir()
+		c.Drafter = &Drafter{Model: &answers{"```vaglio\n" + string(a) + "\n```"}, Name: "first", Twice: true,
+			Second: &answers{"```vaglio\n" + second + "\n```"}, SecondName: "second"}
+	})
+	admin := e2.signedIn(t, "admin")
+	body, _ := json.Marshal(map[string]string{"id": "tka", "name": "L36575-TKA.txt", "contentType": "text/plain",
+		"data": base64.StdEncoding.EncodeToString(doc)})
+	var job DraftJob
+	json.Unmarshal(do(admin, "POST", "/api/drafting", string(body)).Body.Bytes(), &job)
+	for i := 0; i < 200 && job.State == "running"; i++ {
+		time.Sleep(20 * time.Millisecond)
+		json.Unmarshal(do(admin, "GET", "/api/drafting/"+job.ID, "").Body.Bytes(), &job)
+	}
+	if job.State != "passed" || job.Twice == nil || job.Twice.Agree || !strings.Contains(job.Twice.Report, "DISAGREE") {
+		t.Fatalf("%+v", job)
+	}
+	w := do(admin, "GET", "/api/drafts/tka", "")
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "two drafts DISAGREE") {
+		t.Errorf("the saved draft does not say they disagree: %d %.300s", w.Code, w.Body)
+	}
+}

@@ -904,6 +904,10 @@ vaglio check policies/*.vaglio                 # every combination of evidence, 
 vaglio fmt policies/*.vaglio                   # the standard layout (comments at the top are kept)
 vaglio compile policies/lumbar_mri.vaglio      # the JSON the engine reads
 vaglio draft -id knee -out knee.vaglio document.txt    # OpenRouter by default: -url, -model, -key-env
+vaglio draft -twice [-second-model M2] -id knee -out knee.vaglio document.txt
+                                                        # drafted two times and the readings compared on every
+                                                        # combination: where they disagree, the file says where
+                                                        # and the command fails (serve -draft-twice: the console)
 vaglio import-dtr -id home_o2 -service "hcpcs E1390" -out home_o2.vaglio package.json
                                                         # from a DTR Questionnaire the plan has: its yes/no questions
                                                         # as evidence, each also run by its own CQL pre-fill

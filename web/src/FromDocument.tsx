@@ -133,6 +133,20 @@ function Progress({ job, onDone }: { job: string; onDone: () => void }) {
         </p>
       )}
       <Findings job={data} />
+      {data.twice && data.twice.agree && (
+        <p className="note ok mt-2">
+          Drafted twice: the two drafts decide every record the same way.
+        </p>
+      )}
+      {data.twice && !data.twice.agree && (
+        <div className="note warn mt-2">
+          <p>
+            Drafted twice, and the two drafts disagree. Read the document on these points before anyone signs the draft
+            off (the saved draft starts with the same list):
+          </p>
+          <pre className="mt-2 whitespace-pre-wrap text-sm">{data.twice.report}</pre>
+        </div>
+      )}
       {data.also && data.also.length > 0 && (
         <p className="meta mt-2">
           The document holds its services to different criteria, so it was drafted as {data.also.length + 1} policies,
