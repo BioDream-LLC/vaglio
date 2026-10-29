@@ -636,6 +636,9 @@ func (p *parser) timing(l *node) *node {
 	}
 	if q != nil {
 		op = "by " + dir + bound
+		if orOn && bound == " or less" {
+			op += " on or" // "1 day or less on or after": a difference of none counts too
+		}
 	}
 	return mk(op, prec, q)
 }
@@ -784,6 +787,13 @@ func (p *parser) unary() *node {
 		prec := precisions[p.next().text]
 		if prec == "" {
 			p.fail("expected a precision after %s in", kind)
+		}
+		if p.accept("of") {
+			// "duration in days of X": between the start and the end of the interval X.
+			x := p.unary()
+			return &node{op: "between-dt", s: kind, val: prec, line: line, args: []*node{
+				{op: "unary", s: "start of", line: line, args: []*node{x}},
+				{op: "unary", s: "end of", line: line, args: []*node{x}}}}
 		}
 		p.expect("between")
 		a := p.additive()

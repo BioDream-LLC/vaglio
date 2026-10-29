@@ -186,12 +186,15 @@ Every request gets an answer the record supports: approve, deny with its proof, 
   True documents the evidence present, false absent; null, an error, or a value set not given leaves it not addressed.
   The proof cites the define and the resources it read. Each library and value set is a file beside the policy, pinned
   in its header by SHA-256, so a library changed after sign-off stops the policy loading. The engine reads CQL source
-  (no ELM) and passes 2,003 of the 2,037 tests of HL7's CQL conformance suite (`cqframework/cql-tests`, run in the
-  test suite, which fails if fewer pass): queries with the aggregate clause, Integer, Long, Decimal, Ratio, Date,
+  (no ELM) and passes 2,003 of the 2,009 tests of HL7's CQL conformance suite that are for CQL 1.5.3
+  (`cqframework/cql-tests`, run in the test suite, which fails if fewer pass; 28 more are for CQL 2.0 or 1.3 only): queries with the aggregate clause, Integer, Long, Decimal, Ratio, Date,
   DateTime and Time, intervals and their operators, durations that are uncertain because a date is partial (a birth
-  year alone gives an age as a range, which compares as CQL says), lists, strings, FHIRHelpers built in. The 34 it
-  fails are listed by `VAGLIO_CQL_CONFORMANCE=FILE go test ./internal/cql`: mostly a Decimal's written precision
-  (floats keep none: `predecessor of 1.0` is 0.99999999, not 0.9) and a few arguable cases. Value sets are given
+  year alone gives an age as a range, which compares as CQL says), lists, strings, FHIRHelpers built in. The 6 it
+  fails are listed by `VAGLIO_CQL_CONFORMANCE=FILE go test ./internal/cql`: four need Decimals of 28 digits or a
+  Decimal's written precision (`Precision(1.58700)` is 5; this engine keeps 8 places and no trailing zeros), one
+  prints a DateTime with no offset given as UTC (`Z`), and one contradicts four others in the suite on the same
+  expression (`days between DateTime(2014, 1, 15) and DateTime(2014, 2)`: 16 to 44, as the four say, since the 15th
+  could end at 23:59). Value sets are given
   expanded, or expanded once by `import-dtr -tx` through a terminology server; no server is asked while deciding. Unit
   conversion knows a short UCUM table. Checked define by define against the reference CQL-to-ELM translator and the
   `cql-execution` engine on three real DTR libraries (79 defines, two invented patients): every value matched.

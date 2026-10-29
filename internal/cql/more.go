@@ -41,6 +41,28 @@ func (e *Env) moreBuiltin(name string, args []any, n *node, sc *scope) (any, boo
 		return out, true
 	}
 	switch name {
+	case "Children", "children", "Descendents", "descendents", "Descendants", "descendants":
+		// Every element below a value (Children: one level; Descendents, as the spec spells it, every level), in
+		// document order; null for null.
+		v := args0(args)
+		if v == nil {
+			return nil, true
+		}
+		deep := !strings.EqualFold(name, "children")
+		out := []any{}
+		var walk func(x any)
+		walk = func(x any) {
+			for _, c := range childrenOf(x) {
+				out = append(out, c)
+				if deep {
+					walk(c)
+				}
+			}
+		}
+		for _, x := range toList(v) {
+			walk(x)
+		}
+		return out, true
 	case "Power":
 		return arith(e, sc, n, "^", arg(0), arg(1)), true
 	case "Log":
@@ -296,6 +318,9 @@ func (e *Env) moreBuiltin(name string, args []any, n *node, sc *scope) (any, boo
 		// T14:30:00.0+05:30: the time; an offset is dropped (a time of day has none)
 		s = strings.TrimPrefix(s, "T")
 		if i := strings.IndexAny(s, "+-Z"); i > 0 {
+			if off := s[i:]; off != "Z" && !offsetRE.MatchString(off) {
+				return nil, true // T14-30-00.0: not a time with an offset, a malformed time
+			}
 			s = s[:i]
 		}
 		d, err := ParseTime(s)
@@ -718,6 +743,56 @@ func pointsOf(iv Interval) (lo, hi any) {
 	return lo, hi
 }
 
+// offsetRE is a time zone offset: +05:30 or -08:00.
+var offsetRE = regexp.MustCompile(`^[+-]\d{2}:\d{2}$`)
+
+// fillNullBounds gives each closed null boundary of two intervals its value: the least or greatest of the point type
+// (CQL: a closed null boundary begins or ends the interval at the type's minimum or maximum; an open one is unknown).
+// The type is the interval's other boundary's, else the other interval's, so Interval[null, null] takes it from the
+// interval it is compared with. Without any typed boundary the intervals are left as they are.
+func fillNullBounds(a, b Interval) (Interval, Interval) {
+	t := ivType(a)
+	if t == "" {
+		t = ivType(b)
+	}
+	if t == "" {
+		return a, b
+	}
+	fill := func(iv Interval) Interval {
+		if iv.Low == nil && iv.LowClosed {
+			iv.Low = minMaxOf(t, false)
+		}
+		if iv.High == nil && iv.HighClosed {
+			iv.High = minMaxOf(t, true)
+		}
+		return iv
+	}
+	return fill(a), fill(b)
+}
+
+// ivType is the point type of an interval's boundaries, "" when both are null.
+func ivType(iv Interval) string {
+	for _, v := range []any{iv.Low, iv.High} {
+		switch x := sys(v).(type) {
+		case int64:
+			return "Integer"
+		case Long:
+			return "Long"
+		case float64:
+			return "Decimal"
+		case DateTime:
+			switch {
+			case x.DateOnly:
+				return "Date"
+			case x.TimeOnly:
+				return "Time"
+			}
+			return "DateTime"
+		}
+	}
+	return ""
+}
+
 // intervalOp is meets (before, after), starts and ends.
 func intervalOp(e *Env, sc *scope, n *node, op string, a, b any) any {
 	ia, aok := sys(a).(Interval)
@@ -725,6 +800,7 @@ func intervalOp(e *Env, sc *scope, n *node, op string, a, b any) any {
 	if !aok || !bok {
 		return nil
 	}
+	ia, ib = fillNullBounds(ia, ib)
 	prec, _ := n.val.(string)
 	at := func(v any) any {
 		if d, ok := sys(v).(DateTime); ok && prec != "" {
@@ -1060,4 +1136,54 @@ func atPrecision(v any, prec string) any {
 		return x
 	}
 	return v
+}
+
+func args0(args []any) any {
+	if len(args) == 0 {
+		return nil
+	}
+	return args[0]
+}
+
+// childrenOf is the elements directly below a value: a FHIR element's fields (each value of a repeating one), a
+// tuple's elements, a list's items; nothing for a primitive.
+func childrenOf(v any) []any {
+	var out []any
+	add := func(c any) {
+		if l, ok := c.([]any); ok {
+			for _, x := range l {
+				if sys(x) != nil {
+					out = append(out, x)
+				}
+			}
+		} else if sys(c) != nil {
+			out = append(out, c)
+		}
+	}
+	switch x := v.(type) {
+	case *Elem:
+		m, ok := x.V.(map[string]any)
+		if !ok {
+			return nil
+		}
+		keys := make([]string, 0, len(m))
+		for k := range m {
+			if k != "resourceType" && !strings.HasPrefix(k, "_") {
+				keys = append(keys, k)
+			}
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			add(property(x, k))
+		}
+	case *Tuple:
+		for _, k := range x.Keys {
+			add(x.M[k])
+		}
+	case []any:
+		for _, c := range x {
+			add(c)
+		}
+	}
+	return out
 }

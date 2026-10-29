@@ -196,6 +196,9 @@ func (e *Env) builtin(name string, args []any, n *node, sc *scope) any {
 		}
 		return false
 	case "Coalesce":
+		if len(args) > 5 {
+			e.fail(sc.lib, n, "Coalesce takes at most 5 arguments; more must be given as a list")
+		}
 		if len(args) == 1 {
 			if l, ok := args[0].([]any); ok {
 				args = l

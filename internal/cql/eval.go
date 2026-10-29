@@ -332,6 +332,14 @@ func (e *Env) eval(n *node, sc *scope) any {
 		case "Code":
 			s := func(k string) string { v, _ := f[k].(string); return v }
 			return Code{Code: s("code"), System: s("system"), Display: s("display"), Version: s("version")}
+		case "ValueSet", "CodeSystem":
+			// A vocabulary named by its id (or url) and version: no codes are known from the selector alone.
+			s := func(k string) string { v, _ := f[k].(string); return v }
+			url := s("id")
+			if url == "" {
+				url = s("url")
+			}
+			return &ValueSet{URL: url, Version: s("version"), codes: map[string]bool{}}
 		}
 		t := &Tuple{Keys: names, M: f}
 		return t
@@ -356,11 +364,18 @@ func (e *Env) eval(n *node, sc *scope) any {
 	case "conceptsel":
 		c := Concept{Display: n.s}
 		for _, a := range n.args {
-			code, ok := sys(e.eval(a, sc)).(Code)
-			if !ok {
-				e.fail(sc.lib, n, "a Concept holds codes")
+			v := sys(e.eval(a, sc))
+			items, isList := v.([]any) // Concept { codes: { Code { ... }, ... } }
+			if !isList {
+				items = []any{v}
 			}
-			c.Codes = append(c.Codes, code)
+			for _, it := range items {
+				code, ok := sys(it).(Code)
+				if !ok {
+					e.fail(sc.lib, n, "a Concept holds codes")
+				}
+				c.Codes = append(c.Codes, code)
+			}
 		}
 		return c
 	case "if":
@@ -684,12 +699,21 @@ func (e *Env) query(n *node, sc *scope) any {
 	if q.agg != nil && q.agg.start != nil {
 		acc = e.eval(q.agg.start, sc)
 	}
-	if q.agg != nil && q.agg.distinct && len(srcs) == 1 {
+	if q.agg != nil && q.agg.distinct {
+		// Distinct rows: the source's value, or with several sources the tuple of theirs.
 		var seen []any
 		var kept []map[string]any
 		for _, row := range rows {
-			if inList(row[srcs[0].alias], seen) != T {
-				seen = append(seen, row[srcs[0].alias])
+			key := row[srcs[0].alias]
+			if len(srcs) > 1 {
+				t := &Tuple{M: map[string]any{}}
+				for _, s := range srcs {
+					t.Keys, t.M[s.alias] = append(t.Keys, s.alias), row[s.alias]
+				}
+				key = t
+			}
+			if inList(key, seen) != T {
+				seen = append(seen, key)
 				kept = append(kept, row)
 			}
 		}
@@ -1163,6 +1187,8 @@ func isType(v any, t string) bool {
 		return t == "Concept" || t == "CodeableConcept"
 	case Interval:
 		return t == "Interval"
+	case *ValueSet:
+		return t == "ValueSet" || t == "Vocabulary"
 	case *Tuple:
 		return t == "Tuple"
 	case []any:
@@ -1298,6 +1324,9 @@ func (e *Env) unary(n *node, sc *scope) any {
 			_, hi := closedBounds(i)
 			return hi
 		case "point from":
+			if i.Low == nil && i.High == nil && i.LowClosed && i.HighClosed {
+				e.fail(sc.lib, n, "point from the maximum interval, Interval[null, null]")
+			}
 			if eq, known := equal(i.Low, i.High); known && eq {
 				return i.Low
 			} else if !known {
@@ -1368,6 +1397,17 @@ func (e *Env) binary(n *node, sc *scope) any {
 			a = demote(a, nil)
 		} else {
 			a = demote(a, b)
+		}
+	}
+	switch n.s {
+	case "=", "!=", "~", "!~":
+		if isNullLit(n.args[0]) && isNullLit(n.args[1]) {
+			e.fail(sc.lib, n, "%s between two untyped nulls: no operator matches (cast one, as in null as String)", n.s)
+		}
+		if ta, ok := sys(a).(*Tuple); ok {
+			if tb, ok := sys(b).(*Tuple); ok && !sameKeys(ta, tb) {
+				e.fail(sc.lib, n, "%s between tuples with different elements: no operator matches", n.s)
+			}
 		}
 	}
 	switch n.s {
@@ -1488,6 +1528,7 @@ func (e *Env) binary(n *node, sc *scope) any {
 			}
 			return member(e, sc, n, b, a)
 		}
+		ia, ib = fillNullBounds(ia, ib)
 		base := overlapping(e, sc, n, ia, ib)
 		aLo, aHi := pointsOf(ia)
 		bLo, bHi := pointsOf(ib)
@@ -1503,6 +1544,22 @@ func (e *Env) binary(n *node, sc *scope) any {
 	}
 	e.fail(sc.lib, n, "the operator %s is not supported", n.s)
 	return nil
+}
+
+// isNullLit is whether a node is the bare null literal, with no type.
+func isNullLit(n *node) bool { return n != nil && n.op == "lit" && n.val == nil && n.typ == "" }
+
+// sameKeys is whether two tuples have the same element names.
+func sameKeys(a, b *Tuple) bool {
+	if len(a.M) != len(b.M) {
+		return false
+	}
+	for k := range a.M {
+		if _, ok := b.M[k]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func equalVal(a, b any) any {
@@ -1643,6 +1700,7 @@ func includes(e *Env, sc *scope, n *node, a, b any, proper bool) any {
 		if !isInt {
 			return member(e, sc, n, b, ia)
 		}
+		ia, ib = fillNullBounds(ia, ib)
 		aLo, aHi := pointsOf(ia)
 		bLo, bHi := pointsOf(ib)
 		r := and3(cmpOp(e, sc, n, "<=", aLo, bLo), cmpOp(e, sc, n, ">=", aHi, bHi))
@@ -1695,7 +1753,11 @@ func (e *Env) timing(n *node, sc *scope) any {
 	if n.args[2] != nil {
 		q = e.eval(n.args[2], sc).(Quantity)
 	}
-	switch n.s {
+	op := n.s
+	onOr := strings.HasSuffix(op, " on or")
+	op = strings.TrimSuffix(op, " on or")
+	strict := map[bool]string{true: "<=", false: "<"}[onOr] // the near end of "or less": open, or closed with "on or"
+	switch op {
 	case "before":
 		return cmpOp(e, sc, n, "<", at(end(a, ia, aIsInt)), at(start(b, ib, bIsInt)))
 	case "after":
@@ -1713,9 +1775,9 @@ func (e *Env) timing(n *node, sc *scope) any {
 	case "by before", "by before or less", "by before or more":
 		x, y := end(a, ia, aIsInt), start(b, ib, bIsInt)
 		edge := arith(e, sc, n, "-", y, q)
-		switch n.s {
+		switch op {
 		case "by before or less":
-			return and3(cmpOp(e, sc, n, ">=", at(x), at(edge)), cmpOp(e, sc, n, "<", at(x), at(y)))
+			return and3(cmpOp(e, sc, n, ">=", at(x), at(edge)), cmpOp(e, sc, n, strict, at(x), at(y)))
 		case "by before or more":
 			return cmpOp(e, sc, n, "<=", at(x), at(edge))
 		}
@@ -1723,9 +1785,9 @@ func (e *Env) timing(n *node, sc *scope) any {
 	case "by after", "by after or less", "by after or more":
 		x, y := start(a, ia, aIsInt), end(b, ib, bIsInt)
 		edge := arith(e, sc, n, "+", y, q)
-		switch n.s {
+		switch op {
 		case "by after or less":
-			return and3(cmpOp(e, sc, n, "<=", at(x), at(edge)), cmpOp(e, sc, n, ">", at(x), at(y)))
+			return and3(cmpOp(e, sc, n, "<=", at(x), at(edge)), cmpOp(e, sc, n, strict, at(y), at(x)))
 		case "by after or more":
 			return cmpOp(e, sc, n, ">=", at(x), at(edge))
 		}
@@ -1880,9 +1942,15 @@ func equivalent(a, b any) bool {
 		}
 		return true
 	case float64, int64, Long:
+		// Decimals are equivalent when equal at the precision of the less precise one, trailing zeros not counting
+		// (CQL 1.5, Equivalent): 1.0 ~ 1.00, 1.001 ~ 1.000, but not 1.5 ~ 1.55.
 		fa, _ := num(a)
 		fb, ok := num(b)
-		return ok && roundTo(fa, 8) == roundTo(fb, 8)
+		if !ok {
+			return false
+		}
+		p := min(places(fa), places(fb))
+		return roundTo(fa, p) == roundTo(fb, p)
 	case Quantity:
 		y, ok := b.(Quantity)
 		if !ok {
@@ -1901,6 +1969,15 @@ func equivalent(a, b any) bool {
 	}
 	eq, known := equal(a, b)
 	return known && eq
+}
+
+// places is how many decimal places a number shows, at most 8, trailing zeros not counting.
+func places(f float64) int {
+	s := strconv.FormatFloat(roundTo(f, 8), 'f', -1, 64)
+	if i := strings.IndexByte(s, '.'); i >= 0 {
+		return min(len(s)-i-1, 8)
+	}
+	return 0
 }
 
 func num(v any) (float64, bool) {
@@ -2276,14 +2353,13 @@ func between(a, b DateTime, prec string, difference bool) any {
 		return nil
 	}
 	if a.Prec < fill || b.Prec < fill {
+		// Uncertain: each side is every instant it could stand for, from its first millisecond to its last, so the
+		// result runs from the least whole count between them to the greatest (CQL's uncertainty intervals, as the
+		// reference engine counts them: days between 2014-01-15 and 2014-02 is 16 to 44).
 		at := func(d DateTime, high bool) DateTime {
-			if d.Prec >= fill {
-				return d
-			}
-			out := DateTime{T: d.truncate(d.Prec), Prec: fill, DateOnly: d.DateOnly, TimeOnly: d.TimeOnly}
+			out := DateTime{T: d.truncate(d.Prec), Prec: pMilli, DateOnly: false, TimeOnly: d.TimeOnly}
 			if high {
-				end := endOf(d)
-				out.T = DateTime{T: end, Prec: pMilli}.truncate(fill)
+				out.T = endOf(d)
 			}
 			return out
 		}

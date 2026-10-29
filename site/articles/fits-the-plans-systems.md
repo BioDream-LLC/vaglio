@@ -28,7 +28,7 @@ Two other Da Vinci standards come before the request is sent:
 
 Vaglio builds each service's questionnaire from the same policy file it decides with, so the questions and the decision cannot drift apart. For a plan that already has DTR packages, `vaglio import-dtr` turns one into a draft Vaglio policy: each yes-or-no question becomes evidence, and each question's CQL is run alongside it, so the record and the provider's answer are read side by side. Where they disagree, the case says so.
 
-Vaglio has its own CQL engine, written for it. On HL7's official CQL conformance tests it passes 2,003 of 2,037. On the Da Vinci reference home-oxygen package, it gives the same answers as the reference CQL engine on every one of the 79 definitions we compared, on two test patients. Value sets, the named lists of codes CQL refers to, can be expanded from a terminology server such as tx.fhir.org, or from the NLM's VSAC with the plan's own UMLS key.
+Vaglio has its own CQL engine, written for it. On HL7's official CQL conformance tests for CQL 1.5.3 it passes 2,003 of 2,009. On the Da Vinci reference home-oxygen package, it gives the same answers as the reference CQL engine on every one of the 79 definitions we compared, on two test patients. Value sets, the named lists of codes CQL refers to, can be expanded from a terminology server such as tx.fhir.org, or from the NLM's VSAC with the plan's own UMLS key.
 
 ## Requests that do not arrive by API
 
