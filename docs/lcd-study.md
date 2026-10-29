@@ -135,15 +135,40 @@ leaves without an answer), not quotes.
 **Do two readings mean the same?** The gates check form, not meaning. One check of meaning that needs no person: give
 the same LCD to two drafters and compare what they decide, combination by combination of the evidence they share
 (`vaglio readings`, which pairs evidence by the clause it quotes). Where both models passed an LCD (48), 37 could be
-compared (11 have more than 18 pieces of evidence between the two readings, past what `readings` compared then; one
-pair quotes no clause in common). Since 2026-10-29 `readings` compares up to 62; those 11 pairs have not been compared
-again yet:
+compared at first: 10 had more than 18 pieces of evidence between the two readings, past what `readings` compared then,
+and one pair quotes no clause in common. Since 2026-10-29 `readings` compares up to 62, and the same pairs were
+compared again (same drafts, same pairing; the self-comparisons only over LCDs drafted as one policy both times):
 
-| Two readings of one LCD | Pairs | Decide alike on every combination | Median share of combinations they decide differently | Within 5% |
+| Two readings of one LCD | Pairs compared (before) | Decide alike on every combination | Median share of combinations they decide differently | Within 5% |
 |---|---|---|---|---|
-| Llama against DeepSeek | 37 | 2 | 3.9% | 19 |
-| Llama against itself (earlier round and the fresh run) | 37 | 7 | 1.2% | 25 |
-| DeepSeek against itself | 40 | 8 | 2.0% | 24 |
+| Llama against DeepSeek | 47 (37) | 2 (2) | 3.9% (3.9%) | 24 (19) |
+| Llama against itself (earlier round and the fresh run) | 41 (37) | 7 (7) | 1.2% (1.2%) | 28 (25) |
+| DeepSeek against itself | 44 (40) | 8 (8) | 1.2% (2.0%) | 28 (24) |
+
+The pairs newly compared, with the pieces of evidence between the two readings and the share decided differently:
+
+| LCD | Llama against DeepSeek | Llama against itself | DeepSeek against itself |
+|---|---|---|---|
+| L33252 | 19, 21.9% | | 19, 0.0% |
+| L33446 | 22, 12.4% | | |
+| L33569 | | 20, 2.9% | |
+| L33580 | 19, 3.1% | | 21, 0.0% |
+| L33624 | 19, 0.8% | | 19, 0.0% |
+| L33831 | 23, 0.1% | | |
+| L34195 | | 20, 50.0% | |
+| L35041 | 20, 0.4% | | |
+| L35121 | 22, 50.0% | | |
+| L36831 | 20, 46.7% | 23, 0.0% | |
+| L38584 | 20, 0.1% | | 19, 0.1% |
+| L39956 | 21, 99.7% | 20, 0.3% | |
+
+(0.0% here is fewer than one combination in a thousand, not none.) The large figures need reading with care. In L39956,
+Llama wrote five diagnoses as five pieces of evidence and DeepSeek as one piece quoting the sentence that lists them;
+the comparison pairs evidence by the clause it quotes, so these are pieces only one reading names, and every record
+holding one of them without the other counts as decided differently. Much of a high share on a large LCD is that
+difference in how finely the two readings cut the text, not in what they would decide on a real record. The pairs left
+uncompared are the three that quote no clause in common. The comparison took under 15 seconds for each set; the two
+pairs of 23 pieces took 8 seconds each.
 
 Two models (and one model twice) mostly agree, and almost never entirely: they choose different clauses as evidence
 (the two models shared 4.6 clauses on average, beside 2.1 and 3.7 each chose alone), and where they choose the same,
@@ -160,7 +185,7 @@ What the comparison gives that person is where to look: the combinations the two
 - The 16-evidence limit looked like a real limit in the first run, but it was the model writing the absence of a fact
   as evidence of its own; told otherwise, both models fitted every LCD.
 - **A passing draft is not a correct policy.** The gates check form, quotes, codes and consistency, not meaning.
-  Two independent readings of one LCD agree on every combination of evidence in only 2 of 37 comparable cases (the
+  Two independent readings of one LCD agree on every combination of evidence in only 2 of 47 comparable cases (the
   median differs on 3.9% of combinations). Nobody has read these drafts against their LCDs. Each would need a clinician's sign-off, as every draft does, before
   it decided anything. The drafts are not in the repository.
 - Two models, one sample of 60, four rounds each (eight for the last LCD), three study rounds and a second fresh run.

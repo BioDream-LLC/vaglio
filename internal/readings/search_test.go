@@ -136,3 +136,26 @@ func TestFamiliesOnTheLibraryPair(t *testing.T) {
 		t.Errorf("one by one %+v\nfamilies %+v", summarise(want), summarise(got))
 	}
 }
+
+// TestSmallComparisonsAlwaysFinish: up to 24 pieces of evidence the walk is allowed every branch it could have, so
+// even with no budget of its own a tangled comparison finishes, with the same counts.
+func TestSmallComparisonsAlwaysFinish(t *testing.T) {
+	defer func(n, b int) { oneByOne, familyBudget = n, b }(oneByOne, familyBudget)
+	rng := rand.New(rand.NewSource(4))
+	for i := 0; i < 50; i++ {
+		a, b := reading(rng, "a", 10), reading(rng, "b", 10)
+		oneByOne, familyBudget = 18, 1<<22
+		want, err := Compare(a, b)
+		if err != nil {
+			continue
+		}
+		oneByOne, familyBudget = 0, 1
+		got, err := Compare(a, b)
+		if err != nil {
+			t.Fatalf("pair %d: %v", i, err)
+		}
+		if !reflect.DeepEqual(summarise(want), summarise(got)) {
+			t.Fatalf("pair %d differs", i)
+		}
+	}
+}

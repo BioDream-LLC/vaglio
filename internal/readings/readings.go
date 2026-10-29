@@ -33,7 +33,7 @@ const MaxEvidence = 62
 var oneByOne = 18 // a variable so tests can send small comparisons through the search
 
 // familyBudget bounds the families a comparison past oneByOne may walk.
-const familyBudget = 1 << 22
+var familyBudget = 1 << 22
 
 // Item is one piece of evidence as the comparison names it: what each reading calls it, and the clause they quote.
 type Item struct {
@@ -134,7 +134,12 @@ func Compare(a, b *policy.Policy) (*Comparison, error) {
 		for i, s := range slots {
 			pairs[i] = []string{s.a, s.b}
 		}
-		err := decide.Families([]*policy.Policy{a, b}, pairs, familyBudget, func(f decide.Family) {
+		// A full walk has fewer than 2^(n+1) branches: up to 24 pieces it always finishes, however tangled the readings.
+		budget := familyBudget
+		if len(slots) <= 24 && 2<<uint(len(slots)) > budget {
+			budget = 2 << uint(len(slots))
+		}
+		err := decide.Families([]*policy.Policy{a, b}, pairs, budget, func(f decide.Family) {
 			if f.Outcomes[0] == f.Outcomes[1] {
 				return
 			}

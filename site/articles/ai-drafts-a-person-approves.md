@@ -66,11 +66,11 @@ So we checked meaning a second way. Where both models produced a passing draft o
 
 | Two drafts of one document | Pairs compared | Decide alike on every combination | Median share of combinations decided differently |
 |---|---|---|---|
-| Llama against DeepSeek | 37 | 2 | 3.9% |
-| Llama against itself, two runs | 37 | 7 | 1.2% |
-| DeepSeek against itself, two runs | 40 | 8 | 2.0% |
+| Llama against DeepSeek | 47 | 2 | 3.9% |
+| Llama against itself, two runs | 41 | 7 | 1.2% |
+| DeepSeek against itself, two runs | 44 | 8 | 1.2% |
 
-The drafts mostly agree, and almost never entirely. Some of the differences are the documents' own ambiguities: sentences that honestly admit two readings. Some are a model's misreading. Telling them apart needs a person who reads the document. What the comparison gives that person is where to look: the exact situations in which the two drafts disagree.
+The drafts mostly agree, and almost never entirely. On the largest documents they can differ widely: on one shoulder surgery LCD the two models disagree on almost every combination, largely because one model wrote five diagnoses as five pieces of evidence and the other as one, so the comparison cannot pair them. Some of the differences are the documents' own ambiguities: sentences that honestly admit two readings. Some are a model's misreading. Telling them apart needs a person who reads the document. What the comparison gives that person is where to look: the exact situations in which the two drafts disagree.
 
 That comparison is built into the drafting. With **draft twice** (`vaglio draft -twice`, or `serve -draft-twice` for the console), every document is drafted a second time, by the same model or a second one, and the two readings are compared on every combination of evidence before anyone sees them. When they agree, the draft says so. When they do not, the console shows each disagreement with the sentence each draft rests on and the simplest situation that shows it, and the saved draft begins with the same list. The models stay as uneven as the table shows; the difference is that the unevenness is shown, never hidden behind one lucky run.
 

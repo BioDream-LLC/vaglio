@@ -73,7 +73,7 @@ This is less an ambiguity in the rule than a warning about reading it. A layout 
 
 ## A study of 60 documents
 
-We also drafted 60 Medicare LCDs, picked by a fixed rule rather than by us, to see whether the policy language fits real coverage text. With better feedback to the model, all 60 could be written as policies. But two models' readings of the same document agreed on every combination of evidence in only 2 of 37 comparable cases, and differed on a median of 3.9% of combinations. [AI drafts, a person approves](/learn/ai-drafts-a-person-approves/) tells that story in full. The lesson is the same as above: the exact form makes disagreements visible, and a clinician has to settle them.
+We also drafted 60 Medicare LCDs, picked by a fixed rule rather than by us, to see whether the policy language fits real coverage text. With better feedback to the model, all 60 could be written as policies. But two models' readings of the same document agreed on every combination of evidence in only 2 of 47 comparable cases, and differed on a median of 3.9% of combinations. [AI drafts, a person approves](/learn/ai-drafts-a-person-approves/) tells that story in full. The lesson is the same as above: the exact form makes disagreements visible, and a clinician has to settle them.
 
 ## What this offers a plan
 
