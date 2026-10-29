@@ -204,3 +204,28 @@ func TestNesting(t *testing.T) {
 		t.Error("a parameter defaulting to itself gave a value")
 	}
 }
+
+// TestHugePower: a power too big for an Integer or a Long is null at once, never worked out first (the fuzzer's
+// 2000^9^9 is a number four billion bits long), and powers that fit, or whose base is -1, 0 or 1, still answer.
+func TestHugePower(t *testing.T) {
+	l, err := Compile("library X\ndefine Huge: 2000^9^9\ndefine HugeLong: 3L^1000000000L\ndefine Fn: Power(7, 2000000000)\n" +
+		"define Fits: 2^30\ndefine FitsLong: 2L^62L\ndefine One: 1^2000000000\ndefine MinusOne: (-1)^2000000001\ndefine Zero: 0^2000000000\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := &Env{Libraries: map[string]*Library{"X": l}}
+	start := time.Now()
+	want := map[string]any{"Huge": nil, "HugeLong": nil, "Fn": nil, "Fits": int64(1 << 30), "FitsLong": Long(1 << 62),
+		"One": int64(1), "MinusOne": int64(-1), "Zero": int64(0)}
+	for name, w := range want {
+		got, err := env.Evaluate("X", name)
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+		} else if got != w {
+			t.Errorf("%s = %#v, want %#v", name, got, w)
+		}
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("took %v", d)
+	}
+}

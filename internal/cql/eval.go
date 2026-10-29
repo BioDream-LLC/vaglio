@@ -2162,6 +2162,11 @@ func intArith(op string, a, b any) (any, bool) {
 		if ib < 0 {
 			return nil, false // a negative power is a Decimal
 		}
+		// A base other than -1, 0 or 1 raised past the 63rd power cannot fit in 64 bits: say so before working
+		// it out, since big.Int would build the whole number first (2000^9^9 is four billion bits).
+		if ib > 63 && (ia > 1 || ia < -1) {
+			return nil, true
+		}
 		r = new(big.Int).Exp(x, y, nil)
 	default:
 		return nil, false
