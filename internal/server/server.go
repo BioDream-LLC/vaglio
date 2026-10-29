@@ -685,7 +685,17 @@ func (cfg Config) getPolicy(w http.ResponseWriter, r *http.Request, _ auth.Sessi
 // policyMap is every combination of the policy's evidence and its outcome, for the console's map.
 func (cfg Config) policyMap(w http.ResponseWriter, r *http.Request, _ auth.Session) {
 	if p, ok := cfg.policy(w, r); ok {
-		m, err := decide.DecisionMap(p)
+		// ?axes=a,b,c (at most 16 pieces of evidence on the grid) and ?present=x,y (pieces off the grid held present;
+		// the rest are held absent). Without axes, the default slice.
+		axes := decide.MapAxes(p)
+		if v := r.URL.Query().Get("axes"); v != "" {
+			axes = strings.Split(v, ",")
+		}
+		var present []string
+		if v := r.URL.Query().Get("present"); v != "" {
+			present = strings.Split(v, ",")
+		}
+		m, err := decide.DecisionMapSlice(p, axes, present)
 		if err != nil {
 			writeError(w, http.StatusUnprocessableEntity, err.Error())
 			return

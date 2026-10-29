@@ -237,3 +237,22 @@ func TestKnownBrowserSignsInDespiteLock(t *testing.T) {
 		t.Errorf("the failure was recorded as %s %s", last.Action, last.Data)
 	}
 }
+
+// The map draws the slice asked for: the pieces named in axes on the grid, the others held, present when named.
+func TestPolicyMapSlice(t *testing.T) {
+	h := handler(t)
+	w := do(h, "GET", "/api/policies/lumbar_mri/map?axes=red_flag,conservative_therapy_6wk&present=recent_same_imaging", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", w.Code, w.Body)
+	}
+	var m decide.Map
+	if err := json.Unmarshal(w.Body.Bytes(), &m); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Evidence) != 2 || len(m.Outcomes) != 4 || len(m.HeldPresent) != 1 || len(m.Held) == 0 {
+		t.Errorf("%+v", m)
+	}
+	if w := do(h, "GET", "/api/policies/lumbar_mri/map?axes=no_such", ""); w.Code != http.StatusUnprocessableEntity {
+		t.Errorf("unknown evidence: status %d", w.Code)
+	}
+}

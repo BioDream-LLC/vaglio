@@ -19,6 +19,8 @@ package decide
 // its check saying so: the limit is how intricate the policy is, not how much evidence it names.
 
 import (
+	"fmt"
+
 	"github.com/biodream-llc/vaglio/internal/policy"
 )
 
@@ -359,4 +361,173 @@ func relevant(p *policy.Policy, present map[string]*Citation, open []string) []b
 		out[k] = reach[at[n]]
 	}
 	return out
+}
+
+// Family is a set of records several policies all decide the same way: every combination of the slots in Present
+// documented present, the slots in Absent documented absent, and the Free other slots either way (2^Free records).
+type Family struct {
+	Present, Absent []int
+	Free            int
+	Outcomes        []Outcome // per policy, as Settle gives it
+	Decisions       []string  // per policy, the decision the outcome rests on ("" for none)
+}
+
+// Families walks every combination of shared slots of evidence across several policies, as Check walks one policy's:
+// slots[i][k] names the evidence of policy k that slot i stands for ("" when policy k has none there). It branches
+// only on slots that can still change a decision not yet settled in some policy, and calls each once per family of
+// records decided alike, so a list of alternatives is not multiplied out. It gives up, with an error, past budget
+// branches. Within one family, every policy's outcome is what Settle gives on any of its records.
+func Families(ps []*policy.Policy, slots [][]string, budget int, each func(Family)) error {
+	type one struct {
+		g       *graph
+		at      []int   // per slot, the argument index in this policy, -1 for none
+		targets [][]int // per argument, what it attacks
+		state   []int8
+	}
+	var all []*one
+	for k, p := range ps {
+		o := &one{g: newGraph(p), at: make([]int, len(slots)), targets: make([][]int, len(p.Arguments)),
+			state: make([]int8, len(p.Arguments))}
+		idx := map[string]int{}
+		for i, a := range p.Arguments {
+			idx[a.Name] = i
+		}
+		for i, s := range slots {
+			o.at[i] = -1
+			if s[k] != "" {
+				j, ok := idx[s[k]]
+				if !ok || !o.g.isEv[j] {
+					return fmt.Errorf("decide: %q is not evidence of policy %s", s[k], p.ID)
+				}
+				o.at[i] = j
+			}
+		}
+		// Evidence of this policy in no slot is documented absent throughout.
+		inSlot := map[int]bool{}
+		for _, j := range o.at {
+			inSlot[j] = true
+		}
+		for _, j := range o.g.evIndex {
+			if !inSlot[j] {
+				o.state[j] = out
+			}
+		}
+		for to, as := range o.g.attackers {
+			for _, from := range as {
+				o.targets[from] = append(o.targets[from], to)
+			}
+		}
+		all = append(all, o)
+	}
+	given := make([]int8, len(slots))
+	branches := 0
+	var failed error
+	var walk func()
+	walk = func() {
+		if failed != nil {
+			return
+		}
+		branches++
+		if branches > budget {
+			failed = fmt.Errorf("decide: too intricate to compare every combination of %d pieces of evidence exactly", len(slots))
+			return
+		}
+		labs := make([][]int8, len(all))
+		settled := make([]bool, len(all))
+		for k, o := range all {
+			labs[k] = make([]int8, len(o.state))
+			o.g.settle(o.state, labs[k])
+			settled[k] = true
+			for _, d := range o.g.decisions {
+				if labs[k][d] == unknown {
+					settled[k] = false
+					break
+				}
+			}
+		}
+		next, free := -1, 0
+		for i := range slots {
+			if given[i] != unknown {
+				continue
+			}
+			free++
+			if next >= 0 {
+				continue
+			}
+			for k, o := range all {
+				j := o.at[i]
+				if settled[k] || j < 0 {
+					continue
+				}
+				for _, t := range o.targets[j] {
+					if labs[k][t] == unknown {
+						next = i
+						break
+					}
+				}
+				if next >= 0 {
+					break
+				}
+			}
+		}
+		set := func(i int, v int8) {
+			given[i] = v
+			for _, o := range all {
+				if o.at[i] >= 0 {
+					o.state[o.at[i]] = v
+				}
+			}
+		}
+		if next >= 0 {
+			set(next, in)
+			walk()
+			set(next, out)
+			walk()
+			set(next, unknown)
+			return
+		}
+		// Nothing left changes any decision: label each unsettled policy with the free slots absent, which is its
+		// grounded labelling on every record of the family.
+		var freed []int
+		for i := range slots {
+			if given[i] == unknown {
+				freed = append(freed, i)
+				set(i, out)
+			}
+		}
+		f := Family{Free: free}
+		for i := range slots {
+			if given[i] == in {
+				f.Present = append(f.Present, i)
+			}
+		}
+		for k, o := range all {
+			if !settled[k] {
+				o.g.settle(o.state, labs[k])
+			}
+			got, _ := o.g.outcomeOf(labs[k])
+			dec := ""
+			if got == Approved || got == Denied {
+				for _, d := range o.g.decisions {
+					if labs[k][d] == in && o.g.approve[d] == (got == Approved) {
+						dec = ps[k].Arguments[d].Name
+						break
+					}
+				}
+			}
+			f.Outcomes = append(f.Outcomes, got)
+			f.Decisions = append(f.Decisions, dec)
+		}
+		for _, i := range freed {
+			set(i, unknown)
+		}
+		for i := range slots {
+			if given[i] == out {
+				f.Absent = append(f.Absent, i)
+			}
+		}
+		each(f)
+	}
+	walk()
+	return failed
 }

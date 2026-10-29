@@ -265,3 +265,52 @@ func TestLargePolicyInTheLanguage(t *testing.T) {
 		t.Errorf("check and decision took %v", took)
 	}
 }
+
+// TestMapSlices: a policy past 16 pieces is mapped a slice at a time. The default slice takes pieces from each family
+// (here the four workup pieces plus alternatives, not alternatives only), and every cell agrees with Settle on the
+// whole record it stands for.
+func TestMapSlices(t *testing.T) {
+	p := &policy.Policy{ID: "big"}
+	for i := 0; i < 30; i++ {
+		p.Arguments = append(p.Arguments, policy.Argument{Name: fmt.Sprintf("alt%d", i), Kind: policy.Evidence})
+		p.Attacks = append(p.Attacks, policy.Attack{From: fmt.Sprintf("alt%d", i), To: "no_alt"})
+	}
+	for _, n := range []string{"tried", "imaged", "contra"} {
+		p.Arguments = append(p.Arguments, policy.Argument{Name: n, Kind: policy.Evidence})
+	}
+	p.Arguments = append(p.Arguments, policy.Argument{Name: "no_alt", Kind: policy.Criterion},
+		policy.Argument{Name: "unmet", Kind: policy.Criterion},
+		policy.Argument{Name: "approve", Kind: policy.Decision, Verdict: policy.Approve},
+		policy.Argument{Name: "deny", Kind: policy.Decision, Verdict: policy.Deny})
+	p.Attacks = append(p.Attacks, policy.Attack{From: "tried", To: "unmet"}, policy.Attack{From: "imaged", To: "unmet"},
+		policy.Attack{From: "no_alt", To: "approve"}, policy.Attack{From: "unmet", To: "approve"},
+		policy.Attack{From: "contra", To: "approve"}, policy.Attack{From: "approve", To: "deny"})
+	axes := MapAxes(p)
+	if len(axes) != MaxMapEvidence || !contains(axes, "tried") || !contains(axes, "imaged") || !contains(axes, "contra") {
+		t.Fatalf("default slice %v", axes)
+	}
+	m, err := DecisionMapSlice(p, axes, []string{"alt29"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Held) != 33-16 || len(m.HeldPresent) != 1 || len(m.Outcomes) != 1<<16 {
+		t.Fatalf("held %d, present %v, %d cells", len(m.Held), m.HeldPresent, len(m.Outcomes))
+	}
+	for _, mask := range []int{0, 1, 1 << 13, 1<<16 - 1, 12345} {
+		present := []string{"alt29"}
+		for i, n := range m.Evidence {
+			if mask&(1<<i) != 0 {
+				present = append(present, n)
+			}
+		}
+		if o, _ := Settle(p, present); string(o[0]) != m.Outcomes[mask:mask+1] {
+			t.Errorf("cell %d: map %c, settle %s", mask, m.Outcomes[mask], o)
+		}
+	}
+	if _, err := DecisionMapSlice(p, append(axes, "alt29"), nil); err == nil {
+		t.Error("17 pieces on the grid accepted")
+	}
+	if _, err := DecisionMapSlice(p, axes, []string{"tried"}); err == nil {
+		t.Error("a piece both on the grid and held accepted")
+	}
+}

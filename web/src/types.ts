@@ -758,6 +758,10 @@ export interface DecisionMap {
   outcomes: string;
   decisions: number[];
   clauses: string[];
+  /** Evidence not on the grid (a policy past 16 pieces is mapped a slice at a time), held as below throughout. */
+  held: string[];
+  /** The held evidence documented present in every cell; the rest of the held evidence is documented absent. */
+  heldPresent: string[];
 }
 
 /** A decision's letter, in plain words, as sections of text. */

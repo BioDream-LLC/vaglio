@@ -1,12 +1,14 @@
 package draft
 
 import (
+	"fmt"
 	"os"
 	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/biodream-llc/vaglio/internal/decide"
+	"github.com/biodream-llc/vaglio/internal/policy"
 )
 
 // The example in the guide is what the model copies: it must pass every gate itself.
@@ -36,5 +38,12 @@ func TestTheCommittedDraftStillPasses(t *testing.T) {
 	}
 	if _, f := Gate(Request{ID: "knee_arthroscopy", Document: string(doc)}, string(src)); len(f) != 0 {
 		t.Fatalf("%v", f)
+	}
+}
+
+// The guide tells the model the language's own limit on evidence, not a smaller one of its own.
+func TestTheGuideStatesTheEvidenceLimit(t *testing.T) {
+	if want := fmt.Sprintf("At most %d evidence arguments.", policy.MaxEvidence); !strings.Contains(guide, want) {
+		t.Errorf("the guide does not say %q", want)
 	}
 }

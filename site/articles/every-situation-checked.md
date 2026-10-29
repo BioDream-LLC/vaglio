@@ -51,7 +51,7 @@ Separately, a policy drafted from a document must quote every clause word for wo
 
 ## Seeing the whole policy at once
 
-The checker's results are also drawn. On the console, every policy has a **policy map**: a grid of every combination of its evidence, each square coloured by the decision it gets. A clinician reviewing a policy can see at a glance where the approvals are, where the denials are, and which piece of evidence moves a large area from one to the other. Clicking a square shows that combination of evidence, the decision it gets and the clause that decision rests on. Beside the grid, a diagram draws the policy itself: every rule as a box, and an arrow from each rule to the rules it overrules.
+The checker's results are also drawn. On the console, every policy has a **policy map**: a grid of every combination of its evidence, each square coloured by the decision it gets. A clinician reviewing a policy can see at a glance where the approvals are, where the denials are, and which piece of evidence moves a large area from one to the other. Clicking a square shows that combination of evidence, the decision it gets and the clause that decision rests on. The grid holds 16 pieces of evidence at a time; for a larger policy the reader chooses which 16 are on it and whether each of the others is present or absent. Beside the grid, a diagram draws the policy itself: every rule as a box, and an arrow from each rule to the rules it overrules.
 
 ![The policy map: every combination of the policy's evidence, coloured by the decision each one gets.](/img/map.png)
 

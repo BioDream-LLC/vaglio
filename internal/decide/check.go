@@ -3,6 +3,7 @@ package decide
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/biodream-llc/vaglio/internal/af"
 	"github.com/biodream-llc/vaglio/internal/policy"
@@ -92,39 +93,124 @@ func Settle(p *policy.Policy, present []string) (Outcome, string) {
 	return s.outcome, s.decision
 }
 
-// Map is every combination of a policy's evidence and its outcome on a fully documented record: what the console's policy
-// map draws. Combination m has evidence i present when bit i of m is set, in the order of Evidence.
+// Map is every combination of up to MaxMapEvidence pieces of a policy's evidence and its outcome on a fully documented
+// record: what the console's policy map draws. Combination m has evidence i present when bit i of m is set, in the
+// order of Evidence. A policy with more evidence is mapped a slice at a time: Held is the evidence not on the grid,
+// each held present (HeldPresent) or absent throughout.
 type Map struct {
 	Policy   string   `json:"policy"`
 	Evidence []string `json:"evidence"`
 	// Outcomes holds one letter per combination, in order: a approved, d denied, p pended, x policy defect.
 	Outcomes string `json:"outcomes"`
 	// Decisions, per combination, the index in Clauses of the decision the outcome rests on, -1 for none.
-	Decisions []int    `json:"decisions"`
-	Clauses   []string `json:"clauses"` // decision names, as Decisions indexes them
+	Decisions   []int    `json:"decisions"`
+	Clauses     []string `json:"clauses"` // decision names, as Decisions indexes them
+	Held        []string `json:"held"`
+	HeldPresent []string `json:"heldPresent"`
 }
 
-// MaxMapEvidence bounds the map: 2^16 combinations is 64 KB of letters.
+// MaxMapEvidence bounds the grid: 2^16 combinations is 64 KB of letters.
 const MaxMapEvidence = 16
 
-// DecisionMap decides every combination of a policy's evidence.
+// DecisionMap decides every combination of a policy's evidence, or for a policy with more than MaxMapEvidence, every
+// combination of the default slice (MapAxes), the rest held absent.
 func DecisionMap(p *policy.Policy) (*Map, error) {
+	return DecisionMapSlice(p, MapAxes(p), nil)
+}
+
+// MapAxes is the evidence a map shows by default: all of it when it fits, else MaxMapEvidence pieces taken in turn
+// from each family of interchangeable evidence (pieces that defeat the same arguments), so that a long list of
+// alternatives does not fill the grid on its own.
+func MapAxes(p *policy.Policy) []string {
 	ev := p.EvidenceNames()
-	if len(ev) > MaxMapEvidence {
-		return nil, fmt.Errorf("decide: %d pieces of evidence is too many to map (at most %d)", len(ev), MaxMapEvidence)
+	if len(ev) <= MaxMapEvidence {
+		return ev
 	}
+	targets := map[string][]string{}
+	for _, x := range p.Attacks {
+		targets[x.From] = append(targets[x.From], x.To)
+	}
+	var keys []string
+	family := map[string][]string{}
+	for _, n := range ev {
+		t := append([]string(nil), targets[n]...)
+		sort.Strings(t)
+		k := strings.Join(t, "\x00")
+		if family[k] == nil {
+			keys = append(keys, k)
+		}
+		family[k] = append(family[k], n)
+	}
+	chosen := map[string]bool{}
+	for len(chosen) < MaxMapEvidence {
+		for _, k := range keys {
+			if len(chosen) < MaxMapEvidence && len(family[k]) > 0 {
+				chosen[family[k][0]] = true
+				family[k] = family[k][1:]
+			}
+		}
+	}
+	var axes []string
+	for _, n := range ev {
+		if chosen[n] {
+			axes = append(axes, n)
+		}
+	}
+	return axes
+}
+
+// DecisionMapSlice decides every combination of the evidence named in axes (at most MaxMapEvidence, in the policy's
+// order), every other piece held present when named in present and absent otherwise.
+func DecisionMapSlice(p *policy.Policy, axes, present []string) (*Map, error) {
+	isEv := map[string]bool{}
+	for _, n := range p.EvidenceNames() {
+		isEv[n] = true
+	}
+	onGrid := map[string]bool{}
+	for _, n := range axes {
+		if !isEv[n] {
+			return nil, fmt.Errorf("decide: %q is not evidence of policy %s", n, p.ID)
+		}
+		onGrid[n] = true
+	}
+	if len(onGrid) > MaxMapEvidence {
+		return nil, fmt.Errorf("decide: at most %d pieces of evidence fit on the map at once, not %d", MaxMapEvidence, len(onGrid))
+	}
+	held := map[string]bool{}
+	for _, n := range present {
+		if !isEv[n] || onGrid[n] {
+			return nil, fmt.Errorf("decide: %q is not evidence of policy %s held off the map", n, p.ID)
+		}
+		held[n] = true
+	}
+	m := &Map{Policy: p.ID, Clauses: []string{}, Held: []string{}, HeldPresent: []string{}}
+	for _, n := range p.EvidenceNames() {
+		switch {
+		case onGrid[n]:
+			m.Evidence = append(m.Evidence, n)
+		case held[n]:
+			m.Held = append(m.Held, n)
+			m.HeldPresent = append(m.HeldPresent, n)
+		default:
+			m.Held = append(m.Held, n)
+		}
+	}
+	ev := m.Evidence
 	total := 1 << uint(len(ev))
-	m := &Map{Policy: p.ID, Evidence: ev, Decisions: make([]int, total), Clauses: []string{}}
+	m.Decisions = make([]int, total)
 	index := map[string]int{}
 	letters := make([]byte, total)
 	for mask := 0; mask < total; mask++ {
-		present := map[string]*Citation{}
+		with := map[string]*Citation{}
+		for n := range held {
+			with[n] = &Citation{}
+		}
 		for i, name := range ev {
 			if mask&(1<<uint(i)) != 0 {
-				present[name] = &Citation{}
+				with[name] = &Citation{}
 			}
 		}
-		s := solve(p, present)
+		s := solve(p, with)
 		switch s.outcome {
 		case Approved:
 			letters[mask] = 'a'

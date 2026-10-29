@@ -95,8 +95,17 @@ export const api = createApi({
       query: (id) => `policies/${encodeURIComponent(id)}`,
       providesTags: ["Policy"],
     }),
-    policyMap: b.query<DecisionMap, string>({
-      query: (id) => `policies/${encodeURIComponent(id)}/map`,
+    policyMap: b.query<
+      DecisionMap,
+      { id: string; axes?: string[]; present?: string[] }
+    >({
+      query: ({ id, axes, present }) => {
+        const q = new URLSearchParams();
+        if (axes) q.set("axes", axes.join(","));
+        if (present?.length) q.set("present", present.join(","));
+        const s = q.toString();
+        return `policies/${encodeURIComponent(id)}/map${s ? `?${s}` : ""}`;
+      },
       providesTags: ["Policy"],
     }),
     letter: b.query<Letter, { id: string; lang: string; portal?: boolean }>({

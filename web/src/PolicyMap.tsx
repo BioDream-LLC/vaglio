@@ -121,7 +121,16 @@ function gray(bits: number): number[] {
 }
 
 /** Every combination of evidence as one coloured cell; neighbours differ by one piece of evidence. */
-function Combinations({ p, m }: { p: PolicyDetail; m: DecisionMap }) {
+function Combinations({
+  p,
+  m,
+  onSlice,
+}: {
+  p: PolicyDetail
+  m: DecisionMap
+  /** For a policy past 16 pieces: change which evidence is on the grid and how the rest is held. */
+  onSlice?: (axes: string[], present: string[]) => void
+}) {
   const n = m.evidence.length
   const rb = Math.floor(n / 2)
   const cb = n - rb
@@ -184,65 +193,150 @@ function Combinations({ p, m }: { p: PolicyDetail; m: DecisionMap }) {
     ])
   }
 
+  // A grid wider than 640 pixels (14 or more pieces of evidence) leaves no room beside it: the details go below.
+  const wide = cols.length * cell > 640
   return (
-    <div className="grid gap-5 lg:grid-cols-[auto_minmax(0,1fr)]">
-      <div>
-        <canvas
-          ref={canvas}
-          className="pm-grid"
-          style={{ width: cols.length * cell, height: rows.length * cell }}
-          tabIndex={0}
-          role="img"
-          aria-label={`All ${m.outcomes.length} combinations of evidence: ${Object.entries(counts)
-            .map(([k, v]) => `${v} ${outcomeName[k].toLowerCase()}`)
-            .join(', ')}. Use the arrow keys to move between combinations.`}
-          onKeyDown={key}
-          onClick={(e) => {
-            const r = e.currentTarget.getBoundingClientRect()
-            setAt([
-              Math.min(rows.length - 1, Math.floor((e.clientY - r.top) / cell)),
-              Math.min(cols.length - 1, Math.floor((e.clientX - r.left) / cell)),
-            ])
-          }}
-        />
-        <ul className="m-0 mt-3 flex list-none flex-wrap gap-3 p-0 text-sm">
-          {Object.entries(counts).map(([k, v]) => (
-            <li key={k} className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm" style={{ background: `var(${outcomeVar[k]})` }} aria-hidden="true" />
-              {outcomeName[k]} <span className="meta tabular-nums">{v}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div aria-live="polite" className="min-w-0">
-        <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-faint">This combination</div>
-        <div className="mt-1 text-2xl font-extrabold" style={{ color: `var(${outcomeVar[m.outcomes[sel]]})` }}>
-          {outcomeName[m.outcomes[sel]]}
+    <>
+      <div className={wide ? 'grid gap-5' : 'grid gap-5 lg:grid-cols-[auto_minmax(0,1fr)]'}>
+        <div>
+          <canvas
+            ref={canvas}
+            className="pm-grid"
+            style={{ width: cols.length * cell, height: rows.length * cell }}
+            tabIndex={0}
+            role="img"
+            aria-label={`All ${m.outcomes.length} combinations of evidence: ${Object.entries(counts)
+              .map(([k, v]) => `${v} ${outcomeName[k].toLowerCase()}`)
+              .join(', ')}. Use the arrow keys to move between combinations.`}
+            onKeyDown={key}
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect()
+              setAt([
+                Math.min(rows.length - 1, Math.floor((e.clientY - r.top) / cell)),
+                Math.min(cols.length - 1, Math.floor((e.clientX - r.left) / cell)),
+              ])
+            }}
+          />
+          <ul className="m-0 mt-3 flex list-none flex-wrap gap-3 p-0 text-sm">
+            {Object.entries(counts).map(([k, v]) => (
+              <li key={k} className="flex items-center gap-1.5">
+                <span
+                  className="h-3 w-3 rounded-sm"
+                  style={{ background: `var(${outcomeVar[k]})` }}
+                  aria-hidden="true"
+                />
+                {outcomeName[k]} <span className="meta tabular-nums">{v}</span>
+              </li>
+            ))}
+          </ul>
         </div>
-        {dec && (
-          <p className="mt-1">
-            {dec.text}
-            <span className="clause block">Policy: “{dec.clause}”</span>
+        <div aria-live="polite" className="min-w-0">
+          <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-faint">This combination</div>
+          <div className="mt-1 text-2xl font-extrabold" style={{ color: `var(${outcomeVar[m.outcomes[sel]]})` }}>
+            {outcomeName[m.outcomes[sel]]}
+          </div>
+          {dec && (
+            <p className="mt-1">
+              {dec.text}
+              <span className="clause block">Policy: “{dec.clause}”</span>
+            </p>
+          )}
+          <ul
+            className={`mt-3 list-none p-0 text-sm ${wide ? 'grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-4' : 'space-y-1'}`}
+          >
+            {m.evidence.map((e, i) => (
+              <li key={e} className="flex items-start gap-2">
+                <span
+                  className={`mt-1 h-2.5 w-2.5 flex-none rounded-full ${sel & (1 << i) ? 'bg-ok' : 'bg-line'}`}
+                  aria-hidden="true"
+                />
+                <span className={sel & (1 << i) ? '' : 'text-faint'}>
+                  {text.get(e)?.text ?? e}
+                  <span className="sr-only">{sel & (1 << i) ? ': documented present' : ': documented absent'}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="meta mt-3 text-xs">
+            {present.length} of {m.evidence.length} documented present, the rest documented absent. Each step to a
+            neighbouring cell changes one piece of evidence.
           </p>
-        )}
-        <ul className="mt-3 list-none space-y-1 p-0 text-sm">
-          {m.evidence.map((e, i) => (
-            <li key={e} className="flex items-start gap-2">
-              <span
-                className={`mt-1 h-2.5 w-2.5 flex-none rounded-full ${sel & (1 << i) ? 'bg-ok' : 'bg-line'}`}
-                aria-hidden="true"
-              />
-              <span className={sel & (1 << i) ? '' : 'text-faint'}>
-                {text.get(e)?.text ?? e}
-                <span className="sr-only">{sel & (1 << i) ? ': documented present' : ': documented absent'}</span>
-              </span>
+        </div>
+      </div>
+      {m.held.length > 0 && <Held p={p} m={m} text={text} onSlice={onSlice} />}
+    </>
+  )
+}
+
+/** The evidence off the grid, each held present or absent in every cell, and a way to swap pieces on and off it. */
+function Held({
+  m,
+  text,
+  onSlice,
+}: {
+  p: PolicyDetail
+  m: DecisionMap
+  text: Map<string, Argument>
+  onSlice?: (axes: string[], present: string[]) => void
+}) {
+  const presentSet = new Set(m.heldPresent)
+  const full = m.evidence.length >= 16
+  return (
+    <div className="mt-6 border-t border-line pt-4">
+      <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-faint">Not on the grid</div>
+      <p className="meta mt-1 text-xs">
+        This policy has {m.evidence.length + m.held.length} pieces of evidence; the grid shows 16 at a time. The{' '}
+        {m.held.length} below are held as set here in every cell. Its check covers every combination of all of them.
+      </p>
+      <ul className="mt-2 grid list-none gap-x-6 gap-y-1.5 p-0 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        {m.held.map((e) => {
+          const on = presentSet.has(e)
+          return (
+            <li key={e} className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className={`chip ${on ? 'on' : ''}`}
+                aria-pressed={on}
+                onClick={() => onSlice?.(m.evidence, on ? m.heldPresent.filter((x) => x !== e) : [...m.heldPresent, e])}
+              >
+                {on ? 'Present' : 'Absent'}
+              </button>
+              <span className={on ? '' : 'text-faint'}>{text.get(e)?.text ?? e}</span>
+              <button
+                type="button"
+                className="link text-xs disabled:opacity-40"
+                disabled={full}
+                title={full ? 'Take a piece off the grid first' : undefined}
+                onClick={() =>
+                  onSlice?.(
+                    [...m.evidence, e],
+                    m.heldPresent.filter((x) => x !== e),
+                  )
+                }
+              >
+                Put on the grid
+              </button>
             </li>
-          ))}
-        </ul>
-        <p className="meta mt-3 text-xs">
-          {present.length} of {m.evidence.length} documented present, the rest documented absent. Each step to a
-          neighbouring cell changes one piece of evidence.
-        </p>
+          )
+        })}
+      </ul>
+      <div className="mt-3 text-[11px] font-bold uppercase tracking-[0.1em] text-faint">Take off the grid</div>
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        {m.evidence.map((e) => (
+          <button
+            key={e}
+            type="button"
+            className="chip"
+            onClick={() =>
+              onSlice?.(
+                m.evidence.filter((x) => x !== e),
+                m.heldPresent,
+              )
+            }
+          >
+            {text.get(e)?.text ?? e}
+          </button>
+        ))}
       </div>
     </div>
   )
@@ -251,7 +345,8 @@ function Combinations({ p, m }: { p: PolicyDetail; m: DecisionMap }) {
 /** The policy map: its rules as a diagram, and every combination of evidence as a grid of outcomes. */
 export function PolicyMap({ id }: { id: string }) {
   const { data: p } = usePolicyDetailQuery(id)
-  const { data: m, error } = usePolicyMapQuery(id)
+  const [slice, setSlice] = useState<{ axes: string[]; present: string[] } | undefined>()
+  const { data: m, error } = usePolicyMapQuery({ id, ...slice })
   const [view, setView] = useState<'diagram' | 'grid'>('diagram')
   if (!p) return null
   return (
@@ -279,9 +374,11 @@ export function PolicyMap({ id }: { id: string }) {
       {view === 'diagram' ? (
         <Diagram p={p} />
       ) : m ? (
-        <Combinations p={p} m={m} />
+        <Combinations p={p} m={m} onSlice={(axes, present) => setSlice({ axes, present })} />
       ) : error ? (
-        <p className="meta">This policy has too much evidence to map every combination.</p>
+        <p className="meta">
+          The map could not be drawn: {'data' in error ? String((error.data as { error?: string })?.error ?? '') : ''}
+        </p>
       ) : (
         <p className="meta">Deciding every combination…</p>
       )}

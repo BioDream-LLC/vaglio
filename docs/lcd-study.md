@@ -60,7 +60,8 @@ The same 60 LCDs, the 38 that had not passed drafted again:
 
 53 of the 60 passed with one model or the other. DeepSeek's largest passing policy uses exactly 16 pieces of evidence.
 The 16 limit stays: with the guidance, every LCD in the sample fitted under it. (Since 2026-10-28 the language allows 40,
-checked by a search past 16; the drafting guide still asks for 16 at most, since a smaller policy is easier to read.)
+checked by a search past 16, and since 2026-10-29 the drafting guide tells the model 40 as well. The study above ran
+with 16.)
 
 The 7 neither model passed, and what stopped them in the last round:
 
@@ -134,8 +135,9 @@ leaves without an answer), not quotes.
 **Do two readings mean the same?** The gates check form, not meaning. One check of meaning that needs no person: give
 the same LCD to two drafters and compare what they decide, combination by combination of the evidence they share
 (`vaglio readings`, which pairs evidence by the clause it quotes). Where both models passed an LCD (48), 37 could be
-compared (11 have more than 18 pieces of evidence between the two readings, past what `readings` compares; one pair
-quotes no clause in common):
+compared (11 have more than 18 pieces of evidence between the two readings, past what `readings` compared then; one
+pair quotes no clause in common). Since 2026-10-29 `readings` compares up to 62; those 11 pairs have not been compared
+again yet:
 
 | Two readings of one LCD | Pairs | Decide alike on every combination | Median share of combinations they decide differently | Within 5% |
 |---|---|---|---|---|

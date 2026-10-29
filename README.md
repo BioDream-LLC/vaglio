@@ -282,7 +282,9 @@ The proof, written for whoever needs it: the provider, the patient, a regulator.
 - **Policy map** (each policy's screen): the rules as a diagram, evidence on the left, decisions on the right, an arrow
   for each "defeats" (click a box to light up what it touches), and every combination of its evidence as a grid of
   outcomes, neighbouring cells one piece of evidence apart, readable with the arrow keys
-  (`GET /api/policies/{id}/map`).
+  (`GET /api/policies/{id}/map`). The grid holds 16 pieces of evidence at a time; a larger policy is shown a slice at a
+  time, the rest held present or absent as the reader sets them, and any piece can be swapped on or off the grid
+  (`?axes=` and `?present=`).
 
 ### The reviewers' day
 
@@ -426,7 +428,9 @@ Short text files in the plan's own words, checked on every combination before th
   warnings. What passes is written with `status draft`, which the server refuses until a person signs it off.
 
 - **Two readings compared** (`vaglio readings A.vaglio B.vaglio`): two policies drafted from one coverage document,
-  each quoting it word for word, decided on every record of their evidence; where they disagree, the groups of records,
+  each quoting it word for word, decided on every record of their evidence (up to 62 pieces between them: past 18, by a
+  search that walks both readings together and counts records decided alike in families, tested to give the same
+  counts as deciding each record); where they disagree, the groups of records,
   the clauses each rests on, and the simplest example. A check proves a policy consistent, not that it means what the
   document means; a second reading that disagrees is where a person should look. `library/readings/` holds a second
   reading of the TKA LCD; what the two readings found is written up in

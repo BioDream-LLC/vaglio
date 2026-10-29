@@ -22,8 +22,18 @@ import (
 	"github.com/biodream-llc/vaglio/internal/policy"
 )
 
-// MaxEvidence bounds the evidence compared at once: 2^18 records, each decided twice.
-const MaxEvidence = 18
+// MaxEvidence bounds the evidence compared at once. Up to oneByOne pieces, every record is decided twice in turn;
+// past that, decide.Families walks both readings together and counts whole families of records decided alike, which
+// gives the same counts (only which simplest record is shown as an example can differ). The bound is what a count of
+// records (2^n) can hold; two readings of one document share most of their evidence, so two policies of the
+// language's 40 each come well under it.
+const MaxEvidence = 62
+
+// oneByOne is the most evidence compared by deciding every record in turn.
+var oneByOne = 18 // a variable so tests can send small comparisons through the search
+
+// familyBudget bounds the families a comparison past oneByOne may walk.
+const familyBudget = 1 << 22
 
 // Item is one piece of evidence as the comparison names it: what each reading calls it, and the clause they quote.
 type Item struct {
@@ -102,6 +112,47 @@ func Compare(a, b *policy.Policy) (*Comparison, error) {
 	}
 	groups := map[string]*Group{}
 	c.Records = 1 << uint(len(slots))
+	add := func(oa, ob decide.Outcome, da, db string, shown []string, records int) {
+		c.Differ += records
+		g := Group{A: oa, B: ob, ADecides: clause(a, da), BDecides: clause(b, db)}
+		key := string(oa) + "\x00" + string(ob) + "\x00" + g.ADecides + "\x00" + g.BDecides
+		if old, ok := groups[key]; ok {
+			old.Records += records
+			if len(shown) < len(old.Example) {
+				old.Example = shown
+			}
+			return
+		}
+		g.Records, g.Example = records, shown
+		if g.Example == nil {
+			g.Example = []string{}
+		}
+		groups[key] = &g
+	}
+	if len(slots) > oneByOne {
+		pairs := make([][]string, len(slots))
+		for i, s := range slots {
+			pairs[i] = []string{s.a, s.b}
+		}
+		err := decide.Families([]*policy.Policy{a, b}, pairs, familyBudget, func(f decide.Family) {
+			if f.Outcomes[0] == f.Outcomes[1] {
+				return
+			}
+			var shown []string
+			for _, i := range f.Present {
+				if slots[i].a != "" {
+					shown = append(shown, text["a:"+slots[i].a])
+				} else {
+					shown = append(shown, text["b:"+slots[i].b])
+				}
+			}
+			add(f.Outcomes[0], f.Outcomes[1], f.Decisions[0], f.Decisions[1], shown, 1<<uint(f.Free))
+		})
+		if err != nil {
+			return nil, fmt.Errorf("readings: %w", err)
+		}
+		return c.sorted(groups), nil
+	}
 	for mask := 0; mask < c.Records; mask++ {
 		var pa, pb, shown []string
 		for i, s := range slots {
@@ -123,22 +174,13 @@ func Compare(a, b *policy.Policy) (*Comparison, error) {
 		if oa == ob {
 			continue
 		}
-		c.Differ++
-		g := Group{A: oa, B: ob, ADecides: clause(a, da), BDecides: clause(b, db)}
-		key := string(oa) + "\x00" + string(ob) + "\x00" + g.ADecides + "\x00" + g.BDecides
-		if old, ok := groups[key]; ok {
-			old.Records++
-			if len(shown) < len(old.Example) {
-				old.Example = shown
-			}
-			continue
-		}
-		g.Records, g.Example = 1, shown
-		if g.Example == nil {
-			g.Example = []string{}
-		}
-		groups[key] = &g
+		add(oa, ob, da, db, shown, 1)
 	}
+	return c.sorted(groups), nil
+}
+
+// sorted puts the groups in order: most records first, then the simplest example.
+func (c *Comparison) sorted(groups map[string]*Group) *Comparison {
 	for _, g := range groups {
 		c.Groups = append(c.Groups, *g)
 	}
@@ -148,7 +190,7 @@ func Compare(a, b *policy.Policy) (*Comparison, error) {
 		}
 		return len(c.Groups[i].Example) < len(c.Groups[j].Example)
 	})
-	return c, nil
+	return c
 }
 
 func evidence(p *policy.Policy) []policy.Argument {
