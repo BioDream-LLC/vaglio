@@ -868,8 +868,9 @@ request Bundles each record names, fetched and checked by their hash before the 
 over, stop it and run `vaglio serve -data DIR` there (and point the PAS server at it). Not copied: the fax inbox's
 waiting faxes, drafts, and the kept policy versions (the policies come from the plan's own repository). By default an
 answer does not wait for the standby, so a decision of the primary's last milliseconds may not have reached it; with
-`serve -standby-sync 2s` every answer waits until the standby holds it (a takeover loses no answered decision; about
-23% fewer decisions a second on one machine; a standby that stops answering costs each decision 2 s and is recorded,
+`serve -standby-sync 2s` every answer waits until the standby holds it (a takeover loses no answered decision; each
+answer waits one more round trip and disk sync, about 15 ms on an M4: 36% fewer decisions a second with 8 requests in
+flight, none fewer with 32, [docs/assurance/recovery.md](docs/assurance/recovery.md); a standby that stops answering costs each decision 2 s and is recorded,
 and never stops decisions). It is a standby, not a cluster: one server decides at a time.
 
 ## Security

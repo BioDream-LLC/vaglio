@@ -130,7 +130,7 @@ func (cfg Config) ncpdpEPA(w http.ResponseWriter, r *http.Request) {
 		reply(http.StatusOK, ncpdp.Error(m, "900", msg, scriptID(), sent))
 		return
 	}
-	cfg.StandbySync.Confirm(r.Context())
+	cfg.confirmCase(r.Context(), a.Case)
 	switch a.Decision {
 	case "approve":
 		resp.Status, resp.Note = "Approved", a.Why

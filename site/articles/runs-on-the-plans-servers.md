@@ -53,7 +53,7 @@ The power-cut test takes the disk at its word. A disk that says it has saved dat
 
 A second machine can keep a live copy of the data, usually milliseconds behind the first. Every log entry is checked against the chain as it is copied, and a copy that has diverged is refused, never overwritten. To take over, the plan stops the standby and starts it as the server.
 
-By default, an answer does not wait for the standby, so the last few decisions before a sudden failure might not have reached it; in our drills that was between 0 and 3 decisions. With the synchronous setting, every answer waits until the standby holds it, and a takeover loses nothing that was answered. That costs about 23% of the throughput on one machine. A standby that stops responding never stops decisions: each one waits at most the configured time, and the delay is recorded.
+By default, an answer does not wait for the standby, so the last few decisions before a sudden failure might not have reached it; in our drills that was between 0 and 3 decisions. With the synchronous setting, every answer waits until the standby holds it, and a takeover loses nothing that was answered. What that costs is a short wait on each answer, about 15 milliseconds in our test. With few requests at once that meant about a third fewer decisions a second; with many at once it cost nothing, because the waiting answers share the work. A standby that stops responding never stops decisions: each one waits at most the configured time, and the delay is recorded.
 
 ## How fast it is
 

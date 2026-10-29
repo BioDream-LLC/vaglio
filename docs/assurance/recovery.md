@@ -17,6 +17,10 @@ Linux runner, October 2026.
 | Of them not on the standby (recovery point) | **0, 3 and 0** | see the CI log |
 | Synchronous (`-standby-sync 2s`): decisions answered | 1,051 (about 23% fewer) | not run in CI |
 | Of them not on the standby (recovery point) | **0** | |
+| **Synchronous standby, 2026-10-28** (10 s of load each, 3 runs, M4; asynchronous / synchronous) | | |
+| 8 clients: decisions answered | 2,850 to 2,937 / **1,822 to 1,857** (about 36% fewer) | not run in CI |
+| 32 clients: decisions answered | 2,891 to 3,012 / **4,174 to 4,273** (none fewer) | not run in CI |
+| Of them not on the standby (recovery point), synchronous | **0** | |
 | Standby's hash chain | verifies | verifies |
 | Kill to first decision on the new server (recovery time) | **1.35 s**, of which 1 s is the drill waiting | |
 
@@ -28,8 +32,12 @@ What the numbers say:
   of those milliseconds (3 of 1,358 in one run). Each such decision was answered to the PAS server, so the PAS server
   has it; what the new primary lacks is Vaglio's record of it.
 - With `serve -standby-sync 2s` each answer waits until the standby has written the decision to its disk: a takeover
-  then loses no answered decision. It costs throughput (about 23% here) and latency (one round trip to the standby
-  per answer). If the standby stops answering, each decision waits the stated 2 s and is then answered anyway, and the
+  then loses no answered decision. What it costs is latency: each answer waits one more round trip and one more
+  disk sync, the standby's (about 15 ms per answer on the M4, whose disk syncs are slow). With few requests in flight
+  (8 clients) that is about 36% fewer decisions a second; with more (32) it costs none, because the waiting answers
+  share the primary's disk syncs and the standby copies several records at a time (measured above; it was even higher
+  than asynchronous there). Since 2026-10-28 an answer waits only for its own records, and the standby hears of each
+  record the moment it is written instead of within 2 ms (7 to 10% more decisions than before, same drill). If the standby stops answering, each decision waits the stated 2 s and is then answered anyway, and the
   log records `standby.unconfirmed` (at most once a minute): a stopped standby slows decisions, it never stops them,
   and while it is down the recovery point is the asynchronous one. Over a real network the cost will be higher than
   on one machine; not measured.

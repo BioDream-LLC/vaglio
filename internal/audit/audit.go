@@ -62,6 +62,7 @@ type Log struct {
 	byCase  map[string][]int // each case's records, by place in records: ForCase is asked on every answer
 	ends    []int64          // where each record's line ends in the file
 	now     func() time.Time
+	changed chan struct{} // closed and replaced whenever a record is kept: Changed
 
 	// Group commit: an append writes its line under mu, then waits, outside it, until the file is synced past that
 	// line. One waiter syncs for everyone written by then, so appends arriving together share one sync.
@@ -517,6 +518,21 @@ func (l *Log) keep(end int64, recs ...Record) {
 		l.records = append(l.records, r)
 		l.ends = append(l.ends, end)
 	}
+	if l.changed != nil && len(recs) > 0 {
+		close(l.changed)
+		l.changed = nil
+	}
+}
+
+// Changed is closed when the next record is kept, so a reader waiting for one (a standby following the log) hears
+// of it at once.
+func (l *Log) Changed() <-chan struct{} {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.changed == nil {
+		l.changed = make(chan struct{})
+	}
+	return l.changed
 }
 
 // Synced is how many records are certainly on disk: readers in this process see records as soon as they are
