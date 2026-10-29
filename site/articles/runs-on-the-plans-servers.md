@@ -37,7 +37,7 @@ Vaglio answers only over encrypted connections (HTTPS, using TLS 1.2 or later), 
 - let Vaglio create a certificate authority of its own, restricted to this server's names, which the plan's machines trust once; or
 - let Vaglio obtain a free certificate from Let's Encrypt by itself, opening the port it needs only while it fetches one. This has been tried against Let's Encrypt itself; the public demonstration's certificate is one Vaglio obtained.
 
-The PAS server in front must present a secret token, which the installers create at random. Staff sign in with a password or the plan's own single sign-on. Repeated wrong passwords lock a name for 15 minutes, but a browser that has signed in as that person before keeps its own count, so a stranger who knows a name cannot lock its owner out.
+The PAS server in front must present a secret token, which the installers create at random. Staff sign in with a password or the plan's own single sign-on. Repeated wrong passwords lock a name for 15 minutes, but only from where they came: the address the guesses came from, counted apart from every browser that has signed in as that person before. A stranger who knows a name locks out only themselves.
 
 ## When things go wrong
 

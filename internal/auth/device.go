@@ -1,10 +1,10 @@
 package auth
 
-// Known browsers: the answer to the lockout gap. Five wrong passwords for a name lock that name for 15 minutes, which
-// is what stops guessing, but it also let anyone who knew a name lock its owner out. A browser that has signed in as
-// a name before carries a device cookie for it (signed by this server, for that name only); its attempts are counted
-// on their own, so a stranger's failures lock the name everywhere except the browsers its owner already uses. A device
-// cookie proves nothing about the password: the password is still checked on every sign-in.
+// Known browsers, one half of the answer to the lockout gap (the other is counting unknown browsers per address,
+// auth.go). Five wrong passwords lock a name for 15 minutes from where they came, which is what stops guessing. A
+// browser that has signed in as a name before carries a device cookie for it (signed by this server, for that name
+// only); its attempts are counted on their own, so even guessing spread over many addresses never locks out the
+// browsers the owner already uses. A device cookie proves nothing about the password: it is still checked every time.
 //
 // This is the "device cookies" defence OWASP describes for exactly this problem.
 

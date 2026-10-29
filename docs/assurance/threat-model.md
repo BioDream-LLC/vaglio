@@ -54,11 +54,13 @@ tested by one. What has been run is listed at the end.
 - No outside review of this threat model ([review.md](review.md) is the packet for one, and what a machine review found).
 - Windows does not check the data directory's permissions (Windows reports no Unix modes); the installer sets its ACL.
 - Sessions live in one process's memory: a restart signs everyone out (safe, but not a cluster).
-- The per-name lockout still lets someone who knows a name lock it for 15 minutes in a browser that has never signed
-  in as that name (a new computer, a cleared browser). Browsers that have signed in as it before keep working: since
-  2026-10-24 each carries a device cookie for the name, signed by the server, and their attempts are counted on their
-  own (five per 15 minutes each) and pass the per-address limit, so a shared outward address cannot keep them out
-  either. Single sign-on is not affected.
+- Lockout: five wrong passwords lock a name for 15 minutes only from where they came. A browser that has signed in as
+  the name before carries a device cookie (signed by the server) and counts on its own; any other browser counts with
+  the others at its address. So a stranger guessing at a name locks out only their own address, and the owner can
+  still sign in from a browser they have used, or from any other address. What is left: guessing spread over many
+  addresses (past 50 failures on one name in 15 minutes) locks every new browser out of that name for the rest of
+  the window; the owner's known browsers and single sign-on still work. Someone on the same address as the guesser
+  (a shared office address) is locked out with them, unless their browser is known.
 - By default the standby is asynchronous: a primary lost under load can lose the decisions of the last milliseconds.
   `serve -standby-sync` makes each answer wait for the standby, and falls back to asynchronous, recorded, while the
   standby is down (measured: [recovery.md](recovery.md)).

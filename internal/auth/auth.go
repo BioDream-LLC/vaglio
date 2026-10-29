@@ -549,14 +549,20 @@ func NewSessions(users *Users) *Sessions {
 		deviceKey: k, Idle: 30 * time.Minute, Max: 12 * time.Hour}
 }
 
-// Guessing limits: this many failed sign-ins for one name within the window locks the name for the rest of the window.
+// Guessing limits. Failures are counted per name and per place they come from: a browser known to the name counts on
+// its own (device.go), and any other browser counts with the others at its network address. Five failures within the
+// window lock that one place out of that name for the rest of the window, so a stranger guessing at a name locks only
+// themselves out, never the owner signing in from somewhere else. Guessing spread over many addresses meets a second,
+// higher limit on the name itself: past maxNameFailures failures from unknown browsers in the window, every unknown
+// browser is locked out of the name (its known browsers still are not).
 const (
-	maxFailures   = 5
-	failureWindow = 15 * time.Minute
+	maxFailures     = 5
+	maxNameFailures = 50
+	failureWindow   = 15 * time.Minute
 )
 
 // ErrLocked is a name with too many recent failed sign-ins.
-var ErrLocked = errors.New("too many failed sign-ins for this name; try again in 15 minutes")
+var ErrLocked = errors.New("too many failed sign-ins for this name from here; try again in 15 minutes, or from a browser that has signed in as this name before")
 
 // ErrBadCredentials is a wrong name or password; which one is deliberately not said.
 var ErrBadCredentials = errors.New("wrong name or password")
@@ -571,20 +577,26 @@ func (s *Sessions) SignIn(name, password string) (string, *Session, error) {
 // the name are counted for that browser alone, and a stranger's failures do not lock it out. It returns, beside the
 // session, a fresh device cookie for the browser to keep.
 func (s *Sessions) SignInDevice(name, password, deviceCookie string) (string, *Session, string, error) {
+	return s.SignInFrom(name, password, deviceCookie, "")
+}
+
+// SignInFrom is SignInDevice that also knows the network address the attempt came from: an unknown browser's failures
+// count against that address and that name only (and, much higher, against the name as a whole), so guessing from one
+// place never locks the owner out from another. An empty address counts every unknown browser together.
+func (s *Sessions) SignInFrom(name, password, deviceCookie, address string) (string, *Session, string, error) {
 	now := s.now()
 	s.mu.Lock()
-	key := name
+	key, nameKey := "", ""
 	if id := s.device(name, deviceCookie, now); id != "" {
 		key = "device\x00" + id
+	} else {
+		key = name + "\x00from\x00" + address
+		nameKey = name + "\x00all"
 	}
-	recent := s.failures[key][:0]
-	for _, t := range s.failures[key] {
-		if now.Sub(t) < failureWindow {
-			recent = append(recent, t)
-		}
+	locked := s.recentLocked(key, now) >= maxFailures
+	if nameKey != "" && s.recentLocked(nameKey, now) >= maxNameFailures {
+		locked = true
 	}
-	s.failures[key] = recent
-	locked := len(recent) >= maxFailures
 	s.mu.Unlock()
 	if locked {
 		return "", nil, "", ErrLocked
@@ -601,6 +613,9 @@ func (s *Sessions) SignInDevice(name, password, deviceCookie string) (string, *S
 	if !ok || !check(us, password) {
 		s.mu.Lock()
 		s.failures[key] = append(s.failures[key], now)
+		if nameKey != "" {
+			s.failures[nameKey] = append(s.failures[nameKey], now)
+		}
 		s.mu.Unlock()
 		return "", nil, "", ErrBadCredentials
 	}
@@ -615,6 +630,22 @@ func (s *Sessions) SignInDevice(name, password, deviceCookie string) (string, *S
 	device := s.newDevice(name, now)
 	s.mu.Unlock()
 	return token, sess, device, nil
+}
+
+// recentLocked drops failures older than the window under key and returns how many are left. s.mu must be held.
+func (s *Sessions) recentLocked(key string, now time.Time) int {
+	recent := s.failures[key][:0]
+	for _, t := range s.failures[key] {
+		if now.Sub(t) < failureWindow {
+			recent = append(recent, t)
+		}
+	}
+	if len(recent) == 0 {
+		delete(s.failures, key)
+		return 0
+	}
+	s.failures[key] = recent
+	return len(recent)
 }
 
 // ErrNotSSO is a single sign-on for a name that has no account allowed to sign in that way.

@@ -745,7 +745,7 @@ Reports screen; the switch is recorded in the audit log and survives a restart. 
 address, the closest a PAS request comes to the plan's state.
 
 Roles: **viewer** reads cases and policies; **reviewer** also decides pended cases; **admin** also reads the audit log.
-Sessions end after 30 minutes idle or 12 hours, and on a restart. Five wrong passwords lock a name for 15 minutes, except in browsers that have signed in as it before: each of those is counted on its own, so a stranger who knows the name cannot lock its owner out of them.
+Sessions end after 30 minutes idle or 12 hours, and on a restart. Five wrong passwords lock a name for 15 minutes only from where they came: a browser that has signed in as the name before counts on its own, and any other browser counts with the others at its address. A stranger who knows a name locks out only themselves; guessing spread over many addresses (50 failures on one name in 15 minutes) locks new browsers out of the name, never the browsers its owner already uses.
 
 `data/` holds the audit log, the request Bundles (patient data) and the accounts. The server refuses to use it unless only
 its owner can read it. Back it up as a whole: the cases are the log.

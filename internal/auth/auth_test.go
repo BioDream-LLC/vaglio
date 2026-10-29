@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -274,5 +275,40 @@ func TestDeviceKeyKept(t *testing.T) {
 	b, err := DeviceKey(dir)
 	if err != nil || string(a) != string(b) || len(a) != 32 {
 		t.Fatalf("the key was not kept: %v", err)
+	}
+}
+
+// TestStrangerLocksOnlyThemselves: guessing at a name from one address locks that address out of the name, not the
+// owner on a new browser elsewhere; guessing spread over many addresses meets the name-wide limit, which still never
+// reaches a browser the owner has used before.
+func TestStrangerLocksOnlyThemselves(t *testing.T) {
+	u, _ := users(t)
+	pw, _ := u.Set("dr.lee", Reviewer)
+	s := NewSessions(u)
+	clock := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	s.now = func() time.Time { return clock }
+	_, _, device, _ := s.SignInFrom("dr.lee", pw, "", "198.51.100.9")
+	for i := 0; i < maxFailures+5; i++ {
+		s.SignInFrom("dr.lee", "guess", "", "203.0.113.7")
+	}
+	if _, _, _, err := s.SignInFrom("dr.lee", pw, "", "203.0.113.7"); !errors.Is(err, ErrLocked) {
+		t.Fatalf("the guessing address got in with the right password: %v", err)
+	}
+	if _, _, _, err := s.SignInFrom("dr.lee", pw, "", "192.0.2.44"); err != nil {
+		t.Fatalf("the owner on a new browser elsewhere was locked out by one stranger: %v", err)
+	}
+	// Spread over many addresses, each staying under its own limit.
+	for i := 0; i < maxNameFailures; i++ {
+		s.SignInFrom("dr.lee", "guess", "", "10.0.0."+strconv.Itoa(i/(maxFailures-1)))
+	}
+	if _, _, _, err := s.SignInFrom("dr.lee", pw, "", "192.0.2.200"); !errors.Is(err, ErrLocked) {
+		t.Fatalf("guessing from many addresses is not limited on the name: %v", err)
+	}
+	if _, _, _, err := s.SignInFrom("dr.lee", pw, device, "192.0.2.200"); err != nil {
+		t.Fatalf("the owner's known browser was locked out by many strangers: %v", err)
+	}
+	clock = clock.Add(failureWindow + time.Second)
+	if _, _, _, err := s.SignInFrom("dr.lee", pw, "", "192.0.2.200"); err != nil {
+		t.Fatalf("after the window: %v", err)
 	}
 }

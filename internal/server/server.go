@@ -546,7 +546,7 @@ func (cfg Config) login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusTooManyRequests, "too many failed sign-ins from this address; try again in 15 minutes")
 		return
 	}
-	token, sess, newDevice, err := cfg.Sessions.SignInDevice(body.Name, body.Password, device)
+	token, sess, newDevice, err := cfg.Sessions.SignInFrom(body.Name, body.Password, device, ip)
 	if err != nil {
 		if errors.Is(err, auth.ErrBadCredentials) || errors.Is(err, auth.ErrLocked) {
 			if !known {
