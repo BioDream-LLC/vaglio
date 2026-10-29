@@ -55,6 +55,33 @@ func TestAnchoredReceipt(t *testing.T) {
 	if !strings.HasPrefix(got.Anchor.RecordHash, strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(code, "VG-"), "-", ""))) {
 		t.Errorf("the proof is for another record: %s %s", code, got.Anchor.RecordHash)
 	}
+	// The decision's answer carried the server's promise, which the receipt's later proof keeps.
+	if ans.Promise == nil || ans.Receipt != code {
+		t.Fatalf("the answer carried no promise: %+v", ans)
+	}
+	if err := ans.Promise.KeptBy(*got.Anchor, a.Public()); err != nil {
+		t.Fatalf("the promise: %v", err)
+	}
+	// The export carries the same promise on the decision's record, and none on records that decide nothing.
+	ex := do(e.signedIn(t, "admin"), "GET", "/api/export/events?after=0", "")
+	withPromise := 0
+	for _, line := range strings.Split(strings.TrimSpace(ex.Body.String()), "\n") {
+		var ev struct {
+			Seq     int64           `json:"seq"`
+			Type    string          `json:"type"`
+			Promise *anchor.Promise `json:"promise"`
+		}
+		json.Unmarshal([]byte(line), &ev)
+		if ev.Promise != nil {
+			withPromise++
+			if ev.Promise.Seq != ans.Promise.Seq || ev.Promise.Leaf != ans.Promise.Leaf || ev.Promise.Verify(a.Public()) != nil {
+				t.Errorf("the export's promise differs: %+v", ev.Promise)
+			}
+		}
+	}
+	if withPromise != 1 {
+		t.Errorf("%d exported records carried a promise, want 1: %s", withPromise, ex.Body)
+	}
 	submit(t, e, request(testNPI, "", "", approves...))
 	c2, _ := a.Checkpoint(context.Background(), false)
 	var cp anchor.ConsistencyProof

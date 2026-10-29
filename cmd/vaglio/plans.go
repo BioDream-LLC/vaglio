@@ -551,18 +551,6 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 			return fail(fmt.Errorf("appeals-token-env: %s is empty", sp.AppealsTokenEnv))
 		}
 	}
-	if sp.Webhook != "" {
-		secret, err := secretFrom(sp.WebhookSecretEnv)
-		if err != nil {
-			return fail(fmt.Errorf("webhook-secret-env: %w", err))
-		}
-		hook := &feed.Webhook{URL: sp.Webhook, Secret: []byte(secret), Cursor: filepath.Join(sp.Data, "webhook.cursor"),
-			Log: st.log}
-		if err := hook.Start(ctx); err != nil {
-			return fail(fmt.Errorf("webhook: %w", err))
-		}
-		cfg.Webhook = hook
-	}
 	if sh.anchorEvery > 0 {
 		name := sp.Hostname
 		if name == "" {
@@ -593,6 +581,18 @@ func openPlan(ctx context.Context, sp planSpec, sh shared) (*openedPlan, error) 
 		}
 		an.Start(ctx)
 		cfg.Anchor = an
+	}
+	if sp.Webhook != "" {
+		secret, err := secretFrom(sp.WebhookSecretEnv)
+		if err != nil {
+			return fail(fmt.Errorf("webhook-secret-env: %w", err))
+		}
+		hook := &feed.Webhook{URL: sp.Webhook, Secret: []byte(secret), Cursor: filepath.Join(sp.Data, "webhook.cursor"),
+			Log: st.log, Promise: cfg.PromiseOf} // after the anchor, so decisions go out with their promises
+		if err := hook.Start(ctx); err != nil {
+			return fail(fmt.Errorf("webhook: %w", err))
+		}
+		cfg.Webhook = hook
 	}
 	if cfg.Adoption, err = adoption.Open(st.log, filepath.Join(sp.Data, "adopted")); err != nil {
 		return fail(fmt.Errorf("adoptions: %w", err))

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/biodream-llc/perfuse/pas"
+	"github.com/biodream-llc/vaglio/internal/anchor"
 	"github.com/biodream-llc/vaglio/internal/cases"
 	"github.com/biodream-llc/vaglio/internal/decide"
 	"github.com/biodream-llc/vaglio/internal/eligibility"
@@ -45,6 +46,9 @@ type PASAnswer struct {
 	Precedence *precedence.Choice `json:"precedence,omitempty"`
 	// Receipt checks this decision against the audit log, by anyone holding it, at /api/receipts/{receipt}.
 	Receipt string `json:"receipt,omitempty"`
+	// Promise, when the server anchors its log, is its signed statement that this decision is record N of the log:
+	// kept, it lets whoever holds it prove later that the record was changed or left out (internal/anchor/promise.go).
+	Promise *anchor.Promise `json:"promise,omitempty"`
 }
 
 // decidePAS answers POST /api/pas/decide?item=<sequence> with a PAS request Bundle as the body. Every decision is a case
@@ -167,9 +171,7 @@ func (cfg Config) decideBundle(raw []byte, seq, requestID, channel, keyedBy stri
 		return PASAnswer{}, http.StatusInternalServerError, "the decision could not be recorded, so it is not given: " + err.Error()
 	}
 	a.Case = c.ID
-	if rs := receiptsFor(cfg.Audit.ForCase(c.ID)); len(rs) > 0 {
-		a.Receipt = rs[0].Receipt
-	}
+	a.Receipt, a.Promise = cfg.receiptAndPromise(c.ID)
 	cfg.readSoon(c)
 	return a, http.StatusOK, ""
 }

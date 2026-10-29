@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/biodream-llc/vaglio/internal/anchor"
+	"github.com/biodream-llc/vaglio/internal/audit"
 	"github.com/biodream-llc/vaglio/internal/auth"
 	"github.com/biodream-llc/vaglio/internal/receipt"
 )
@@ -115,4 +116,33 @@ func (cfg Config) receiptProof(c *receipt.Check) ReceiptAnswer {
 		}
 	}
 	return a
+}
+
+// receiptAndPromise is the receipt of a case's first decision and, when the log is anchored, the server's signed
+// promise of where that decision sits in the log.
+func (cfg Config) receiptAndPromise(caseID string) (string, *anchor.Promise) {
+	for _, r := range cfg.Audit.ForCase(caseID) {
+		if !receipt.Decisions[r.Action] {
+			continue
+		}
+		var p *anchor.Promise
+		if cfg.Anchor != nil {
+			p, _ = cfg.Anchor.Promise(r.Seq, r.Hash) // a hash that is not one would be a broken log: no promise then
+		}
+		return receipt.Code(r.Hash), p
+	}
+	return "", nil
+}
+
+// PromiseOf is a decision record's promise for the outbound feeds, nil for any other record or when the log is not
+// anchored: a receiver that keeps it holds the same proof as whoever got the decision's answer.
+func (cfg Config) PromiseOf(r audit.Record) any {
+	if cfg.Anchor == nil || !receipt.Decisions[r.Action] {
+		return nil
+	}
+	p, err := cfg.Anchor.Promise(r.Seq, r.Hash)
+	if err != nil {
+		return nil
+	}
+	return p
 }

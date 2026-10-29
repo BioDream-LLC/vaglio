@@ -249,8 +249,11 @@ The proof, written for whoever needs it: the provider, the patient, a regulator.
   endpoint. A
   receipt's answer then carries its record's proof, checked offline with `vaglio anchor verify -key PLANKEY`. Only
   hashes leave, salted so no one can test a guess about another patient's record. It proves the records have not
-  changed since a checkpoint; it does not prove a decision was right, or that nothing was left out before one. Tried
-  against the real OpenTimestamps calendars, Rekor, FreeTSA and DigiCert.
+  changed since a checkpoint. Every decision's answer also carries the server's signed **promise** of where its record
+  sits in the log (as certificate transparency logs promise an entry): held against a later checkpoint with
+  `vaglio anchor verify -promise ANSWER.json`, a record changed or left out shows as two signed statements that
+  contradict each other. It does not prove a decision was right, or anything about a decision nobody was ever told of.
+  Tried against the real OpenTimestamps calendars, Rekor, FreeTSA and DigiCert.
 - **Plain-language letters** (each case, in English or Spanish, `GET /api/cases/{id}/letter?lang=en|es`): what was
   asked for, what was decided and by whom, the policy's words it rests on, what the record showed, what is needed or
   what would change it, the patient's rights, and the receipt with its QR code. Written from the decision by fixed

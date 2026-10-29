@@ -179,7 +179,7 @@ func usage(w io.Writer) {
                                   a shadow pilot: past requests decided beside what the plan decided
   vaglio import-dtr -id ID -service "SYSTEM CODE..." -out FILE.vaglio QUESTIONNAIRE.json
   vaglio sources                            # the library's Medicare sources against their current CMS versions
-  vaglio anchor verify [-key BASE64] FILE.json...  # a receipt's answer or a consistency proof, checked offline
+  vaglio anchor verify [-key BASE64] [-promise ANSWER.json] FILE.json...  # receipts, consistency, promises, offline
                                   a draft from a DTR Questionnaire the plan already has (its yes/no questions)
   vaglio readings [-json] A.vaglio B.vaglio    where two readings of one coverage document decide a record differently
   vaglio signoff -by "NAME, CREDENTIAL" [-date YYYY-MM-DD] FILE.vaglio

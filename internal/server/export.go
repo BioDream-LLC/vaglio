@@ -18,7 +18,7 @@ func (cfg Config) exportEvents(w http.ResponseWriter, r *http.Request, s auth.Se
 	if limit <= 0 || limit > 10000 {
 		limit = 10000
 	}
-	evs := feed.Events(cfg.Audit, after, limit)
+	evs := feed.EventsWith(cfg.Audit, after, limit, cfg.PromiseOf)
 	if _, err := cfg.Audit.Append("user:"+s.User, "export.read", "", map[string]any{"after": after, "events": len(evs)}); err != nil {
 		writeError(w, http.StatusInternalServerError, "the export could not be recorded, so it is not given: "+err.Error())
 		return

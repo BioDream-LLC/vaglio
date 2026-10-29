@@ -64,6 +64,38 @@ shown only with that record's own receipt.
 `GET /api/anchor` gives it) so receipts can be tied to the plan. Losing it means new checkpoints are signed with a new
 key; the old ones still verify with the old public key.
 
+## Promises: a record left out is provable
+
+A checkpoint alone cannot show a record is missing: a server could answer a request and never log it, or rebuild
+its log without it before the next checkpoint, keeping its keys so the new checkpoints look like the old ones. So
+every decision's answer (`POST /api/pas/decide`) carries a **promise**, signed with the checkpoint key:
+
+```
+vaglio promise v1
+<the log's name>
+<the record's number in the log>
+<the record's hash>
+<its leaf in the Merkle tree>
+<the time>
+```
+
+The PAS server in front, or anyone it passes the answer to, keeps it. The signed webhook and the NDJSON export
+(`GET /api/export/events`) carry the same promise on each decision's record, so a plan's data warehouse, a
+regulator's feed or a partner holds one too, outside the plan's own servers. Later, the receipt's answer gives the record's
+proof against the checkpoint that covers it, and
+
+```
+$ vaglio anchor verify -key PLAN-KEY -promise answer.json receipt.json
+```
+
+checks that the checkpoint's tree holds the promised leaf at the promised place. If it does not, the server has
+signed two statements that contradict each other, and the command says `BROKEN PROMISE`: that is proof, signed by the
+server itself, that the record was changed or left out. A server that refuses to give the proof at all is refusing
+something it promised, which is plain to see. This is what certificate transparency logs give with their signed
+certificate timestamps (RFC 6962).
+
+Making a promise costs one Ed25519 signature and no read of the log, so every answer carries one.
+
 ## What it proves, and what it does not
 
 - **It proves** that the records up to a checkpoint have not changed since it was signed, and, with a witness, since
@@ -71,8 +103,9 @@ key; the old ones still verify with the old public key.
   failing to match what the witness holds.
 - **It does not prove:**
   - that a decision was right;
-  - that every decision was ever recorded. A record never written is not in any checkpoint, and records made after the
-    last checkpoint are covered only by the next one.
+  - anything about a decision nobody was ever told of. A decision whose answer was given carries a promise, so leaving
+    it out is provable; a decision never answered at all carries none. Records made after the last checkpoint are
+    covered only by the next one (their promises wait for it).
 - **The witnesses' own trust is theirs.** Bitcoin's for OpenTimestamps, Sigstore's for Rekor, the authority's
   certificate for RFC 3161, the endpoint's operator for the last kind.
 
@@ -83,6 +116,9 @@ key; the old ones still verify with the old public key.
 - `internal/anchor`:
   - a receipt's proof verifies, and fails with another salt or another key;
   - a later checkpoint extends an earlier one;
+  - a promise is kept by the honest log's proof, and broken by a log rebuilt without the record (same keys, old
+    checkpoints thrown away, every hash fresh), or by the old leaf on the new tree (`TestPromises`); the server's
+    answers carry one (`TestAnchoredReceipt`) and `vaglio anchor verify -promise` reports a broken one;
   - a log rewritten after a checkpoint, with every hash recomputed and a chain that verifies on its own, is caught at
     start;
   - the witnesses, against stand-ins.

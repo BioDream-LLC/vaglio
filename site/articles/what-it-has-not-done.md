@@ -50,7 +50,7 @@ These are built and tested, but only against our own stand-ins made from each se
 - **Standby.** By default, the last few decisions before a sudden failure might not have reached the standby (0 to 3 in our drills). The setting that prevents that costs about 23% of throughput.
 - **macOS.** Fewer requests can be handled at once on a Mac than on Linux, because of how macOS saves files.
 - **Power cuts.** Tested by replaying simulated cuts, on two Linux file systems. A disk that claims to have saved data and then loses it defeats any software.
-- **The log's protection** shows any change made after a checkpoint was witnessed outside the plan. It cannot show that something was never recorded in the first place.
+- **The log's protection** shows any change made after a checkpoint was witnessed outside the plan, and every answer carries a signed promise that makes a decision left out of the log provable by whoever kept the answer. It cannot say anything about a decision that was never answered at all.
 
 ## What we will not do
 

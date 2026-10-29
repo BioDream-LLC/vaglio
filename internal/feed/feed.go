@@ -34,6 +34,9 @@ type Event struct {
 	audit.Record
 	// Type is the record's action, such as case.opened or case.reviewed.
 	Type string `json:"type"`
+	// Promise, on a decision when the log is anchored, is the server's signed promise of the record's place in the
+	// log: a receiver that keeps it can later prove the record was changed or left out (internal/anchor/promise.go).
+	Promise any `json:"promise,omitempty"`
 }
 
 // Wanted is whether a record goes out: records about a case, but not the reading of one (case.viewed), which would
@@ -43,7 +46,10 @@ func Wanted(r audit.Record) bool {
 }
 
 // Events are the wanted records after seq, at most limit.
-func Events(l *audit.Log, after int64, limit int) []Event {
+func Events(l *audit.Log, after int64, limit int) []Event { return EventsWith(l, after, limit, nil) }
+
+// EventsWith is Events with each record's promise from promise (nil, or one returning nil, for none).
+func EventsWith(l *audit.Log, after int64, limit int, promise func(audit.Record) any) []Event {
 	var out []Event
 	for len(out) < limit || limit <= 0 {
 		page := l.Records(after, 500)
@@ -53,7 +59,11 @@ func Events(l *audit.Log, after int64, limit int) []Event {
 		for _, r := range page {
 			after = r.Seq
 			if Wanted(r) {
-				out = append(out, Event{Record: r, Type: r.Action})
+				ev := Event{Record: r, Type: r.Action}
+				if promise != nil {
+					ev.Promise = promise(r)
+				}
+				out = append(out, ev)
 				if limit > 0 && len(out) == limit {
 					break
 				}
@@ -109,6 +119,8 @@ type Webhook struct {
 	Log    *audit.Log
 	Client *http.Client
 	Batch  int // events per delivery, 100 when 0
+	// Promise, when set, gives a record's promise (nil for none): set by the server when it anchors its log.
+	Promise func(audit.Record) any
 
 	mu        sync.Mutex
 	done      chan struct{}
@@ -201,7 +213,7 @@ func (w *Webhook) Once(ctx context.Context) (int, error) {
 	if batch <= 0 {
 		batch = 100
 	}
-	evs := Events(w.Log, after, batch)
+	evs := EventsWith(w.Log, after, batch, w.Promise)
 	last := after
 	if len(evs) > 0 {
 		last = evs[len(evs)-1].Seq

@@ -6,6 +6,7 @@ import (
 	"encoding/asn1"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"math/big"
 	"net/http"
@@ -252,4 +253,78 @@ func fakeToken(t *testing.T, digest []byte, gen time.Time) []byte {
 		Token  asn1.RawValue
 	}{pkiStatusInfo{Status: 0}, asn1.RawValue{FullBytes: ci}})
 	return resp
+}
+
+// TestPromises: a promise is signed at once; once a checkpoint covers the record, the receipt's proof keeps it. A
+// server that later rebuilds its log without the record (same key, the old checkpoints thrown away, every hash fresh)
+// signs a checkpoint that contradicts its own promise, and the contradiction is caught offline.
+func TestPromises(t *testing.T) {
+	dir := t.TempDir()
+	l := openLog(t, filepath.Join(dir, "audit.jsonl"), 4)
+	a := &Anchor{Dir: filepath.Join(dir, "anchor"), Log: l, Name: "plan.example"}
+	if err := a.Open(); err != nil {
+		t.Fatal(err)
+	}
+	rec, err := l.Append("system", "case.decided", "C-1", map[string]string{"decision": "deny"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr, err := a.Promise(rec.Seq, rec.Hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pr.Verify(a.Public()); err != nil {
+		t.Fatalf("promise: %v", err)
+	}
+	early, _ := a.Prove(rec.Seq)
+	if err := pr.KeptBy(*early, a.Public()); err == nil || errors.Is(err, ErrBroken) {
+		t.Fatalf("before any checkpoint: %v", err)
+	}
+	ctx := context.Background()
+	if _, err := a.Checkpoint(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	proof, _ := a.Prove(rec.Seq)
+	if err := pr.KeptBy(*proof, a.Public()); err != nil {
+		t.Fatalf("an honest log broke its promise: %v", err)
+	}
+	forged := *pr
+	forged.Seq = 3
+	if forged.Verify(nil) == nil {
+		t.Error("a promise with a changed field verified")
+	}
+
+	// The server rebuilds its log without the denial: a harmless record in its place, the anchor's checkpoints gone,
+	// the same signing key and salt kept so its new checkpoints look like its old ones.
+	dir2 := t.TempDir()
+	l2 := openLog(t, filepath.Join(dir2, "audit.jsonl"), 4)
+	l2.Append("system", "case.decided", "C-1", map[string]string{"decision": "approve"})
+	os.MkdirAll(filepath.Join(dir2, "anchor"), 0o700)
+	for _, f := range []string{"signing.key", "salt.key"} {
+		raw, _ := os.ReadFile(filepath.Join(dir, "anchor", f))
+		os.WriteFile(filepath.Join(dir2, "anchor", f), raw, 0o600)
+	}
+	b := &Anchor{Dir: filepath.Join(dir2, "anchor"), Log: l2, Name: "plan.example"}
+	if err := b.Open(); err != nil {
+		t.Fatal(err)
+	}
+	if b.Problem() != "" {
+		t.Fatalf("the rebuilt log should look clean to its own server: %s", b.Problem())
+	}
+	if _, err := b.Checkpoint(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	lie, _ := b.Prove(rec.Seq)
+	if err := VerifyReceipt(*lie, a.Public()); err != nil {
+		t.Fatalf("the rebuilt log's own proof should verify alone: %v", err)
+	}
+	if err := pr.KeptBy(*lie, a.Public()); !errors.Is(err, ErrBroken) {
+		t.Fatalf("a rebuilt log kept the promise: %v", err)
+	}
+	// Handing over the old leaf with the new tree's path does not help.
+	mixed := *lie
+	mixed.RecordHash, mixed.Leaf, mixed.Salt = proof.RecordHash, proof.Leaf, proof.Salt
+	if err := pr.KeptBy(mixed, a.Public()); !errors.Is(err, ErrBroken) {
+		t.Fatalf("the old leaf on the new tree kept the promise: %v", err)
+	}
 }

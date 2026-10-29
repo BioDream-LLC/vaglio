@@ -90,7 +90,9 @@ We want to be exact here, because claims about tamper-proof records are often in
 
 It **proves** that the entries covered by a witnessed checkpoint have not been changed, removed or reordered since the time the witness recorded it. It proves which decision a receipt stands for, which policy version it applied, and who made it.
 
-It **does not prove** that a decision was right. A wrong decision, faithfully recorded, is still wrong. It also does not prove that nothing was left out of the log before it was first anchored: a request that was never recorded leaves no fingerprint to check. And it does not stop someone with full access from deleting the whole log; it makes that visible, because the receipts and the witnesses still exist.
+It also makes a record **left out** provable. Every decision's answer carries the server's signed promise: "this decision is entry number N of the log, with this fingerprint". Whoever keeps the answer, the PAS server first, can later hold the promise against the checkpoint that covers entry N. If the log was rebuilt without that decision, or with a different one in its place, the server has signed two statements that contradict each other, and the check says so. Certificate transparency, the system that keeps web certificates honest, works the same way.
+
+It **does not prove** that a decision was right. A wrong decision, faithfully recorded, is still wrong. Nor can it say anything about a decision nobody was ever told of: a request that was never answered carries no promise to check. And it does not stop someone with full access from deleting the whole log; it makes that visible, because the receipts and the witnesses still exist.
 
 That is why the receipt sits beside the other safeguards rather than replacing them: proofs that can be read, clinicians who sign off policies and make denials, and reports that show patterns across many decisions.
 
