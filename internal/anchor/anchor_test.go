@@ -261,6 +261,7 @@ func fakeToken(t *testing.T, digest []byte, gen time.Time) []byte {
 func TestPromises(t *testing.T) {
 	dir := t.TempDir()
 	l := openLog(t, filepath.Join(dir, "audit.jsonl"), 4)
+	defer l.Close() // Windows removes no file still open
 	a := &Anchor{Dir: filepath.Join(dir, "anchor"), Log: l, Name: "plan.example"}
 	if err := a.Open(); err != nil {
 		t.Fatal(err)
@@ -298,6 +299,7 @@ func TestPromises(t *testing.T) {
 	// the same signing key and salt kept so its new checkpoints look like its old ones.
 	dir2 := t.TempDir()
 	l2 := openLog(t, filepath.Join(dir2, "audit.jsonl"), 4)
+	defer l2.Close()
 	l2.Append("system", "case.decided", "C-1", map[string]string{"decision": "approve"})
 	os.MkdirAll(filepath.Join(dir2, "anchor"), 0o700)
 	for _, f := range []string{"signing.key", "salt.key"} {
