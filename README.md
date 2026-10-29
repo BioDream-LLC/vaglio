@@ -16,7 +16,7 @@ reports and audit log are built in; it decides Da Vinci PAS requests behind
 [Perfuse](https://github.com/BioDream-LLC/perfuse) or any PAS server that calls its decision hook, and takes faxes,
 calls and portal requests too.
 
-[![License](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-8b5cf6.svg)](LICENSE.md) [![Go](https://img.shields.io/badge/Go-1.27%2B-00ADD8.svg?logo=go&logoColor=white)](https://go.dev) [![Version](https://img.shields.io/badge/version-v0.2.0-orange.svg)](#status) [![Website](https://img.shields.io/badge/website-vaglio.health-6a3fd4.svg)](https://vaglio.health) [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)](#build) [![Works with](https://img.shields.io/badge/works%20with-Perfuse-3b82f6.svg)](https://github.com/BioDream-LLC/perfuse)
+[![License](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-8b5cf6.svg)](LICENSE.md) [![Go](https://img.shields.io/badge/Go-1.27%2B-00ADD8.svg?logo=go&logoColor=white)](https://go.dev) [![Version](https://img.shields.io/badge/version-v0.2.1-orange.svg)](#status) [![Website](https://img.shields.io/badge/website-vaglio.health-6a3fd4.svg)](https://vaglio.health) [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)](#build) [![Works with](https://img.shields.io/badge/works%20with-Perfuse-3b82f6.svg)](https://github.com/BioDream-LLC/perfuse)
 
 <a href="https://vaglio.perfuse.health:8443"><img src="docs/assets/buttons/try.svg" alt="Try Vaglio now: the live demonstration, no install" width="300"></a>
 
@@ -24,7 +24,7 @@ calls and portal requests too.
 
 <a href="https://vaglio.health"><img src="docs/assets/buttons/website.svg" alt="The website: vaglio.health, with plain-words articles" width="240"></a>&nbsp;<a href="docs/Vaglio-overview.pptx"><img src="docs/assets/buttons/overview.svg" alt="Vaglio in plain words: the slides" width="240"></a>&nbsp;<a href="#build"><img src="docs/assets/buttons/source.svg" alt="Build Vaglio from source" width="240"></a>
 
-<sub><b>v0.2.0</b>: <a href="https://github.com/BioDream-LLC/vaglio/releases/latest">the release</a> (Linux, macOS and Windows, x86 and Arm; reproducible, with build provenance), or build it from source with Go. [What it needs](#build)</sub>
+<sub><b>v0.2.1</b>: <a href="https://github.com/BioDream-LLC/vaglio/releases/latest">the release</a> (Linux, macOS and Windows, x86 and Arm; reproducible, with build provenance), or build it from source with Go. [What it needs](#build)</sub>
 
 [**Why now**](#why-now) · [**How it compares**](#how-it-compares) · [**What it does**](#everything-it-does) · [**What it looks like**](#what-it-looks-like) · [**Running it**](#running-it) ·
 [**Behind Perfuse**](#behind-perfuse) · [**Writing policies**](#writing-policies) · [**Security**](#security) · [**FAQ**](#faq)
