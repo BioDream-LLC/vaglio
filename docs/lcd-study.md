@@ -59,7 +59,8 @@ The same 60 LCDs, the 38 that had not passed drafted again:
 | Too long for the model | 1 | 1 | 0 (its context is far larger) |
 
 53 of the 60 passed with one model or the other. DeepSeek's largest passing policy uses exactly 16 pieces of evidence.
-The 16 limit stays: with the guidance, every LCD in the sample fitted under it.
+The 16 limit stays: with the guidance, every LCD in the sample fitted under it. (Since 2026-10-28 the language allows 40,
+checked by a search past 16; the drafting guide still asks for 16 at most, since a smaller policy is easier to read.)
 
 The 7 neither model passed, and what stopped them in the last round:
 

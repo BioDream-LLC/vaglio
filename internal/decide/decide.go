@@ -117,6 +117,10 @@ type Result struct {
 	// denial, means no further evidence would approve it under this policy - only a record that is wrong could.
 	ToApprove [][]Change        `json:"toApprove,omitempty"`
 	Labels    map[string]string `json:"labels"` // every argument's status, for audit
+	// Cautious, when set, is why the search for what could change this outcome did not finish (a policy past 16
+	// pieces of evidence, search.go): every piece not documented was then treated as able to change it, so a denial
+	// pends, asking for all of them.
+	Cautious string `json:"cautious,omitempty"`
 }
 
 // Change is one piece of evidence a route to approval needs documented present.
@@ -186,7 +190,17 @@ func Decide(p *policy.Policy, req Request) (*Result, error) {
 			open = append(open, n)
 		}
 	}
-	minimal := overturning(p, present, open, s.outcome)
+	minimal, complete := overturning(p, present, open, s.outcome)
+	if !complete {
+		// The search ran out of budget: any piece not documented might change the outcome, so each is treated as if
+		// it could. A denial then pends for all of them; nothing is denied on a search that did not finish.
+		res.Cautious = "the search for what could change this outcome did not finish; every piece of evidence not " +
+			"documented is treated as able to change it"
+		minimal = nil
+		for _, n := range open {
+			minimal = append(minimal, []string{n})
+		}
+	}
 
 	var unaddressed, relied []string
 	for _, set := range minimal {
@@ -247,7 +261,10 @@ func contains(list []string, s string) bool {
 
 // overturning returns the minimal subsets of open evidence whose addition changes the outcome, smallest first.
 // policy.Validate bounds the evidence count, which bounds this enumeration.
-func overturning(p *policy.Policy, present map[string]*Citation, open []string, was Outcome) [][]string {
+func overturning(p *policy.Policy, present map[string]*Citation, open []string, was Outcome) ([][]string, bool) {
+	if len(open) > oneByOne {
+		return minimalSets(p, present, open, func(o Outcome) bool { return o != was })
+	}
 	n := len(open)
 	var found []uint32
 	for size := 1; size <= n; size++ {
@@ -287,7 +304,7 @@ func overturning(p *policy.Policy, present map[string]*Citation, open []string, 
 			}
 		}
 	}
-	return out
+	return out, true
 }
 
 // maxRoutes bounds how many routes to approval a result lists: past a handful, a list is no longer advice.
@@ -304,44 +321,55 @@ func toApprove(p *policy.Policy, present, absent map[string]*Citation) [][]Chang
 		}
 	}
 	n := len(open)
-	var found []uint32
-	for size := 1; size <= n; size++ {
-		for m := uint32(1); m < 1<<uint(n); m++ {
-			if bits.OnesCount32(m) != size {
-				continue
-			}
-			covered := false
-			for _, f := range found {
-				if m&f == f {
-					covered = true
-					break
+	var routes [][]string
+	if n > oneByOne {
+		routes, _ = minimalSets(p, present, open, func(o Outcome) bool { return o == Approved }) // advice: what it found
+	} else {
+		var found []uint32
+		for size := 1; size <= n; size++ {
+			for m := uint32(1); m < 1<<uint(n); m++ {
+				if bits.OnesCount32(m) != size {
+					continue
+				}
+				covered := false
+				for _, f := range found {
+					if m&f == f {
+						covered = true
+						break
+					}
+				}
+				if covered {
+					continue
+				}
+				with := map[string]*Citation{}
+				for k, v := range present {
+					with[k] = v
+				}
+				for i, name := range open {
+					if m&(1<<uint(i)) != 0 {
+						with[name] = &Citation{}
+					}
+				}
+				if solve(p, with).outcome == Approved {
+					found = append(found, m)
 				}
 			}
-			if covered {
-				continue
-			}
-			with := map[string]*Citation{}
-			for k, v := range present {
-				with[k] = v
-			}
+		}
+		for _, m := range found {
+			var r []string
 			for i, name := range open {
 				if m&(1<<uint(i)) != 0 {
-					with[name] = &Citation{}
+					r = append(r, name)
 				}
 			}
-			if solve(p, with).outcome == Approved {
-				found = append(found, m)
-			}
+			routes = append(routes, r)
 		}
 	}
 	var clean, contradicting [][]Change
-	for _, m := range found {
+	for _, names := range routes {
 		var route []Change
 		wrong := false
-		for i, name := range open {
-			if m&(1<<uint(i)) == 0 {
-				continue
-			}
+		for _, name := range names {
 			a, _ := p.Argument(name)
 			c := Change{Item: Item{Argument: a.Name, Text: a.Text, Clause: a.Clause, Citation: absent[name]}}
 			if absent[name] != nil {

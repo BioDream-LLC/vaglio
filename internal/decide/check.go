@@ -16,10 +16,15 @@ type Report struct {
 	Reached      map[string]int `json:"reached"`     // decision argument -> on how many combinations it holds
 	Unreachable  []string       `json:"unreachable"` // decisions no combination of evidence ever reaches
 	Defects      [][]string     `json:"defects"`     // up to 10 evidence sets on which the policy is defective
+	// Incomplete, for a policy past 16 pieces of evidence, is why its check could not finish (search.go): the
+	// policy then fails its check.
+	Incomplete string `json:"incomplete,omitempty"`
 }
 
 // OK is whether the policy can be put in front of a request.
-func (r *Report) OK() bool { return len(r.Defects) == 0 && len(r.Unreachable) == 0 }
+func (r *Report) OK() bool {
+	return len(r.Defects) == 0 && len(r.Unreachable) == 0 && r.Incomplete == ""
+}
 
 // Check solves the policy on every combination of evidence present: a policy is not trusted on the strength of the
 // cases its author thought of. It fails a policy that contradicts itself or rejects everything on some evidence, or
@@ -28,6 +33,10 @@ func Check(p *policy.Policy) *Report {
 	ev := p.EvidenceNames()
 	total := 1 << uint(len(ev)) // policy.Validate bounds len(ev)
 	r := &Report{Policy: p.ID, Combinations: total, Outcomes: map[string]int{}, Reached: map[string]int{}}
+	if len(ev) > oneByOne {
+		checkSearch(p, r)
+		return unreachable(p, r)
+	}
 	for mask := 0; mask < total; mask++ {
 		present := map[string]*Citation{}
 		var set []string
@@ -54,6 +63,14 @@ func Check(p *policy.Policy) *Report {
 			}
 			r.Defects = append(r.Defects, set)
 		}
+	}
+	return unreachable(p, r)
+}
+
+// unreachable fills in the decisions no combination reaches.
+func unreachable(p *policy.Policy, r *Report) *Report {
+	if r.Incomplete != "" {
+		return r
 	}
 	for _, a := range p.Arguments {
 		if a.Kind == policy.Decision && r.Reached[a.Name] == 0 {

@@ -261,10 +261,11 @@ type Policy struct {
 	Attacks   []Attack   `json:"attacks"`
 }
 
-// MaxEvidence bounds the evidence a policy may declare. Both the policy check and every decision's absence test
-// enumerate combinations of evidence, so this is what keeps them exact rather than sampled. 2^16 solves of a policy
-// this size take well under a second.
-const MaxEvidence = 16
+// MaxEvidence bounds the evidence a policy may declare. The policy check covers every combination of it exactly:
+// up to 16 by solving each in turn, past that by a search that counts whole families of combinations at once
+// (internal/decide/search.go), which fails a policy too intricate to finish. Each decision's absence test is exact
+// too, or, when its search runs out of budget, cautious: a denial then pends.
+const MaxEvidence = 40
 
 var (
 	nameRe  = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)

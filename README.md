@@ -367,6 +367,9 @@ Short text files in the plan's own words, checked on every combination before th
 
 - **Policies in a small language** (`.vaglio`), compiled to the model the engine solves, with errors at line and column,
   `vaglio fmt`, lint warnings, and an exhaustive check over every combination of evidence before a policy may load.
+  Up to 40 pieces of evidence: up to 16 every combination is solved in turn; past that a search counts whole families
+  of combinations at once (exactly: tested against solving every one), and a policy too intricate to finish fails its
+  check. A decision whose search for what could change it runs out of budget is cautious: a denial pends.
 - **A policy library** (`library/`): policies drafted from published coverage documents, each held by a test to the
   drafting gates against its source, which is kept beside it with where and when it was retrieved. The library is
   built into the program (`serve -library`, on by default; `-library=false` turns it off), and each policy decides

@@ -39,6 +39,11 @@ export function Result({
       {reasonText[result.reason] && <p>{reasonText[result.reason]}</p>}
       <Items title="Information needed" items={result.missing} />
       <Items title="Assumed absent (not addressed in the record)" items={result.assumptions} />
+      {result.cautious && (
+        <p className="note warn mt-2">
+          Decided cautiously: {result.cautious}. Nothing is denied on a search that did not finish.
+        </p>
+      )}
       <Items title="Relied on as documented absent" items={result.relied} />
       <Items title="Contradicted in the record" items={result.contradicted} />
       <Routes routes={result.toApprove} />

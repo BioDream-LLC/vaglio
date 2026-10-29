@@ -150,6 +150,8 @@ export interface DecideResult {
   proof?: ProofNode;
   missing?: Item[];
   assumptions?: Item[];
+  /** Why the search for what could change this outcome did not finish (large policies): it was then cautious. */
+  cautious?: string;
   relied?: Item[];
   contradicted?: Item[];
   toApprove?: Change[][];

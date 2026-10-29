@@ -75,7 +75,7 @@ It is worth being precise about the limits:
 
 - **Consistency is not correctness.** A policy can pass every check and still be medically wrong, or misread its source. That is why a clinician must sign off every policy before it decides anything, and why the plan's clinicians must adopt each library policy. See [clinicians stay in charge](/learn/clinicians-stay-in-charge/).
 - **The check covers the policy, not the record.** It assumes the evidence was found correctly. Finding it is tested separately, line by line, against sample requests.
-- **Size has a limit.** The policy language allows up to 16 pieces of evidence in one policy, which is 65,536 combinations, and every one is solved. A coverage document with more than that is split into one policy per service, and each part is checked on its own. In our study of 60 Medicare documents, none needed more once that was done.
+- **Size has a limit.** A policy may hold up to 40 pieces of evidence. Up to 16 (65,536 combinations), every combination is solved one by one. Past that, the check walks the evidence one piece at a time and stops branching as soon as the outcome no longer depends on what is left, so a list of 30 alternative indications, any one of which is enough, is checked exactly in a fraction of a second. The counts are the same as solving every combination; we test that on every library policy and on hundreds of random ones. A policy too tangled to finish this way fails its check and says so. In our study of 60 Medicare documents, none needed more than 16 once alternatives were written as one piece of evidence.
 
 ## Why it matters
 
